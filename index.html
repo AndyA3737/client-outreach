@@ -89,7 +89,20 @@
 <div id="tenantSelector" style="position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:110;">
   <img src="https://www.saloniq.com/img/logo.svg" alt="SalonIQ" class="h-10 mb-8">
   <div class="text-2xl font-bold mb-1" style="color:var(--navy)">SMS Targeting Dashboard</div>
-  <div class="text-sm mb-8" style="color:var(--muted)">Select a salon to load client data</div>
+  <div class="text-sm mb-6" style="color:var(--muted)">Select a server and salon to load client data</div>
+
+  <!-- Server toggle -->
+  <div class="flex rounded-xl overflow-hidden border mb-6" style="border-color:var(--border);width:260px">
+    <button id="btnBeta" onclick="setServer('BETA')"
+      style="flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;background:var(--navy);color:#fff;transition:all 0.15s">
+      BETA
+    </button>
+    <button id="btnLive" onclick="setServer('LIVE')"
+      style="flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;background:#fff;color:var(--muted);transition:all 0.15s">
+      LIVE
+    </button>
+  </div>
+
   <div class="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
     <select id="tenantSelect" class="w-80" onchange="document.getElementById('loadTenantBtn').disabled=!this.value">
       <option value="">Loading salons…</option>
@@ -116,7 +129,9 @@
     <div class="w-px h-8 bg-white/20"></div>
     <div>
       <div class="text-white font-semibold text-base leading-tight">SMS Targeting Dashboard</div>
-      <div class="text-white/50 text-xs"><span id="selectedSalonLabel"></span> · Top 500 clients · Generated <span id="generatedTs"></span></div>
+      <div class="text-white/50 text-xs">
+        <span id="serverBadge" style="font-size:10px;font-weight:800;padding:1px 6px;border-radius:4px;margin-right:6px;background:#374151;color:#fff;letter-spacing:0.05em">BETA</span><span id="selectedSalonLabel"></span> · Top 500 clients · Generated <span id="generatedTs"></span>
+      </div>
     </div>
   </div>
   <div class="flex items-center gap-3">
@@ -364,29 +379,42 @@ function renderRow(c) {
   </tr>`;
 }
 
-// ── Tenant selection ──────────────────────────────────────────
+// ── Server + Tenant selection ─────────────────────────────────
+let selectedServer     = 'BETA';
 let selectedTenantId   = null;
 let selectedTenantName = null;
 
+function setServer(s) {
+  selectedServer = s;
+  const isLive = s === 'LIVE';
+  document.getElementById('btnBeta').style.cssText =
+    `flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;transition:all 0.15s;background:${isLive ? '#fff' : 'var(--navy)'};color:${isLive ? 'var(--muted)' : '#fff'}`;
+  document.getElementById('btnLive').style.cssText =
+    `flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;transition:all 0.15s;background:${isLive ? '#059669' : '#fff'};color:${isLive ? '#fff' : 'var(--muted)'}`;
+  initTenants();
+}
+
 async function initTenants() {
-  const sel = document.getElementById('tenantSelect');
+  const sel   = document.getElementById('tenantSelect');
+  const errEl = document.getElementById('tenantError');
+  sel.innerHTML       = '<option value="">Loading salons…</option>';
+  errEl.style.display = 'none';
+  document.getElementById('loadTenantBtn').disabled = true;
   try {
-    const res = await fetch('/api/tenants');
+    const res = await fetch(`/api/tenants?server=${selectedServer}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const tenants = await res.json();
     if (!tenants.length) throw new Error('No salons returned from API');
     sel.innerHTML = '<option value="">— Select a salon —</option>';
     tenants.forEach(t => {
-      const opt      = document.createElement('option');
-      opt.value      = t.id;
+      const opt       = document.createElement('option');
+      opt.value       = t.id;
       opt.textContent = t.name + (t.code ? ` (${t.code})` : '');
       sel.appendChild(opt);
     });
-    document.getElementById('loadTenantBtn').disabled = true;
   } catch (err) {
-    sel.innerHTML = '<option value="">Failed to load salons</option>';
-    const errEl = document.getElementById('tenantError');
-    errEl.textContent = 'Could not load salon list: ' + err.message;
+    sel.innerHTML       = '<option value="">Failed to load salons</option>';
+    errEl.textContent   = 'Could not load salon list: ' + err.message;
     errEl.style.display = 'block';
   }
 }
@@ -399,6 +427,9 @@ function loadTenant() {
   document.getElementById('tenantSelector').style.display   = 'none';
   document.getElementById('loadingOverlay').style.display   = 'flex';
   document.getElementById('selectedSalonLabel').textContent = selectedTenantName;
+  const badge = document.getElementById('serverBadge');
+  badge.textContent   = selectedServer;
+  badge.style.background = selectedServer === 'LIVE' ? '#059669' : '#374151';
   fetchData();
 }
 
@@ -413,7 +444,9 @@ function changeSalon() {
 // ── Data fetch ────────────────────────────────────────────────
 async function fetchData() {
   try {
-    const url = '/api/data' + (selectedTenantId ? `?tenant_id=${encodeURIComponent(selectedTenantId)}` : '');
+    const params = new URLSearchParams({ server: selectedServer });
+    if (selectedTenantId) params.set('tenant_id', selectedTenantId);
+    const url = '/api/data?' + params;
     const res = await fetch(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const d = await res.json();
@@ -489,8 +522,9 @@ async function refreshData() {
   const btn = document.getElementById('refreshBtn');
   btn.textContent = '⏳ Refreshing…';
   btn.disabled = true;
-  const url = '/api/refresh' + (selectedTenantId ? `?tenant_id=${encodeURIComponent(selectedTenantId)}` : '');
-  await fetch(url, { method: 'POST' });
+  const rp = new URLSearchParams({ server: selectedServer });
+  if (selectedTenantId) rp.set('tenant_id', selectedTenantId);
+  await fetch('/api/refresh?' + rp, { method: 'POST' });
   document.getElementById('mainContent').style.display  = 'none';
   document.getElementById('loadingOverlay').style.display = 'flex';
   document.getElementById('loadingOverlay').innerHTML = `

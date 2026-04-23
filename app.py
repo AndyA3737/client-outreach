@@ -37,26 +37,36 @@ def require_auth(f):
     return decorated
 
 
-API_BASE = "https://greathairhub.saloniq.co.uk/api/GetAPIReport"
-API_DEFAULTS = dict(
-    TokenID="ACD7636F-D6D5-45AB-92FC-785D4904ADA5",
-    TenantID="1E7D7624-FEB7-4950-A6BE-5FBB1498EE39",
-    Salonid="", UserID="", data1="", data2="", data3="", data4=""
-)
+API_COMMON = dict(Salonid="", UserID="", data1="", data2="", data3="", data4="")
+
+SERVERS = {
+    "BETA": {
+        "base":           "https://greathairhub.saloniq.co.uk/api/GetAPIReport",
+        "token":          "ACD7636F-D6D5-45AB-92FC-785D4904ADA5",
+        "default_tenant": "1E7D7624-FEB7-4950-A6BE-5FBB1498EE39",
+    },
+    "LIVE": {
+        "base":           "https://apihub.saloniq.co.uk/api/GetAPIReport",
+        "token":          "517a41d9-48e3-4af7-ae6c-0e30688f9325",
+        "default_tenant": "1E7D7624-FEB7-4950-A6BE-5FBB1498EE39",
+    },
+}
 
 _cache, _cache_ts = {}, {}
 CACHE_TTL = 3600
 _all_scored = []
 
 
-def fetch(report_name, sd="", ed="", tenant_id=None):
-    tid = tenant_id or API_DEFAULTS["TenantID"]
-    key = f"{report_name}|{sd}|{ed}|{tid}"
+def fetch(report_name, sd="", ed="", tenant_id=None, server="BETA"):
+    srv = SERVERS.get(server, SERVERS["BETA"])
+    tid = tenant_id or srv["default_tenant"]
+    key = f"{server}|{report_name}|{sd}|{ed}|{tid}"
     now = time.time()
     if key in _cache and now - _cache_ts.get(key, 0) < CACHE_TTL:
         return _cache[key]
-    params = {**API_DEFAULTS, "TenantID": tid, "ReportName": report_name, "startdate": sd, "enddate": ed}
-    r = requests.post(API_BASE, params=params, headers={"Content-Length": "0"}, timeout=60)
+    params = {**API_COMMON, "TokenID": srv["token"], "TenantID": tid,
+              "ReportName": report_name, "startdate": sd, "enddate": ed}
+    r = requests.post(srv["base"], params=params, headers={"Content-Length": "0"}, timeout=60)
     r.raise_for_status()
     result = r.json()["Data"]["Array"]
     _cache[key], _cache_ts[key] = result, now
@@ -143,15 +153,15 @@ def time_label(h):
     return "Evening"
 
 
-def build_data(tenant_id=None):
+def build_data(tenant_id=None, server="BETA"):
     today = date.today()
     sd = (today - timedelta(days=730)).strftime("%m/%d/%Y")
     ed = (today + timedelta(days=365)).strftime("%m/%d/%Y")
 
-    clients_raw = fetch("XXX_Export_Admin_TUBR_Clients", tenant_id=tenant_id)
-    svcs_raw    = fetch("XXX_Export_Admin_TUBR_services", tenant_id=tenant_id)
-    team_raw    = fetch("XXX_Export_Admin_TUBR_TeamMembers", tenant_id=tenant_id)
-    bkgs_raw    = fetch("XXX_Export_Admin_TUBR_Bookings", sd, ed, tenant_id=tenant_id)
+    clients_raw = fetch("XXX_Export_Admin_TUBR_Clients", tenant_id=tenant_id, server=server)
+    svcs_raw    = fetch("XXX_Export_Admin_TUBR_services", tenant_id=tenant_id, server=server)
+    team_raw    = fetch("XXX_Export_Admin_TUBR_TeamMembers", tenant_id=tenant_id, server=server)
+    bkgs_raw    = fetch("XXX_Export_Admin_TUBR_Bookings", sd, ed, tenant_id=tenant_id, server=server)
 
     svc_map  = {s["ServiceId"]: s for s in svcs_raw}
     team_map = {t["TeamMemberId"]: (t.get("NickName") or t["FirstName"]) for t in team_raw}
@@ -293,7 +303,8 @@ def index():
 @app.route("/api/tenants")
 @require_auth
 def tenants():
-    rows = fetch("XXX_Export_Admin_BenchMarks_TenantList")
+    server = request.args.get("server", "BETA")
+    rows = fetch("XXX_Export_Admin_BenchMarks_TenantList", server=server)
     result = []
     for r in rows:
         tid  = (r.get("TenantID") or r.get("TenantId") or r.get("tenantid")
@@ -312,7 +323,8 @@ def tenants():
 @require_auth
 def data():
     tenant_id = request.args.get("tenant_id") or None
-    clients   = build_data(tenant_id)
+    server    = request.args.get("server", "BETA")
+    clients   = build_data(tenant_id, server)
     stylists  = sorted(set(c["pref_tm"] for c in clients))
     n_active  = sum(1 for c in clients if c["scls"] == "active")
     n_due     = sum(1 for c in clients if c["scls"] == "due")
@@ -332,15 +344,15 @@ def data():
 @app.route("/api/refresh", methods=["POST"])
 @require_auth
 def refresh():
+    server    = request.args.get("server", "BETA")
     tenant_id = request.args.get("tenant_id") or None
-    if tenant_id:
-        to_delete = [k for k in list(_cache.keys()) if k.endswith(f"|{tenant_id}")]
-        for k in to_delete:
-            _cache.pop(k, None)
-            _cache_ts.pop(k, None)
-    else:
-        _cache.clear()
-        _cache_ts.clear()
+    prefix    = f"{server}|"
+    suffix    = f"|{tenant_id}" if tenant_id else None
+    to_delete = [k for k in list(_cache.keys())
+                 if k.startswith(prefix) and (suffix is None or k.endswith(suffix))]
+    for k in to_delete:
+        _cache.pop(k, None)
+        _cache_ts.pop(k, None)
     return jsonify(ok=True)
 
 
