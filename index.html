@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SMS Targeting · SalonIQ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root {
+    --navy:   #1C2B3A;
+    --teal:   #00B5A4;
+    --teal-d: #008F81;
+    --bg:     #F2F5F8;
+    --card:   #FFFFFF;
+    --border: #E2E8EF;
+    --text:   #1C2B3A;
+    --muted:  #64748B;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; }
+
+  .badge-active  { background:#D1FAF5; color:#007A6D; }
+  .badge-due     { background:#FEF9C3; color:#854D0E; }
+  .badge-lapsing { background:#FFEDD5; color:#9A3412; }
+  .badge-lapsed  { background:#FEE2E2; color:#991B1B; }
+
+  table { border-collapse:collapse; width:100%; }
+  thead th { position:sticky; top:0; z-index:10; background:#F8FAFC;
+             border-bottom:2px solid var(--border);
+             cursor:pointer; user-select:none; white-space:nowrap; color:var(--muted); font-weight:600; }
+  thead th:hover { background:#EEF2F7; }
+  tbody tr { border-bottom:1px solid var(--border); }
+  tbody tr:hover td { background:#F0FAF9; }
+
+  .score-bar  { width:56px; height:5px; background:#E2E8EF; border-radius:3px; overflow:hidden; display:inline-block; vertical-align:middle; }
+  .score-fill { height:100%; border-radius:3px; background:linear-gradient(90deg, var(--teal), #00D4C2); }
+
+  .tip-wrap { position:relative; display:inline-block; }
+  .tip-box  { display:none; position:absolute; bottom:calc(100% + 8px); left:50%;
+              transform:translateX(-50%); background:var(--navy); color:#E2E8F0;
+              padding:10px 14px; border-radius:10px; white-space:nowrap; z-index:50;
+              font-size:12px; box-shadow:0 8px 30px rgba(0,0,0,0.2); }
+  .tip-box::after { content:''; position:absolute; top:100%; left:50%; transform:translateX(-50%);
+                    border:6px solid transparent; border-top-color:var(--navy); }
+  .tip-wrap:hover .tip-box { display:block; }
+
+  input, select { background:#fff; border:1px solid var(--border); color:var(--text);
+                  border-radius:8px; padding:7px 12px; font-size:14px; font-family:inherit; }
+  input:focus, select:focus { outline:2px solid var(--teal); outline-offset:0; border-color:var(--teal); }
+  input::placeholder { color:#94A3B8; }
+
+  ::-webkit-scrollbar { width:6px; height:6px; }
+  ::-webkit-scrollbar-track { background:#F2F5F8; }
+  ::-webkit-scrollbar-thumb { background:#CBD5E1; border-radius:3px; }
+
+  .sort-asc::after  { content:" ▲"; font-size:9px; color:var(--teal); }
+  .sort-desc::after { content:" ▼"; font-size:9px; color:var(--teal); }
+
+  .btn-teal { background:var(--teal); color:#fff; border:none; border-radius:8px;
+              padding:8px 18px; font-size:14px; font-weight:600; cursor:pointer; transition:background 0.15s; }
+  .btn-teal:hover { background:var(--teal-d); }
+  .btn-teal:disabled { opacity:0.6; cursor:not-allowed; }
+
+  .btn-copy { background:#F1F5F9; color:var(--muted); border:1px solid var(--border);
+              border-radius:6px; padding:4px 10px; font-size:12px; cursor:pointer; transition:all 0.15s; white-space:nowrap; }
+  .btn-copy:hover { background:var(--teal); color:#fff; border-color:var(--teal); }
+  .btn-copy.copied { background:#10B981; color:#fff; border-color:#10B981; }
+
+  .stat-card { background:#fff; border-radius:16px; padding:20px 24px;
+               box-shadow:0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04); border:1px solid var(--border); }
+
+  .lookup-card { background:#fff; border:1px solid var(--border); border-radius:16px; padding:24px;
+                 margin-bottom:16px; box-shadow:0 1px 4px rgba(0,0,0,0.06); }
+  .mini-stat { background:#F8FAFC; border:1px solid var(--border); border-radius:10px; padding:12px; }
+
+  /* Loading */
+  #loadingOverlay { position:fixed; inset:0; background:var(--bg); display:flex; flex-direction:column;
+                    align-items:center; justify-content:center; z-index:100; }
+  .spinner { width:48px; height:48px; border:4px solid var(--border); border-top-color:var(--teal);
+             border-radius:50%; animation:spin 0.8s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<!-- Tenant selector (shown first) -->
+<div id="tenantSelector" style="position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:110;">
+  <img src="https://www.saloniq.com/img/logo.svg" alt="SalonIQ" class="h-10 mb-8">
+  <div class="text-2xl font-bold mb-1" style="color:var(--navy)">SMS Targeting Dashboard</div>
+  <div class="text-sm mb-8" style="color:var(--muted)">Select a salon to load client data</div>
+  <div class="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+    <select id="tenantSelect" class="w-80" onchange="document.getElementById('loadTenantBtn').disabled=!this.value">
+      <option value="">Loading salons…</option>
+    </select>
+    <button id="loadTenantBtn" onclick="loadTenant()" class="btn-teal" disabled>Load Data →</button>
+  </div>
+  <div id="tenantError" class="text-red-500 text-sm mt-5" style="display:none"></div>
+</div>
+
+<!-- Loading overlay (shown during data fetch) -->
+<div id="loadingOverlay" style="position:fixed;inset:0;background:var(--bg);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:100;">
+  <div class="spinner mb-6"></div>
+  <div class="font-semibold text-lg" style="color:var(--navy)">Loading client data…</div>
+  <div class="text-sm mt-2" style="color:var(--muted)">Fetching bookings — this can take 10–20 seconds on first load</div>
+</div>
+
+<!-- Main content (hidden until data loads) -->
+<div id="mainContent" style="display:none">
+
+<!-- Header -->
+<header style="background:var(--navy);" class="px-6 py-4 flex items-center justify-between shadow-lg">
+  <div class="flex items-center gap-4">
+    <img src="https://www.saloniq.com/img/logo.svg" alt="SalonIQ" class="h-8">
+    <div class="w-px h-8 bg-white/20"></div>
+    <div>
+      <div class="text-white font-semibold text-base leading-tight">SMS Targeting Dashboard</div>
+      <div class="text-white/50 text-xs"><span id="selectedSalonLabel"></span> · Top 500 clients · Generated <span id="generatedTs"></span></div>
+    </div>
+  </div>
+  <div class="flex items-center gap-3">
+    <button onclick="changeSalon()" class="text-white/70 text-sm hover:text-white transition-colors">⇄ Change Salon</button>
+    <button onclick="refreshData()" id="refreshBtn" class="btn-teal text-sm">↻ Refresh Data</button>
+  </div>
+</header>
+
+<!-- Stat Cards -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 pb-4">
+  <div class="stat-card">
+    <div class="text-xs font-semibold uppercase tracking-widest mb-2" style="color:var(--muted)">In Top 500</div>
+    <div class="text-4xl font-extrabold" style="color:var(--navy)">500</div>
+    <div class="text-xs mt-1" style="color:var(--muted)">ranked by SMS score</div>
+  </div>
+  <div class="stat-card" style="border-top:3px solid var(--teal)">
+    <div class="text-xs font-semibold uppercase tracking-widest mb-2" style="color:var(--teal-d)">Active</div>
+    <div class="text-4xl font-extrabold" style="color:var(--teal)" id="statActive">—</div>
+    <div class="text-xs mt-1" style="color:var(--muted)">visited in last 60 days</div>
+  </div>
+  <div class="stat-card" style="border-top:3px solid #F59E0B">
+    <div class="text-xs font-semibold uppercase tracking-widest mb-2 text-amber-600">Due / Lapsing</div>
+    <div class="text-4xl font-extrabold text-amber-500" id="statDueLapsing">—</div>
+    <div class="text-xs mt-1" style="color:var(--muted)">prime SMS targets</div>
+  </div>
+  <div class="stat-card" style="border-top:3px solid #EF4444">
+    <div class="text-xs font-semibold uppercase tracking-widest mb-2 text-red-500">Lapsed</div>
+    <div class="text-4xl font-extrabold text-red-500" id="statLapsed">—</div>
+    <div class="text-xs mt-1" style="color:var(--muted)">not seen in over a year</div>
+  </div>
+</div>
+
+<!-- Scoring Explanation -->
+<div class="px-6 pb-4">
+  <details class="rounded-2xl border overflow-hidden shadow-sm" style="border-color:var(--border); background:#fff">
+    <summary class="flex items-center justify-between px-6 py-4 cursor-pointer select-none font-semibold"
+             style="color:var(--navy); list-style:none;">
+      <div class="flex items-center gap-2">
+        <span style="color:var(--teal)">&#9432;</span>
+        How the SMS score is calculated
+      </div>
+      <span class="text-sm font-normal" style="color:var(--muted)">Click to expand ▾</span>
+    </summary>
+    <div class="px-6 pb-6 pt-2" style="border-top:1px solid var(--border)">
+      <p class="text-sm mb-5" style="color:var(--muted)">
+        Every client in your database is scored out of <strong style="color:var(--navy)">100 points</strong> across four signals,
+        with a penalty for no-shows. The top 500 by score are shown below.
+        Clients who already have a <strong style="color:var(--navy)">future booking</strong> are automatically excluded.
+        Clients who visited very recently score lower on purpose.
+      </p>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+        <div class="rounded-xl p-4" style="background:#F0FBF9; border:1px solid #C8EEEB">
+          <div class="flex items-center gap-2 mb-2">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold" style="background:var(--teal)">R</div>
+            <div class="font-bold" style="color:var(--navy)">Recency <span class="font-normal text-xs" style="color:var(--muted)">max 40 pts</span></div>
+          </div>
+          <p class="text-xs mb-3" style="color:#475569">How long ago the client last visited. The sweet spot is 30–180 days.</p>
+          <table class="w-full text-xs" style="border-collapse:collapse">
+            <tr style="border-bottom:1px solid #C8EEEB"><td class="py-1" style="color:#475569">Just visited (≤30 days)</td><td class="py-1 text-right font-semibold" style="color:var(--teal)">10 pts</td></tr>
+            <tr style="border-bottom:1px solid #C8EEEB"><td class="py-1" style="color:#475569">30–90 days</td><td class="py-1 text-right font-semibold" style="color:var(--teal)">40 pts</td></tr>
+            <tr style="border-bottom:1px solid #C8EEEB"><td class="py-1" style="color:#475569">90–180 days</td><td class="py-1 text-right font-semibold" style="color:var(--teal)">30 pts</td></tr>
+            <tr style="border-bottom:1px solid #C8EEEB"><td class="py-1" style="color:#475569">180 days – 1 year</td><td class="py-1 text-right font-semibold" style="color:var(--teal)">15 pts</td></tr>
+            <tr><td class="py-1" style="color:#475569">Over 1 year</td><td class="py-1 text-right font-semibold" style="color:var(--teal)">5 pts</td></tr>
+          </table>
+        </div>
+        <div class="rounded-xl p-4" style="background:#FFFBEB; border:1px solid #FDE68A">
+          <div class="flex items-center gap-2 mb-2">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold bg-amber-400">O</div>
+            <div class="font-bold" style="color:var(--navy)">Overdue Bonus <span class="font-normal text-xs" style="color:var(--muted)">max 20 pts</span></div>
+          </div>
+          <p class="text-xs mb-3" style="color:#475569">Based on the client's personal visit rhythm.</p>
+          <p class="text-xs p-2 rounded-lg" style="background:#FEF3C7; color:#92400E">
+            <strong>Formula:</strong> (days overdue ÷ average gap) × 20, capped at 20 pts.
+          </p>
+        </div>
+        <div class="rounded-xl p-4" style="background:#EFF6FF; border:1px solid #BFDBFE">
+          <div class="flex items-center gap-2 mb-2">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold bg-blue-500">F</div>
+            <div class="font-bold" style="color:var(--navy)">Frequency <span class="font-normal text-xs" style="color:var(--muted)">max 20 pts</span></div>
+          </div>
+          <p class="text-xs mb-3" style="color:#475569">Visits per year, rewarding loyal regulars.</p>
+          <p class="text-xs p-2 rounded-lg" style="background:#DBEAFE; color:#1E40AF">
+            <strong>Formula:</strong> (visits ÷ years as client) × 3, capped at 20 pts.
+          </p>
+        </div>
+        <div class="rounded-xl p-4" style="background:#F5F3FF; border:1px solid #DDD6FE">
+          <div class="flex items-center gap-2 mb-2">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold bg-violet-500">M</div>
+            <div class="font-bold" style="color:var(--navy)">Spend Value <span class="font-normal text-xs" style="color:var(--muted)">max 20 pts</span></div>
+          </div>
+          <p class="text-xs mb-3" style="color:#475569">Average spend per visit.</p>
+          <p class="text-xs p-2 rounded-lg" style="background:#EDE9FE; color:#4C1D95">
+            <strong>Formula:</strong> avg spend ÷ 5, capped at 20 pts.
+          </p>
+        </div>
+      </div>
+      <div class="rounded-xl p-4 flex gap-4 items-start" style="background:#FFF1F2; border:1px solid #FECDD3">
+        <div class="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold bg-red-400 flex-shrink-0">!</div>
+        <div>
+          <div class="font-bold mb-1" style="color:#991B1B">No-show Penalty <span class="font-normal text-xs text-red-400">up to −15 pts</span></div>
+          <p class="text-xs" style="color:#7F1D1D">Each recorded no-show deducts 3 points (capped at −15).</p>
+        </div>
+      </div>
+    </div>
+  </details>
+</div>
+
+<!-- Filters -->
+<div class="px-6 pb-3 flex flex-wrap gap-3 items-center">
+  <input type="search" id="searchInput" placeholder="🔍  Search client name…" oninput="applyFilters()" class="w-56">
+  <select id="statusFilter" onchange="applyFilters()">
+    <option value="">All Statuses</option>
+    <option value="active">Active</option>
+    <option value="due">Due Soon</option>
+    <option value="lapsing">Lapsing</option>
+    <option value="lapsed">Lapsed</option>
+  </select>
+  <select id="stylistFilter" onchange="applyFilters()">
+    <option value="">All Stylists</option>
+  </select>
+  <select id="dayFilter" onchange="applyFilters()">
+    <option value="">Any Day</option>
+    <option>Mon</option><option>Tue</option><option>Wed</option>
+    <option>Thu</option><option>Fri</option><option>Sat</option><option>Sun</option>
+  </select>
+  <span id="rowCount" class="text-sm ml-auto font-medium" style="color:var(--muted)"></span>
+</div>
+
+<!-- Table -->
+<div class="px-6 pb-10 overflow-x-auto">
+<div class="rounded-2xl border overflow-hidden shadow-sm" style="border-color:var(--border); background:#fff">
+<table id="mainTable">
+<thead>
+  <tr class="text-xs uppercase tracking-wider">
+    <th class="text-left py-3 px-3" onclick="sortBy(0)" id="th0">#</th>
+    <th class="text-left py-3 px-3" onclick="sortBy(1)" id="th1">Client</th>
+    <th class="text-left py-3 px-3" onclick="sortBy(2)" id="th2">Score</th>
+    <th class="text-left py-3 px-3">Status</th>
+    <th class="text-left py-3 px-3" onclick="sortBy(4)" id="th4">Last Visit</th>
+    <th class="text-left py-3 px-3" onclick="sortBy(5)" id="th5">Days Since</th>
+    <th class="text-left py-3 px-3 tip-wrap">Overdue
+      <span class="tip-box">Days past their usual visit rhythm.<br>Blank = not yet overdue or only 1 visit.</span>
+    </th>
+    <th class="text-left py-3 px-3" onclick="sortBy(7)" id="th7">Visits</th>
+    <th class="text-left py-3 px-3" onclick="sortBy(8)" id="th8">Avg Spend</th>
+    <th class="text-left py-3 px-3" onclick="sortBy(9)" id="th9">Total Spend</th>
+    <th class="text-left py-3 px-3">Stylist</th>
+    <th class="text-left py-3 px-3">Best Contact</th>
+    <th class="text-left py-3 px-3">Services</th>
+    <th class="text-left py-3 px-3">Suggested SMS</th>
+  </tr>
+</thead>
+<tbody id="tableBody"></tbody>
+</table>
+</div>
+</div>
+
+<!-- Client Lookup -->
+<div class="px-6 pb-16">
+  <div class="pt-2 pb-6 mb-6" style="border-top:2px solid var(--border)">
+    <h2 class="text-xl font-bold mb-1" style="color:var(--navy)">Client Lookup</h2>
+    <p class="text-sm" style="color:var(--muted)">Search any client by name — regardless of their rank in the top 500.</p>
+  </div>
+  <input type="search" id="lookupInput" placeholder="🔍  Type a client name…" oninput="onLookupInput()" class="w-72 mb-6">
+  <div id="lookupResults"></div>
+</div>
+
+</div><!-- end #mainContent -->
+
+<script>
+function escHtml(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Render ────────────────────────────────────────────────────
+function renderRow(c) {
+  const noShowBadge = c.no_shows > 0
+    ? `<span class="ml-1.5 text-xs text-red-400 tip-wrap">⚠ ${c.no_shows}<span class="tip-box">${c.no_shows} recorded no-show(s) — score penalised</span></span>`
+    : '';
+
+  const overdueTd = c.overdue
+    ? `<span class="text-amber-500 font-semibold text-sm">${c.overdue}d late</span>${c.avg_gap ? `<div class="text-xs" style="color:var(--muted)">avg gap ${c.avg_gap}d</div>` : ''}`
+    : c.avg_gap
+    ? `<span class="text-xs" style="color:var(--muted)">gap ${c.avg_gap}d</span>`
+    : `<span style="color:#CBD5E1">—</span>`;
+
+  const penaltyRow = c.sp < 0
+    ? `<div class="flex justify-between gap-6"><span>No-show penalty</span><span class="text-red-400">${c.sp}</span></div>`
+    : '';
+
+  const cats = (c.top_cats || []).map(cat =>
+    `<span class="inline-block text-xs px-2 py-0.5 rounded-md mr-1 mb-0.5 whitespace-nowrap font-medium" style="background:#EEF9F8;color:var(--teal-d);border:1px solid #C8EEEB">${escHtml(cat)}</span>`
+  ).join('');
+
+  return `
+  <tr data-status="${c.scls}" data-stylist="${escHtml(c.pref_tm)}" data-day="${c.pref_day}" data-name="${escHtml(c.name.toLowerCase())}">
+    <td class="py-3 px-3 font-mono text-xs" style="color:var(--muted)">${c.rank}</td>
+    <td class="py-3 px-3">
+      <span class="font-semibold" style="color:var(--navy)">${escHtml(c.name)}</span>
+      ${noShowBadge}
+    </td>
+    <td class="py-3 px-3">
+      <div class="tip-wrap">
+        <div class="flex items-center gap-2">
+          <span class="font-bold w-10" style="color:var(--navy)">${c.score}</span>
+          <div class="score-bar"><div class="score-fill" style="width:${c.score_pct}%"></div></div>
+        </div>
+        <div class="tip-box">
+          <div class="font-semibold mb-2 text-center text-white">Score Breakdown</div>
+          <div class="space-y-1 text-white/80">
+            <div class="flex justify-between gap-6"><span>Recency</span><span style="color:var(--teal)">+${c.sr}</span></div>
+            <div class="flex justify-between gap-6"><span>Overdue bonus</span><span style="color:var(--teal)">+${c.so}</span></div>
+            <div class="flex justify-between gap-6"><span>Frequency</span><span style="color:var(--teal)">+${c.sf}</span></div>
+            <div class="flex justify-between gap-6"><span>Spend</span><span style="color:var(--teal)">+${c.sm}</span></div>
+            ${penaltyRow}
+            <div class="border-t border-white/20 pt-1 flex justify-between gap-6 font-bold text-white">
+              <span>Total</span><span>${c.score}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </td>
+    <td class="py-3 px-3">
+      <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold badge-${c.scls}">${c.status}</span>
+    </td>
+    <td class="py-3 px-3 text-sm" style="color:var(--text)" data-val="${c.days_since}">${escHtml(c.last_visit)}</td>
+    <td class="py-3 px-3 text-sm" style="color:var(--muted)" data-val="${c.days_since}">${c.days_since}d</td>
+    <td class="py-3 px-3">${overdueTd}</td>
+    <td class="py-3 px-3 text-sm text-center" style="color:var(--text)" data-val="${c.n_visits}">${c.n_visits}</td>
+    <td class="py-3 px-3 text-sm" style="color:var(--text)" data-val="${c.avg_spend}">£${c.avg_spend}</td>
+    <td class="py-3 px-3 text-sm" style="color:var(--text)" data-val="${c.total_spend}">£${c.total_spend}</td>
+    <td class="py-3 px-3 text-sm" style="color:var(--text)">${escHtml(c.pref_tm)}</td>
+    <td class="py-3 px-3">
+      <div class="text-sm font-medium" style="color:var(--navy)">${c.pref_day}</div>
+      <div class="text-xs" style="color:var(--muted)">${c.pref_time}</div>
+    </td>
+    <td class="py-3 px-3">${cats}</td>
+    <td class="py-3 px-3 min-w-[340px] max-w-[420px]">
+      <div class="flex items-start gap-2">
+        <span class="text-sm leading-relaxed flex-1 sms-text" style="color:var(--text)">${escHtml(c.sms)}</span>
+        <button onclick="copySMS(this)" class="btn-copy flex-shrink-0 mt-0.5">Copy</button>
+      </div>
+      <div class="text-xs mt-1" style="color:#94A3B8">${c.sms.length} chars</div>
+    </td>
+  </tr>`;
+}
+
+// ── Tenant selection ──────────────────────────────────────────
+let selectedTenantId   = null;
+let selectedTenantName = null;
+
+async function initTenants() {
+  const sel = document.getElementById('tenantSelect');
+  try {
+    const res = await fetch('/api/tenants');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const tenants = await res.json();
+    if (!tenants.length) throw new Error('No salons returned from API');
+    sel.innerHTML = '<option value="">— Select a salon —</option>';
+    tenants.forEach(t => {
+      const opt      = document.createElement('option');
+      opt.value      = t.id;
+      opt.textContent = t.name + (t.code ? ` (${t.code})` : '');
+      sel.appendChild(opt);
+    });
+    document.getElementById('loadTenantBtn').disabled = true;
+  } catch (err) {
+    sel.innerHTML = '<option value="">Failed to load salons</option>';
+    const errEl = document.getElementById('tenantError');
+    errEl.textContent = 'Could not load salon list: ' + err.message;
+    errEl.style.display = 'block';
+  }
+}
+
+function loadTenant() {
+  const sel = document.getElementById('tenantSelect');
+  if (!sel.value) return;
+  selectedTenantId   = sel.value;
+  selectedTenantName = sel.options[sel.selectedIndex].textContent;
+  document.getElementById('tenantSelector').style.display   = 'none';
+  document.getElementById('loadingOverlay').style.display   = 'flex';
+  document.getElementById('selectedSalonLabel').textContent = selectedTenantName;
+  fetchData();
+}
+
+function changeSalon() {
+  document.getElementById('mainContent').style.display     = 'none';
+  document.getElementById('tenantSelector').style.display  = 'flex';
+  // Reset stylist filter options ready for next load
+  const stylistSel = document.getElementById('stylistFilter');
+  stylistSel.innerHTML = '<option value="">All Stylists</option>';
+}
+
+// ── Data fetch ────────────────────────────────────────────────
+async function fetchData() {
+  try {
+    const url = '/api/data' + (selectedTenantId ? `?tenant_id=${encodeURIComponent(selectedTenantId)}` : '');
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const d = await res.json();
+
+    document.getElementById('generatedTs').textContent    = d.generated;
+    document.getElementById('statActive').textContent     = d.n_active;
+    document.getElementById('statDueLapsing').textContent = d.n_due + d.n_lapsing;
+    document.getElementById('statLapsed').textContent     = d.n_lapsed;
+
+    const stylistSel = document.getElementById('stylistFilter');
+    stylistSel.innerHTML = '<option value="">All Stylists</option>';
+    d.stylists.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s; opt.textContent = s;
+      stylistSel.appendChild(opt);
+    });
+
+    document.getElementById('tableBody').innerHTML = d.clients.map(renderRow).join('');
+    applyFilters();
+
+    document.getElementById('loadingOverlay').style.display = 'none';
+    document.getElementById('mainContent').style.display    = 'block';
+  } catch (err) {
+    document.getElementById('loadingOverlay').innerHTML = `
+      <div style="color:#991B1B;font-weight:600;font-size:1.1rem">Failed to load data</div>
+      <div style="color:#64748B;margin-top:8px">${escHtml(err.message)}</div>
+      <button onclick="document.getElementById('loadingOverlay').style.display='none';document.getElementById('tenantSelector').style.display='flex';" class="btn-teal mt-6">← Back to Salon List</button>`;
+  }
+}
+
+// ── Filter ────────────────────────────────────────────────────
+function applyFilters() {
+  const search  = document.getElementById('searchInput').value.toLowerCase();
+  const status  = document.getElementById('statusFilter').value;
+  const stylist = document.getElementById('stylistFilter').value;
+  const day     = document.getElementById('dayFilter').value;
+  let visible   = 0;
+  document.querySelectorAll('#tableBody tr').forEach(row => {
+    const ok = (!search  || row.dataset.name.includes(search))
+            && (!status  || row.dataset.status  === status)
+            && (!stylist || row.dataset.stylist  === stylist)
+            && (!day     || row.dataset.day      === day);
+    row.style.display = ok ? '' : 'none';
+    if (ok) visible++;
+  });
+  document.getElementById('rowCount').textContent = `Showing ${visible} of 500 clients`;
+}
+
+// ── Sort ──────────────────────────────────────────────────────
+let _sortCol = -1, _sortAsc = false;
+function sortBy(col) {
+  _sortAsc = (_sortCol === col) ? !_sortAsc : true;
+  _sortCol = col;
+  document.querySelectorAll('thead th[id]').forEach(th => th.className = '');
+  const th = document.getElementById('th' + col);
+  if (th) th.className = _sortAsc ? 'sort-asc' : 'sort-desc';
+  const tbody = document.getElementById('tableBody');
+  const rows  = Array.from(tbody.querySelectorAll('tr'));
+  rows.sort((a, b) => {
+    const ac = a.cells[col], bc = b.cells[col];
+    const av = ac.dataset.val ?? ac.textContent.trim();
+    const bv = bc.dataset.val ?? bc.textContent.trim();
+    const an = parseFloat(av), bn = parseFloat(bv);
+    const cmp = (!isNaN(an) && !isNaN(bn)) ? an - bn : av.localeCompare(bv);
+    return _sortAsc ? cmp : -cmp;
+  });
+  rows.forEach(r => tbody.appendChild(r));
+  applyFilters();
+}
+
+// ── Refresh ───────────────────────────────────────────────────
+async function refreshData() {
+  const btn = document.getElementById('refreshBtn');
+  btn.textContent = '⏳ Refreshing…';
+  btn.disabled = true;
+  const url = '/api/refresh' + (selectedTenantId ? `?tenant_id=${encodeURIComponent(selectedTenantId)}` : '');
+  await fetch(url, { method: 'POST' });
+  document.getElementById('mainContent').style.display  = 'none';
+  document.getElementById('loadingOverlay').style.display = 'flex';
+  document.getElementById('loadingOverlay').innerHTML = `
+    <div class="spinner mb-6"></div>
+    <div class="font-semibold text-lg" style="color:var(--navy)">Refreshing client data…</div>
+    <div class="text-sm mt-2" style="color:var(--muted)">Fetching bookings — this can take 10–20 seconds</div>`;
+  btn.textContent = '↻ Refresh Data';
+  btn.disabled = false;
+  await fetchData();
+}
+
+// ── Copy SMS ──────────────────────────────────────────────────
+function copySMS(btn) {
+  const text = btn.closest('td').querySelector('.sms-text').textContent.trim();
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.textContent;
+    btn.classList.add('copied'); btn.textContent = '✓ Copied';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = orig; }, 2000);
+  });
+}
+
+// ── Client Lookup ─────────────────────────────────────────────
+let lookupTimer = null;
+function onLookupInput() {
+  clearTimeout(lookupTimer);
+  lookupTimer = setTimeout(runLookup, 300);
+}
+
+async function runLookup() {
+  const q   = document.getElementById('lookupInput').value.trim();
+  const box = document.getElementById('lookupResults');
+  if (q.length < 2) { box.innerHTML = ''; return; }
+  box.innerHTML = '<p style="color:#64748B" class="text-sm p-2">Searching…</p>';
+  const res  = await fetch('/api/search?q=' + encodeURIComponent(q));
+  const data = await res.json();
+  if (!data.length) {
+    box.innerHTML = `<p style="color:#64748B" class="text-sm p-2">No clients found matching "${escHtml(q)}".</p>`;
+    return;
+  }
+  box.innerHTML = data.map(c => {
+    const bCls = {active:'badge-active',due:'badge-due',lapsing:'badge-lapsing',lapsed:'badge-lapsed'}[c.scls] || '';
+    const rankBadge = c.rank
+      ? `<span style="background:#EEF9F8;color:#007A6D;border:1px solid #C8EEEB" class="text-xs px-2 py-0.5 rounded-full font-bold">#${c.rank} in Top 500</span>`
+      : `<span style="background:#F1F5F9;color:#64748B;border:1px solid #E2E8EF" class="text-xs px-2 py-0.5 rounded-full">Not in Top 500</span>`;
+    const overdueTxt = c.overdue
+      ? `<span class="text-amber-500 font-semibold">${c.overdue}d overdue</span>`
+      : `<span style="color:#64748B">Not overdue</span>`;
+    const cats = (c.top_cats||[]).map(cat =>
+      `<span style="background:#EEF9F8;color:#007A6D;border:1px solid #C8EEEB" class="text-xs px-2 py-0.5 rounded-md font-medium">${escHtml(cat)}</span>`
+    ).join(' ');
+    return `
+    <div class="lookup-card">
+      <div class="flex flex-wrap items-start justify-between gap-3 mb-5">
+        <div>
+          <div class="flex items-center gap-2 flex-wrap mb-1">
+            <h3 class="text-xl font-bold" style="color:#1C2B3A">${escHtml(c.name)}</h3>
+            ${rankBadge}
+            <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold ${bCls}">${c.status}</span>
+            ${c.no_shows > 0 ? `<span class="text-red-400 text-xs">⚠ ${c.no_shows} no-show(s)</span>` : ''}
+          </div>
+          <div class="text-sm" style="color:#64748B">Last visit: <strong style="color:#1C2B3A">${escHtml(c.last_visit)}</strong> &nbsp;·&nbsp; ${c.days_since} days ago</div>
+        </div>
+        <div class="text-right">
+          <div class="text-4xl font-extrabold" style="color:#00B5A4">${c.score}</div>
+          <div class="text-xs font-medium" style="color:#64748B">SMS score</div>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        <div class="mini-stat"><div class="text-xs font-semibold mb-1" style="color:#64748B">Visits (2yr)</div><div class="font-bold" style="color:#1C2B3A">${c.n_visits}</div></div>
+        <div class="mini-stat"><div class="text-xs font-semibold mb-1" style="color:#64748B">Avg Spend</div><div class="font-bold" style="color:#1C2B3A">£${c.avg_spend}</div></div>
+        <div class="mini-stat"><div class="text-xs font-semibold mb-1" style="color:#64748B">Total Spend</div><div class="font-bold" style="color:#1C2B3A">£${c.total_spend}</div></div>
+        <div class="mini-stat"><div class="text-xs font-semibold mb-1" style="color:#64748B">Visit Gap</div><div class="font-bold" style="color:#1C2B3A">${c.avg_gap ? c.avg_gap + 'd' : '—'}</div></div>
+      </div>
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4 text-sm">
+        <div><span style="color:#64748B">Preferred stylist: </span><span class="font-semibold" style="color:#1C2B3A">${escHtml(c.pref_tm)}</span></div>
+        <div><span style="color:#64748B">Best day: </span><span class="font-semibold" style="color:#1C2B3A">${c.pref_day} ${c.pref_time}</span></div>
+        <div><span style="color:#64748B">Overdue: </span>${overdueTxt}</div>
+      </div>
+      ${cats ? `<div class="flex flex-wrap gap-1 mb-4">${cats}</div>` : ''}
+      <div class="rounded-xl p-4 mb-4" style="background:#F8FAFC;border:1px solid #E2E8EF">
+        <div class="text-xs font-semibold uppercase tracking-widest mb-2" style="color:#64748B">Suggested SMS</div>
+        <div class="flex items-start gap-3">
+          <p class="text-sm leading-relaxed flex-1" style="color:#1C2B3A" id="sms-lookup-${escHtml(c.id)}">${escHtml(c.sms)}</p>
+          <button onclick="copyLookupSMS('${escHtml(c.id)}')" class="btn-copy flex-shrink-0">Copy</button>
+        </div>
+        <div class="text-xs mt-1" style="color:#94A3B8">${c.sms.length} chars</div>
+      </div>
+      <div class="grid grid-cols-5 gap-2 text-xs text-center">
+        <div class="mini-stat"><div style="color:#64748B" class="mb-1">Recency</div><div class="font-bold" style="color:#00B5A4">+${c.sr}</div></div>
+        <div class="mini-stat"><div style="color:#64748B" class="mb-1">Overdue</div><div class="font-bold" style="color:#00B5A4">+${c.so}</div></div>
+        <div class="mini-stat"><div style="color:#64748B" class="mb-1">Frequency</div><div class="font-bold" style="color:#00B5A4">+${c.sf}</div></div>
+        <div class="mini-stat"><div style="color:#64748B" class="mb-1">Spend</div><div class="font-bold" style="color:#00B5A4">+${c.sm}</div></div>
+        <div class="mini-stat"><div style="color:#64748B" class="mb-1">Penalty</div><div class="font-bold ${c.sp < 0 ? 'text-red-400' : ''}">${c.sp}</div></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function copyLookupSMS(id) {
+  const el  = document.getElementById('sms-lookup-' + id);
+  const btn = el.parentElement.querySelector('button');
+  navigator.clipboard.writeText(el.textContent.trim()).then(() => {
+    const orig = btn.textContent;
+    btn.classList.add('copied'); btn.textContent = '✓ Copied';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = orig; }, 2000);
+  });
+}
+
+initTenants();
+</script>
+</body>
+</html>
