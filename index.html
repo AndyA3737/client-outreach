@@ -63,6 +63,19 @@
   .btn-teal:hover { background:var(--teal-d); }
   .btn-teal:disabled { opacity:0.6; cursor:not-allowed; }
 
+  /* Nav tabs */
+  .nav-tab { padding:12px 20px; font-size:14px; font-weight:600; cursor:pointer;
+             border:none; background:transparent; color:var(--muted); border-bottom:3px solid transparent;
+             transition:all 0.15s; white-space:nowrap; }
+  .nav-tab:hover { color:var(--navy); }
+  .nav-tab.active { color:var(--teal); border-bottom-color:var(--teal); }
+
+  /* Query page */
+  .query-chip { background:#EEF9F8; color:var(--teal-d); border:1px solid #C8EEEB;
+                border-radius:20px; padding:5px 14px; font-size:12px; font-weight:500;
+                cursor:pointer; transition:all 0.15s; white-space:nowrap; }
+  .query-chip:hover { background:var(--teal); color:#fff; border-color:var(--teal); }
+
   .btn-copy { background:#F1F5F9; color:var(--muted); border:1px solid var(--border);
               border-radius:6px; padding:4px 10px; font-size:12px; cursor:pointer; transition:all 0.15s; white-space:nowrap; }
   .btn-copy:hover { background:var(--teal); color:#fff; border-color:var(--teal); }
@@ -139,6 +152,15 @@
     <button onclick="refreshData()" id="refreshBtn" class="btn-teal text-sm">↻ Refresh Data</button>
   </div>
 </header>
+
+<!-- Nav tabs -->
+<div style="background:#fff;border-bottom:1px solid var(--border);" class="px-6 flex gap-1">
+  <button class="nav-tab active" id="tabDashboard" onclick="switchPage('dashboard')">SMS Dashboard</button>
+  <button class="nav-tab" id="tabSelections" onclick="switchPage('selections')">Client Selections</button>
+</div>
+
+<!-- ── Page: SMS Dashboard ─────────────────────────────────── -->
+<div id="pageDashboard">
 
 <!-- Stat Cards -->
 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 pb-4">
@@ -299,6 +321,52 @@
   <div id="lookupResults"></div>
 </div>
 
+</div><!-- end #pageDashboard -->
+
+<!-- ── Page: Client Selections ────────────────────────────── -->
+<div id="pageSelections" style="display:none">
+<div class="px-6 py-8 max-w-5xl mx-auto">
+
+  <h2 class="text-2xl font-bold mb-1" style="color:var(--navy)">Client Selections</h2>
+  <p class="text-sm mb-8" style="color:var(--muted)">Describe the clients you want in plain English — Claude will build the segment from your full client database.</p>
+
+  <!-- Query input -->
+  <div class="rounded-2xl border p-6 mb-4" style="background:#fff;border-color:var(--border);box-shadow:0 1px 4px rgba(0,0,0,0.06)">
+    <label class="block text-sm font-semibold mb-2" style="color:var(--navy)">Describe your segment</label>
+    <div class="flex gap-3">
+      <input id="queryInput" type="text" placeholder="e.g. lapsing clients who spend over £50 on average…"
+             class="flex-1" style="border-radius:10px;padding:10px 14px;font-size:14px"
+             onkeydown="if(event.key==='Enter')runQuery()">
+      <button onclick="runQuery()" id="queryBtn" class="btn-teal px-6">Find Clients</button>
+    </div>
+
+    <!-- Example chips -->
+    <div class="flex flex-wrap gap-2 mt-4">
+      <span class="text-xs font-semibold mr-1" style="color:var(--muted);line-height:28px">Try:</span>
+      <button class="query-chip" onclick="setQuery(this)">Clients who have never returned</button>
+      <button class="query-chip" onclick="setQuery(this)">Only ever seen one stylist</button>
+      <button class="query-chip" onclick="setQuery(this)">High value lapsed clients</button>
+      <button class="query-chip" onclick="setQuery(this)">Colour clients who are overdue</button>
+      <button class="query-chip" onclick="setQuery(this)">No-show history</button>
+      <button class="query-chip" onclick="setQuery(this)">Saturday regulars</button>
+      <button class="query-chip" onclick="setQuery(this)">Loyal clients visiting 8+ times</button>
+    </div>
+  </div>
+
+  <!-- Status / results summary -->
+  <div id="queryStatus" class="text-sm mb-4" style="color:var(--muted);min-height:22px"></div>
+
+  <!-- Export button (hidden until results) -->
+  <div id="queryActions" style="display:none" class="mb-4">
+    <button onclick="exportCSV()" class="btn-copy text-sm px-4 py-2">⬇ Export CSV</button>
+  </div>
+
+  <!-- Results table -->
+  <div id="queryResults"></div>
+
+</div>
+</div><!-- end #pageSelections -->
+
 </div><!-- end #mainContent -->
 
 <script>
@@ -377,6 +445,122 @@ function renderRow(c) {
       <div class="text-xs mt-1" style="color:#94A3B8">${c.sms.length} chars</div>
     </td>
   </tr>`;
+}
+
+// ── Page navigation ───────────────────────────────────────────
+function switchPage(page) {
+  document.getElementById('pageDashboard').style.display  = page === 'dashboard'  ? '' : 'none';
+  document.getElementById('pageSelections').style.display = page === 'selections' ? '' : 'none';
+  document.getElementById('tabDashboard').classList.toggle('active',  page === 'dashboard');
+  document.getElementById('tabSelections').classList.toggle('active', page === 'selections');
+}
+
+// ── Client Selections ─────────────────────────────────────────
+let _selectionResults = [];
+
+function setQuery(btn) {
+  document.getElementById('queryInput').value = btn.textContent;
+  runQuery();
+}
+
+async function runQuery() {
+  const q   = document.getElementById('queryInput').value.trim();
+  const btn = document.getElementById('queryBtn');
+  if (!q) return;
+  btn.textContent = '⏳ Thinking…';
+  btn.disabled    = true;
+  document.getElementById('queryStatus').textContent  = 'Asking Claude to interpret your query…';
+  document.getElementById('queryResults').innerHTML   = '';
+  document.getElementById('queryActions').style.display = 'none';
+  try {
+    const params = new URLSearchParams({ q, server: selectedServer });
+    if (selectedTenantId) params.set('tenant_id', selectedTenantId);
+    const res  = await fetch('/api/query?' + params);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    _selectionResults = data.clients;
+    document.getElementById('queryStatus').innerHTML =
+      `<strong style="color:var(--navy)">${data.total.toLocaleString()} client${data.total !== 1 ? 's' : ''}</strong> matched &nbsp;·&nbsp; <em style="color:var(--muted)">${escHtml(data.description)}</em>`;
+    if (data.total > 500) {
+      document.getElementById('queryStatus').innerHTML +=
+        ` <span style="color:#F59E0B">(showing first 500)</span>`;
+    }
+    renderSelectionResults(_selectionResults);
+    if (_selectionResults.length) document.getElementById('queryActions').style.display = 'block';
+  } catch (err) {
+    document.getElementById('queryStatus').innerHTML =
+      `<span style="color:#EF4444">Error: ${escHtml(err.message)}</span>`;
+  } finally {
+    btn.textContent = 'Find Clients';
+    btn.disabled    = false;
+  }
+}
+
+function renderSelectionResults(clients) {
+  const box = document.getElementById('queryResults');
+  if (!clients.length) {
+    box.innerHTML = '<p class="text-sm p-4" style="color:var(--muted)">No clients matched this query.</p>';
+    return;
+  }
+  const rows = clients.map(c => {
+    const cats = (c.top_cats || []).map(cat =>
+      `<span class="inline-block text-xs px-2 py-0.5 rounded-md mr-0.5 font-medium" style="background:#EEF9F8;color:var(--teal-d);border:1px solid #C8EEEB">${escHtml(cat)}</span>`
+    ).join('');
+    return `<tr>
+      <td class="py-3 px-3 font-semibold" style="color:var(--navy)">${escHtml(c.name)}</td>
+      <td class="py-3 px-3"><span class="px-2 py-0.5 rounded-full text-xs font-semibold badge-${c.scls}">${c.status}</span></td>
+      <td class="py-3 px-3 text-sm" style="color:var(--muted)">${escHtml(c.last_visit)}</td>
+      <td class="py-3 px-3 text-sm" style="color:var(--muted)">${c.days_since}d</td>
+      <td class="py-3 px-3 text-sm text-center">${c.n_visits}</td>
+      <td class="py-3 px-3 text-sm">£${c.avg_spend}</td>
+      <td class="py-3 px-3 text-sm">${escHtml(c.pref_tm)}</td>
+      <td class="py-3 px-3 text-sm" style="color:var(--muted)">${c.n_stylists} stylist${c.n_stylists !== 1 ? 's' : ''}</td>
+      <td class="py-3 px-3">${cats}</td>
+      <td class="py-3 px-3 min-w-[300px] max-w-[380px]">
+        <div class="flex items-start gap-2">
+          <span class="text-sm leading-relaxed flex-1 sms-text" style="color:var(--text)">${escHtml(c.sms)}</span>
+          <button onclick="copySMS(this)" class="btn-copy flex-shrink-0 mt-0.5">Copy</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  box.innerHTML = `
+    <div class="rounded-2xl border overflow-hidden shadow-sm" style="border-color:var(--border);background:#fff">
+    <div class="overflow-x-auto">
+    <table>
+      <thead>
+        <tr class="text-xs uppercase tracking-wider">
+          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Client</th>
+          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Status</th>
+          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Last Visit</th>
+          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Days Since</th>
+          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Visits</th>
+          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Avg Spend</th>
+          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Stylist</th>
+          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Stylists Seen</th>
+          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Services</th>
+          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Suggested SMS</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+    </div></div>`;
+}
+
+function exportCSV() {
+  if (!_selectionResults.length) return;
+  const cols = ['name','status','last_visit','days_since','n_visits','avg_spend','total_spend','pref_tm','n_stylists','no_shows','pref_day','pref_time','top_cats','sms'];
+  const header = cols.join(',');
+  const lines  = _selectionResults.map(c =>
+    cols.map(k => {
+      const v = Array.isArray(c[k]) ? c[k].join('; ') : (c[k] ?? '');
+      return JSON.stringify(String(v));
+    }).join(',')
+  );
+  const blob = new Blob([[header, ...lines].join('\n')], { type: 'text/csv' });
+  const a    = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: 'client-selection.csv' });
+  a.click();
 }
 
 // ── Server + Tenant selection ─────────────────────────────────

@@ -3,6 +3,7 @@
 
 import os
 import base64
+import json
 from functools import wraps
 from flask import Flask, jsonify, request, Response, send_from_directory
 import requests
@@ -214,8 +215,9 @@ def build_data(tenant_id=None, server="BETA"):
         pref_day  = DAYS[Counter(b["dt"].weekday() for b in bkgs).most_common(1)[0][0]]
         pref_time = time_label(Counter(b["dt"].hour for b in bkgs).most_common(1)[0][0])
 
-        tm_cnt    = Counter(b["tm"] for b in bkgs if b["tm"])
-        pref_tm   = team_map.get(tm_cnt.most_common(1)[0][0], "?") if tm_cnt else "?"
+        tm_cnt     = Counter(b["tm"] for b in bkgs if b["tm"])
+        pref_tm    = team_map.get(tm_cnt.most_common(1)[0][0], "?") if tm_cnt else "?"
+        n_stylists = len(tm_cnt)
 
         top_cats  = [c for c, _ in Counter(b["cat"] for b in bkgs if b["cat"]).most_common(2)]
         no_shows  = int(cli.get("NoShows") or 0)
@@ -276,6 +278,7 @@ def build_data(tenant_id=None, server="BETA"):
             pref_tm=pref_tm,
             top_cats=top_cats,
             no_shows=no_shows,
+            n_stylists=n_stylists,
             sr=round(r_score, 1),
             so=round(o_score, 1),
             sf=round(f_score, 1),
@@ -364,6 +367,111 @@ def search_clients():
         return jsonify([])
     results = [c for c in _all_scored if q in c["name"].lower()]
     return jsonify(results[:20])
+
+
+@app.route("/api/query")
+@require_auth
+def query_clients():
+    q = request.args.get("q", "").strip()
+    if not q:
+        return jsonify({"error": "No query provided"}), 400
+    if not _all_scored:
+        return jsonify({"error": "No data loaded — load a salon first"}), 400
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        return jsonify({"error": "ANTHROPIC_API_KEY is not configured on this server"}), 500
+
+    schema = """
+Fields available on each client record:
+- name (string): full name
+- scls (string): "active" <60 days, "due" 60-120 days, "lapsing" 120-365 days, "lapsed" >365 days
+- days_since (int): days since last visit
+- n_visits (int): visits in the last 2 years
+- total_spend (int £): total spend
+- avg_spend (int £): average spend per visit
+- avg_gap (int or null): average days between visits
+- overdue (int or null): days past their usual visit interval
+- pref_day (string): Mon/Tue/Wed/Thu/Fri/Sat/Sun
+- pref_time (string): Morning/Lunchtime/Afternoon/Evening
+- pref_tm (string): preferred stylist name
+- top_cats (array of strings): service categories e.g. ["Colour","Cut & Finish"]
+- no_shows (int): number of recorded no-shows
+- n_stylists (int): number of distinct stylists visited
+- score (float 0-100): SMS targeting score
+"""
+
+    prompt = f"""You are a filter assistant for a hair salon CRM.
+Convert the natural language query into JSON filter criteria for the client database.
+
+{schema}
+
+Query: "{q}"
+
+Return ONLY a JSON object — no markdown, no explanation — in this exact structure:
+{{
+  "filters": [
+    {{"field": "fieldname", "op": "operator", "value": <value>}}
+  ],
+  "logic": "AND",
+  "description": "Plain English explanation of the segment"
+}}
+
+Supported operators: eq, ne, gt, gte, lt, lte, in (value is a list), contains (array field contains string), exists (value true=not null, false=null)
+
+Examples:
+"visited only once" → [{{"field":"n_visits","op":"eq","value":1}}]
+"loyal regulars" → [{{"field":"n_visits","op":"gte","value":10}}]
+"high value lapsing" → logic AND, [{{"field":"scls","op":"eq","value":"lapsing"}},{{"field":"avg_spend","op":"gte","value":60}}]
+"colour clients overdue" → logic AND, [{{"field":"top_cats","op":"contains","value":"Colour"}},{{"field":"overdue","op":"exists","value":true}}]
+"only ever seen one stylist" → [{{"field":"n_stylists","op":"eq","value":1}}]
+"no-show history" → [{{"field":"no_shows","op":"gte","value":1}}]
+"""
+
+    try:
+        import anthropic as _anthropic
+        ai  = _anthropic.Anthropic(api_key=api_key)
+        msg = ai.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=512,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = msg.content[0].text.strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        criteria = json.loads(raw.strip())
+    except Exception as e:
+        return jsonify({"error": f"Could not interpret query: {e}"}), 400
+
+    filters     = criteria.get("filters", [])
+    logic       = criteria.get("logic", "AND").upper()
+    description = criteria.get("description", q)
+
+    def matches(client, f):
+        field, op, val = f.get("field"), f.get("op"), f.get("value")
+        cv = client.get(field)
+        if op == "eq":       return cv == val
+        if op == "ne":       return cv != val
+        if op == "gt":       return cv is not None and cv > val
+        if op == "gte":      return cv is not None and cv >= val
+        if op == "lt":       return cv is not None and cv < val
+        if op == "lte":      return cv is not None and cv <= val
+        if op == "in":       return cv in val
+        if op == "contains":
+            if isinstance(cv, list):
+                return any(val.lower() in c.lower() for c in cv)
+        if op == "exists":   return (cv is not None) == val
+        return False
+
+    results = [
+        c for c in _all_scored
+        if (any if logic == "OR" else all)(matches(c, f) for f in filters)
+    ] if filters else []
+
+    return jsonify({"clients": results[:500], "total": len(results),
+                    "description": description, "criteria": criteria})
 
 
 if __name__ == "__main__":
