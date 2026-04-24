@@ -593,7 +593,7 @@ async function initTenants() {
     tenants.forEach(t => {
       const opt       = document.createElement('option');
       opt.value       = t.id;
-      opt.textContent = t.name + (t.code ? ` (${t.code})` : '');
+      opt.textContent = t.code ? `${t.code} – ${t.name}` : t.name;
       sel.appendChild(opt);
     });
   } catch (err) {

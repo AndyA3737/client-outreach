@@ -318,7 +318,7 @@ def tenants():
                 or r.get("code") or "")
         if tid:
             result.append({"id": str(tid), "name": name, "code": code})
-    result.sort(key=lambda x: x["name"])
+    result.sort(key=lambda x: x["code"])
     return jsonify(result)
 
 
