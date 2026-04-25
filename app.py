@@ -333,10 +333,10 @@ def data():
     server    = request.args.get("server", "BETA")
     clients   = build_data(tenant_id, server)
     stylists  = sorted(set(c["pref_tm"] for c in clients))
-    n_active  = sum(1 for c in clients if c["scls"] == "active")
-    n_due     = sum(1 for c in clients if c["scls"] == "due")
-    n_lapsing = sum(1 for c in clients if c["scls"] == "lapsing")
-    n_lapsed  = sum(1 for c in clients if c["scls"] == "lapsed")
+    n_active  = sum(1 for c in _all_scored if c["scls"] == "active")
+    n_due     = sum(1 for c in _all_scored if c["scls"] == "due")
+    n_lapsing = sum(1 for c in _all_scored if c["scls"] == "lapsing")
+    n_lapsed  = sum(1 for c in _all_scored if c["scls"] == "lapsed")
     return jsonify(dict(
         clients=clients,
         stylists=stylists,
