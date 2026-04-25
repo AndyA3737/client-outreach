@@ -163,7 +163,12 @@
 <div id="pageDashboard">
 
 <!-- Stat Cards -->
-<div class="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 pb-4">
+<div class="grid grid-cols-2 md:grid-cols-5 gap-4 p-6 pb-4">
+  <div class="stat-card">
+    <div class="text-xs font-semibold uppercase tracking-widest mb-2" style="color:var(--muted)">Total Clients</div>
+    <div class="text-4xl font-extrabold" style="color:var(--navy)" id="statTotal">—</div>
+    <div class="text-xs mt-1" style="color:var(--muted)">in database</div>
+  </div>
   <div class="stat-card">
     <div class="text-xs font-semibold uppercase tracking-widest mb-2" style="color:var(--muted)">In Top 500</div>
     <div class="text-4xl font-extrabold" style="color:var(--navy)">500</div>
@@ -636,6 +641,7 @@ async function fetchData() {
     const d = await res.json();
 
     document.getElementById('generatedTs').textContent    = d.generated;
+    document.getElementById('statTotal').textContent      = d.n_total.toLocaleString();
     document.getElementById('statActive').textContent     = d.n_active;
     document.getElementById('statDueLapsing').textContent = d.n_due + d.n_lapsing;
     document.getElementById('statLapsed').textContent     = d.n_lapsed;

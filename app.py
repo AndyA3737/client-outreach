@@ -340,6 +340,7 @@ def data():
         n_due=n_due,
         n_lapsing=n_lapsing,
         n_lapsed=n_lapsed,
+        n_total=len(_all_scored),
         generated=datetime.now().strftime("%-d %b %Y at %H:%M"),
     ))
 
