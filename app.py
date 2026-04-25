@@ -56,6 +56,7 @@ SERVERS = {
 _cache, _cache_ts = {}, {}
 CACHE_TTL = 3600
 _all_scored = []
+_total_clients = 0
 
 
 def fetch(report_name, sd="", ed="", tenant_id=None, server="BETA"):
@@ -163,6 +164,9 @@ def build_data(tenant_id=None, server="BETA"):
     svcs_raw    = fetch("XXX_Export_Admin_TUBR_services", tenant_id=tenant_id, server=server)
     team_raw    = fetch("XXX_Export_Admin_TUBR_TeamMembers", tenant_id=tenant_id, server=server)
     bkgs_raw    = fetch("XXX_Export_Admin_TUBR_Bookings", sd, ed, tenant_id=tenant_id, server=server)
+
+    global _total_clients
+    _total_clients = len(clients_raw)
 
     svc_map  = {s["ServiceId"]: s for s in svcs_raw}
     team_map = {t["TeamMemberId"]: (t.get("NickName") or t["FirstName"]) for t in team_raw}
@@ -340,7 +344,7 @@ def data():
         n_due=n_due,
         n_lapsing=n_lapsing,
         n_lapsed=n_lapsed,
-        n_total=len(_all_scored),
+        n_total=_total_clients,
         generated=datetime.now().strftime("%-d %b %Y at %H:%M"),
     ))
 
