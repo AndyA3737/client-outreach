@@ -68,7 +68,7 @@ def fetch(report_name, sd="", ed="", tenant_id=None, server="BETA"):
         return _cache[key]
     params = {**API_COMMON, "TokenID": srv["token"], "TenantID": tid,
               "ReportName": report_name, "startdate": sd, "enddate": ed}
-    r = requests.post(srv["base"], params=params, headers={"Content-Length": "0"}, timeout=60)
+    r = requests.post(srv["base"], params=params, headers={"Content-Length": "0"}, timeout=180)
     r.raise_for_status()
     result = r.json()["Data"]["Array"]
     _cache[key], _cache_ts[key] = result, now
