@@ -5,7 +5,6 @@ import os
 import base64
 import json
 from functools import wraps
-from concurrent.futures import ThreadPoolExecutor
 from flask import Flask, jsonify, request, Response, send_from_directory
 import requests
 from datetime import datetime, date, timedelta
@@ -180,7 +179,16 @@ def build_data(tenant_id=None, server="BETA"):
     svcs_raw    = fetch("XXX_Export_Admin_TUBR_services", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
     team_raw    = fetch("XXX_Export_Admin_TUBR_TeamMembers", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
 
-    # Split booking range into 4 x ~3-month chunks and fetch in parallel
+    global _total_clients
+    _total_clients = len(clients_raw)
+
+    svc_map  = {s["ServiceId"]: s for s in svcs_raw}
+    team_map = {t["TeamMemberId"]: (t.get("NickName") or t["FirstName"]) for t in team_raw}
+    cli_map  = {c["ClientId"]: c for c in clients_raw}
+    del svcs_raw, team_raw, clients_raw  # free raw API data now maps are built
+
+    # Fetch each booking chunk and process it immediately — never hold more than
+    # one chunk in memory at a time
     date_fmt = SERVERS.get(server, SERVERS["BETA"])["date_fmt"]
     bounds = [
         today - timedelta(days=365),
@@ -194,51 +202,37 @@ def build_data(tenant_id=None, server="BETA"):
         for i in range(4)
     ]
 
-    def _fetch_chunk(args):
-        sd, ed = args
+    by_client = defaultdict(list)
+    has_future_booking = set()
+
+    for sd, ed in booking_ranges:
         try:
-            return fetch("XXX_Export_Admin_TUBR_Bookings", sd, ed,
-                         tenant_id=tenant_id, server=server)
+            chunk = fetch("XXX_Export_Admin_TUBR_Bookings", sd, ed,
+                          tenant_id=tenant_id, server=server)
         except Exception as e:
             app.logger.error("CHUNK FAILED [%s→%s]: %s", sd, ed, e)
             raise RuntimeError(f"Booking chunk {sd}→{ed} failed: {e}") from e
 
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        chunks = list(pool.map(_fetch_chunk, booking_ranges))
-
-    bkgs_raw = [b for chunk in chunks for b in chunk]
-    del chunks  # free raw chunk memory before processing
-
-    global _total_clients
-    _total_clients = len(clients_raw)
-
-    svc_map  = {s["ServiceId"]: s for s in svcs_raw}
-    team_map = {t["TeamMemberId"]: (t.get("NickName") or t["FirstName"]) for t in team_raw}
-    cli_map  = {c["ClientId"]: c for c in clients_raw}
-    del svcs_raw, team_raw, clients_raw  # free raw API data now maps are built
-
-    by_client = defaultdict(list)
-    has_future_booking = set()
-
-    for b in bkgs_raw:
-        cid = b.get("ClientId")
-        dt  = parse_dt(b.get("Start"))
-        if not cid or not dt:
-            continue
-        if dt.date() > today:
-            has_future_booking.add(cid)
-            continue
-        svc      = svc_map.get(b.get("ServiceId"), {})
-        svc_name = svc.get("Description", "")
-        if any(k in svc_name.upper() for k in SKIP_KEYWORDS):
-            continue
-        by_client[cid].append({
-            "dt":    dt,
-            "price": float(b.get("TotalSalesPrice") or 0),
-            "tm":    b.get("TeamMemberId", ""),
-            "cat":   svc.get("Categoty", "").replace("HAIR - ", ""),
-            "svc":   svc_name,
-        })
+        for b in chunk:
+            cid = b.get("ClientId")
+            dt  = parse_dt(b.get("Start"))
+            if not cid or not dt:
+                continue
+            if dt.date() > today:
+                has_future_booking.add(cid)
+                continue
+            svc      = svc_map.get(b.get("ServiceId"), {})
+            svc_name = svc.get("Description", "")
+            if any(k in svc_name.upper() for k in SKIP_KEYWORDS):
+                continue
+            by_client[cid].append({
+                "dt":    dt,
+                "price": float(b.get("TotalSalesPrice") or 0),
+                "tm":    b.get("TeamMemberId", ""),
+                "cat":   svc.get("Categoty", "").replace("HAIR - ", ""),
+                "svc":   svc_name,
+            })
+        del chunk  # discard before fetching next
 
     del bkgs_raw  # free the largest raw dataset before scoring loop
 
