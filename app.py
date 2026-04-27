@@ -180,13 +180,13 @@ def build_data(tenant_id=None, server="BETA"):
     svcs_raw    = fetch("XXX_Export_Admin_TUBR_services", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
     team_raw    = fetch("XXX_Export_Admin_TUBR_TeamMembers", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
 
-    # Split booking range into 4 x ~6-month chunks and fetch in parallel
+    # Split booking range into 4 x ~3-month chunks and fetch in parallel
     date_fmt = SERVERS.get(server, SERVERS["BETA"])["date_fmt"]
     bounds = [
-        today - timedelta(days=730),
-        today - timedelta(days=547),
         today - timedelta(days=365),
+        today - timedelta(days=274),
         today - timedelta(days=182),
+        today - timedelta(days=91),
         today + timedelta(days=365),
     ]
     booking_ranges = [
