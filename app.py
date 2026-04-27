@@ -52,11 +52,13 @@ SERVERS = {
         "base":           "https://greathairhub.saloniq.co.uk/api/GetAPIReport",
         "token":          "ACD7636F-D6D5-45AB-92FC-785D4904ADA5",
         "default_tenant": "1E7D7624-FEB7-4950-A6BE-5FBB1498EE39",
+        "date_fmt":       "%d/%m/%Y",
     },
     "LIVE": {
         "base":           "https://apihub.saloniq.co.uk/api/GetAPIReport",
         "token":          "517a41d9-48e3-4af7-ae6c-0e30688f9325",
         "default_tenant": "1E7D7624-FEB7-4950-A6BE-5FBB1498EE39",
+        "date_fmt":       "%m/%d/%Y",
     },
 }
 
@@ -170,6 +172,7 @@ def build_data(tenant_id=None, server="BETA"):
     team_raw    = fetch("XXX_Export_Admin_TUBR_TeamMembers", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
 
     # Split booking range into 4 x ~6-month chunks and fetch in parallel
+    date_fmt = SERVERS.get(server, SERVERS["BETA"])["date_fmt"]
     bounds = [
         today - timedelta(days=730),
         today - timedelta(days=547),
@@ -178,7 +181,7 @@ def build_data(tenant_id=None, server="BETA"):
         today + timedelta(days=365),
     ]
     booking_ranges = [
-        (bounds[i].strftime("%m/%d/%Y"), bounds[i + 1].strftime("%m/%d/%Y"))
+        (bounds[i].strftime(date_fmt), bounds[i + 1].strftime(date_fmt))
         for i in range(4)
     ]
 
