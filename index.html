@@ -630,15 +630,32 @@ function changeSalon() {
   stylistSel.innerHTML = '<option value="">All Stylists</option>';
 }
 
-// ── Data fetch ────────────────────────────────────────────────
+// ── Data fetch (background job + polling) ────────────────────
 async function fetchData() {
   try {
     const params = new URLSearchParams({ server: selectedServer });
     if (selectedTenantId) params.set('tenant_id', selectedTenantId);
-    const url = '/api/data?' + params;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const d = await res.json();
+
+    // Start background job — returns immediately with a job_id
+    const startRes = await fetch('/api/data?' + params);
+    if (!startRes.ok) throw new Error(`HTTP ${startRes.status}`);
+    const { job_id, error: startErr } = await startRes.json();
+    if (startErr) throw new Error(startErr);
+
+    // Poll until done
+    let d = null;
+    let elapsed = 0;
+    while (!d) {
+      await new Promise(r => setTimeout(r, 3000));
+      elapsed += 3;
+      const loadingMsg = document.querySelector('#loadingOverlay div:last-child');
+      if (loadingMsg) loadingMsg.textContent = `Fetching data… ${elapsed}s elapsed`;
+      const pollRes = await fetch(`/api/job/${job_id}`);
+      if (!pollRes.ok) throw new Error(`HTTP ${pollRes.status}`);
+      const pollData = await pollRes.json();
+      if (pollData.error) throw new Error(pollData.error);
+      if (!pollData.status) d = pollData;  // status only present while loading
+    }
 
     document.getElementById('generatedTs').textContent    = d.generated;
     document.getElementById('statTotal').textContent      = d.n_total.toLocaleString();
@@ -720,7 +737,7 @@ async function refreshData() {
   document.getElementById('loadingOverlay').innerHTML = `
     <div class="spinner mb-6"></div>
     <div class="font-semibold text-lg" style="color:var(--navy)">Refreshing client data…</div>
-    <div class="text-sm mt-2" style="color:var(--muted)">Fetching bookings — this can take 10–20 seconds</div>`;
+    <div class="text-sm mt-2" style="color:var(--muted)">Fetching bookings — please wait</div>`;
   btn.textContent = '↻ Refresh Data';
   btn.disabled = false;
   await fetchData();

@@ -4,6 +4,8 @@
 import os
 import base64
 import json
+import threading
+import uuid
 from functools import wraps
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Flask, jsonify, request, Response, send_from_directory
@@ -66,6 +68,7 @@ _cache, _cache_ts = {}, {}
 CACHE_TTL = 3600
 _all_scored = []
 _total_clients = 0
+_jobs = {}  # job_id -> {status, data, error}
 
 
 NOCACHE_REPORTS = {"XXX_Export_Admin_TUBR_Bookings"}
@@ -373,32 +376,58 @@ def tenants():
     return jsonify(result)
 
 
+def _build_response(tenant_id, server):
+    """Build the full API response dict — called from background thread."""
+    import traceback
+    try:
+        clients  = build_data(tenant_id, server)
+        stylists = sorted(set(c["pref_tm"] for c in clients))
+        result   = dict(
+            clients=clients,
+            stylists=stylists,
+            n_active  =sum(1 for c in _all_scored if c["scls"] == "active"),
+            n_due     =sum(1 for c in _all_scored if c["scls"] == "due"),
+            n_lapsing =sum(1 for c in _all_scored if c["scls"] == "lapsing"),
+            n_lapsed  =sum(1 for c in _all_scored if c["scls"] == "lapsed"),
+            n_total=_total_clients,
+            generated=datetime.now().strftime("%-d %b %Y at %H:%M"),
+        )
+        return {"status": "done", "data": result}
+    except Exception as e:
+        app.logger.error("build_data failed: %s\n%s", e, traceback.format_exc())
+        return {"status": "error", "error": str(e)}
+
+
 @app.route("/api/data")
 @require_auth
 def data():
-    import traceback
+    """Start a background job and return its ID immediately."""
     tenant_id = request.args.get("tenant_id") or None
     server    = request.args.get("server", "BETA")
-    try:
-        clients = build_data(tenant_id, server)
-    except Exception as e:
-        app.logger.error("build_data failed: %s\n%s", e, traceback.format_exc())
-        return jsonify({"error": str(e)}), 500
-    stylists  = sorted(set(c["pref_tm"] for c in clients))
-    n_active  = sum(1 for c in _all_scored if c["scls"] == "active")
-    n_due     = sum(1 for c in _all_scored if c["scls"] == "due")
-    n_lapsing = sum(1 for c in _all_scored if c["scls"] == "lapsing")
-    n_lapsed  = sum(1 for c in _all_scored if c["scls"] == "lapsed")
-    return jsonify(dict(
-        clients=clients,
-        stylists=stylists,
-        n_active=n_active,
-        n_due=n_due,
-        n_lapsing=n_lapsing,
-        n_lapsed=n_lapsed,
-        n_total=_total_clients,
-        generated=datetime.now().strftime("%-d %b %Y at %H:%M"),
-    ))
+    job_id    = str(uuid.uuid4())
+    _jobs[job_id] = {"status": "loading"}
+
+    def worker():
+        _jobs[job_id] = _build_response(tenant_id, server)
+
+    threading.Thread(target=worker, daemon=True).start()
+    return jsonify({"job_id": job_id})
+
+
+@app.route("/api/job/<job_id>")
+@require_auth
+def job_status(job_id):
+    """Poll this until status is 'done' or 'error'."""
+    job = _jobs.get(job_id)
+    if not job:
+        return jsonify({"error": "Job not found"}), 404
+    if job["status"] == "done":
+        _jobs.pop(job_id, None)   # clean up after delivery
+        return jsonify(job["data"])
+    if job["status"] == "error":
+        _jobs.pop(job_id, None)
+        return jsonify({"error": job["error"]}), 500
+    return jsonify({"status": "loading"})
 
 
 @app.route("/api/refresh", methods=["POST"])
