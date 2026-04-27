@@ -191,10 +191,10 @@ def build_data(tenant_id=None, server="BETA"):
     # one chunk in memory at a time
     date_fmt = SERVERS.get(server, SERVERS["BETA"])["date_fmt"]
     bounds = [
+        today - timedelta(days=730),
+        today - timedelta(days=547),
         today - timedelta(days=365),
-        today - timedelta(days=274),
         today - timedelta(days=182),
-        today - timedelta(days=91),
         today + timedelta(days=365),
     ]
     booking_ranges = [
