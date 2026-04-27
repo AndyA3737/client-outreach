@@ -5,6 +5,7 @@ import os
 import base64
 import json
 from functools import wraps
+from concurrent.futures import ThreadPoolExecutor
 from flask import Flask, jsonify, request, Response, send_from_directory
 import requests
 from datetime import datetime, date, timedelta
@@ -157,13 +158,32 @@ def time_label(h):
 
 def build_data(tenant_id=None, server="BETA"):
     today = date.today()
-    sd = (today - timedelta(days=730)).strftime("%m/%d/%Y")
-    ed = (today + timedelta(days=365)).strftime("%m/%d/%Y")
 
     clients_raw = fetch("XXX_Export_Admin_TUBR_Clients", tenant_id=tenant_id, server=server)
     svcs_raw    = fetch("XXX_Export_Admin_TUBR_services", tenant_id=tenant_id, server=server)
     team_raw    = fetch("XXX_Export_Admin_TUBR_TeamMembers", tenant_id=tenant_id, server=server)
-    bkgs_raw    = fetch("XXX_Export_Admin_TUBR_Bookings", sd, ed, tenant_id=tenant_id, server=server)
+
+    # Split booking range into 4 x ~6-month chunks and fetch in parallel
+    bounds = [
+        today - timedelta(days=730),
+        today - timedelta(days=547),
+        today - timedelta(days=365),
+        today - timedelta(days=182),
+        today + timedelta(days=365),
+    ]
+    booking_ranges = [
+        (bounds[i].strftime("%m/%d/%Y"), bounds[i + 1].strftime("%m/%d/%Y"))
+        for i in range(4)
+    ]
+
+    def _fetch_chunk(args):
+        return fetch("XXX_Export_Admin_TUBR_Bookings", args[0], args[1],
+                     tenant_id=tenant_id, server=server)
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        chunks = list(pool.map(_fetch_chunk, booking_ranges))
+
+    bkgs_raw = [b for chunk in chunks for b in chunk]
 
     global _total_clients
     _total_clients = len(clients_raw)
