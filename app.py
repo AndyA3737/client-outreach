@@ -336,8 +336,9 @@ def index():
 @app.route("/api/tenants")
 @require_auth
 def tenants():
-    server = request.args.get("server", "BETA")
-    rows = fetch("XXX_Export_Admin_BenchMarks_TenantList", server=server)
+    server  = request.args.get("server", "BETA")
+    today   = date.today().strftime("%m/%d/%Y")
+    rows    = fetch("XXX_Export_Admin_BenchMarks_TenantList", today, today, server=server)
     result = []
     for r in rows:
         tid  = (r.get("TenantID") or r.get("TenantId") or r.get("tenantid")
