@@ -15,22 +15,28 @@ import time
 app = Flask(__name__)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DASHBOARD_USER = os.environ.get('DASHBOARD_USER', 'admin')
-DASHBOARD_PASS = os.environ.get('DASHBOARD_PASS', 'changeme')
+DASHBOARD_USER = os.environ.get('DASHBOARD_USER', 'admin').strip()
+DASHBOARD_PASS = os.environ.get('DASHBOARD_PASS', 'changeme').strip()
 
 
 def require_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        auth = request.headers.get('Authorization', '')
-        if auth.startswith('Basic '):
-            try:
-                creds = base64.b64decode(auth[6:]).decode('utf-8')
-                user, pwd = creds.split(':', 1)
-                if user == DASHBOARD_USER and pwd == DASHBOARD_PASS:
-                    return f(*args, **kwargs)
-            except Exception:
-                pass
+        # Try Flask's built-in parser first, then fall back to manual header parse
+        auth = request.authorization
+        if auth:
+            if auth.username == DASHBOARD_USER and auth.password == DASHBOARD_PASS:
+                return f(*args, **kwargs)
+        else:
+            raw = request.headers.get('Authorization') or request.environ.get('HTTP_AUTHORIZATION', '')
+            if raw.startswith('Basic '):
+                try:
+                    creds = base64.b64decode(raw[6:]).decode('utf-8')
+                    user, pwd = creds.split(':', 1)
+                    if user == DASHBOARD_USER and pwd == DASHBOARD_PASS:
+                        return f(*args, **kwargs)
+                except Exception:
+                    pass
         return Response(
             'Authentication required.',
             401,
