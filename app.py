@@ -5,6 +5,7 @@ import os
 import base64
 import json
 from functools import wraps
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Flask, jsonify, request, Response, send_from_directory
 import requests
 from datetime import datetime, date, timedelta
@@ -205,34 +206,41 @@ def build_data(tenant_id=None, server="BETA"):
     by_client = defaultdict(list)
     has_future_booking = set()
 
-    for sd, ed in booking_ranges:
+    def _fetch_chunk(args):
+        sd, ed = args
         try:
-            chunk = fetch("XXX_Export_Admin_TUBR_Bookings", sd, ed,
-                          tenant_id=tenant_id, server=server)
+            return fetch("XXX_Export_Admin_TUBR_Bookings", sd, ed,
+                         tenant_id=tenant_id, server=server)
         except Exception as e:
             app.logger.error("CHUNK FAILED [%s→%s]: %s", sd, ed, e)
             raise RuntimeError(f"Booking chunk {sd}→{ed} failed: {e}") from e
 
-        for b in chunk:
-            cid = b.get("ClientId")
-            dt  = parse_dt(b.get("Start"))
-            if not cid or not dt:
-                continue
-            if dt.date() > today:
-                has_future_booking.add(cid)
-                continue
-            svc      = svc_map.get(b.get("ServiceId"), {})
-            svc_name = svc.get("Description", "")
-            if any(k in svc_name.upper() for k in SKIP_KEYWORDS):
-                continue
-            by_client[cid].append({
-                "dt":    dt,
-                "price": float(b.get("TotalSalesPrice") or 0),
-                "tm":    b.get("TeamMemberId", ""),
-                "cat":   svc.get("Categoty", "").replace("HAIR - ", ""),
-                "svc":   svc_name,
-            })
-        del chunk  # discard before fetching next
+    # Fetch all chunks in parallel (total time = slowest chunk, not sum of all)
+    # Process each chunk as it completes and discard immediately to keep memory low
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        futures = {pool.submit(_fetch_chunk, r): r for r in booking_ranges}
+        for future in as_completed(futures):
+            chunk = future.result()
+            for b in chunk:
+                cid = b.get("ClientId")
+                dt  = parse_dt(b.get("Start"))
+                if not cid or not dt:
+                    continue
+                if dt.date() > today:
+                    has_future_booking.add(cid)
+                    continue
+                svc      = svc_map.get(b.get("ServiceId"), {})
+                svc_name = svc.get("Description", "")
+                if any(k in svc_name.upper() for k in SKIP_KEYWORDS):
+                    continue
+                by_client[cid].append({
+                    "dt":    dt,
+                    "price": float(b.get("TotalSalesPrice") or 0),
+                    "tm":    b.get("TeamMemberId", ""),
+                    "cat":   svc.get("Categoty", "").replace("HAIR - ", ""),
+                    "svc":   svc_name,
+                })
+            del chunk  # discard as soon as processed
 
     rows = []
     for cid, bkgs in by_client.items():
