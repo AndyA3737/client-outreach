@@ -68,14 +68,17 @@ _all_scored = []
 _total_clients = 0
 
 
+NOCACHE_REPORTS = {"XXX_Export_Admin_TUBR_Bookings"}
+
 def fetch(report_name, sd="", ed="", tenant_id=None, server="BETA"):
     srv = SERVERS.get(server, SERVERS["BETA"])
     tid = tenant_id or srv["default_tenant"]
     key = f"{server}|{report_name}|{sd}|{ed}|{tid}"
     now = time.time()
-    if key in _cache and now - _cache_ts.get(key, 0) < CACHE_TTL:
-        app.logger.info("CACHE HIT  %s [%s→%s]", report_name, sd, ed)
-        return _cache[key]
+    if report_name not in NOCACHE_REPORTS:
+        if key in _cache and now - _cache_ts.get(key, 0) < CACHE_TTL:
+            app.logger.info("CACHE HIT  %s [%s→%s]", report_name, sd, ed)
+            return _cache[key]
     app.logger.info("FETCH START %s [%s→%s] tenant=%s server=%s", report_name, sd, ed, tid, server)
     t0 = time.time()
     params = {**API_COMMON, "TokenID": srv["token"], "TenantID": tid,
@@ -85,7 +88,8 @@ def fetch(report_name, sd="", ed="", tenant_id=None, server="BETA"):
     result = r.json()["Data"]["Array"]
     app.logger.info("FETCH DONE  %s [%s→%s] rows=%d elapsed=%.1fs",
                     report_name, sd, ed, len(result), time.time() - t0)
-    _cache[key], _cache_ts[key] = result, now
+    if report_name not in NOCACHE_REPORTS:
+        _cache[key], _cache_ts[key] = result, now
     return result
 
 
@@ -203,6 +207,7 @@ def build_data(tenant_id=None, server="BETA"):
         chunks = list(pool.map(_fetch_chunk, booking_ranges))
 
     bkgs_raw = [b for chunk in chunks for b in chunk]
+    del chunks  # free raw chunk memory before processing
 
     global _total_clients
     _total_clients = len(clients_raw)
@@ -210,6 +215,7 @@ def build_data(tenant_id=None, server="BETA"):
     svc_map  = {s["ServiceId"]: s for s in svcs_raw}
     team_map = {t["TeamMemberId"]: (t.get("NickName") or t["FirstName"]) for t in team_raw}
     cli_map  = {c["ClientId"]: c for c in clients_raw}
+    del svcs_raw, team_raw, clients_raw  # free raw API data now maps are built
 
     by_client = defaultdict(list)
     has_future_booking = set()
@@ -233,6 +239,8 @@ def build_data(tenant_id=None, server="BETA"):
             "cat":   svc.get("Categoty", "").replace("HAIR - ", ""),
             "svc":   svc_name,
         })
+
+    del bkgs_raw  # free the largest raw dataset before scoring loop
 
     rows = []
     for cid, bkgs in by_client.items():
