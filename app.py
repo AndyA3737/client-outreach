@@ -165,9 +165,9 @@ def time_label(h):
 def build_data(tenant_id=None, server="BETA"):
     today = date.today()
 
-    clients_raw = fetch("XXX_Export_Admin_TUBR_Clients", tenant_id=tenant_id, server=server)
-    svcs_raw    = fetch("XXX_Export_Admin_TUBR_services", tenant_id=tenant_id, server=server)
-    team_raw    = fetch("XXX_Export_Admin_TUBR_TeamMembers", tenant_id=tenant_id, server=server)
+    clients_raw = fetch("XXX_Export_Admin_TUBR_Clients", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
+    svcs_raw    = fetch("XXX_Export_Admin_TUBR_services", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
+    team_raw    = fetch("XXX_Export_Admin_TUBR_TeamMembers", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
 
     # Split booking range into 4 x ~6-month chunks and fetch in parallel
     bounds = [
