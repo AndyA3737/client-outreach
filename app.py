@@ -234,8 +234,6 @@ def build_data(tenant_id=None, server="BETA"):
             })
         del chunk  # discard before fetching next
 
-    del bkgs_raw  # free the largest raw dataset before scoring loop
-
     rows = []
     for cid, bkgs in by_client.items():
         cli = cli_map.get(cid)
