@@ -368,9 +368,14 @@ def tenants():
 @app.route("/api/data")
 @require_auth
 def data():
+    import traceback
     tenant_id = request.args.get("tenant_id") or None
     server    = request.args.get("server", "BETA")
-    clients   = build_data(tenant_id, server)
+    try:
+        clients = build_data(tenant_id, server)
+    except Exception as e:
+        app.logger.error("build_data failed: %s\n%s", e, traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
     stylists  = sorted(set(c["pref_tm"] for c in clients))
     n_active  = sum(1 for c in _all_scored if c["scls"] == "active")
     n_due     = sum(1 for c in _all_scored if c["scls"] == "due")
