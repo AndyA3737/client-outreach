@@ -74,12 +74,17 @@ def fetch(report_name, sd="", ed="", tenant_id=None, server="BETA"):
     key = f"{server}|{report_name}|{sd}|{ed}|{tid}"
     now = time.time()
     if key in _cache and now - _cache_ts.get(key, 0) < CACHE_TTL:
+        app.logger.info("CACHE HIT  %s [%s→%s]", report_name, sd, ed)
         return _cache[key]
+    app.logger.info("FETCH START %s [%s→%s] tenant=%s server=%s", report_name, sd, ed, tid, server)
+    t0 = time.time()
     params = {**API_COMMON, "TokenID": srv["token"], "TenantID": tid,
               "ReportName": report_name, "startdate": sd, "enddate": ed}
     r = requests.post(srv["base"], params=params, headers={"Content-Length": "0"}, timeout=180)
     r.raise_for_status()
     result = r.json()["Data"]["Array"]
+    app.logger.info("FETCH DONE  %s [%s→%s] rows=%d elapsed=%.1fs",
+                    report_name, sd, ed, len(result), time.time() - t0)
     _cache[key], _cache_ts[key] = result, now
     return result
 
@@ -186,8 +191,13 @@ def build_data(tenant_id=None, server="BETA"):
     ]
 
     def _fetch_chunk(args):
-        return fetch("XXX_Export_Admin_TUBR_Bookings", args[0], args[1],
-                     tenant_id=tenant_id, server=server)
+        sd, ed = args
+        try:
+            return fetch("XXX_Export_Admin_TUBR_Bookings", sd, ed,
+                         tenant_id=tenant_id, server=server)
+        except Exception as e:
+            app.logger.error("CHUNK FAILED [%s→%s]: %s", sd, ed, e)
+            raise RuntimeError(f"Booking chunk {sd}→{ed} failed: {e}") from e
 
     with ThreadPoolExecutor(max_workers=4) as pool:
         chunks = list(pool.map(_fetch_chunk, booking_ranges))
