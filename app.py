@@ -185,9 +185,7 @@ def build_data(tenant_id=None, server="BETA"):
     team_raw    = fetch("XXX_Export_Admin_TUBR_TeamMembers", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
     try:
         salons_raw = fetch("Export_Admin_BenchMarks_SalonList", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
-        app.logger.info("SalonList rows=%d tenant=%s sample=%s",
-                        len(salons_raw), tenant_id,
-                        list(salons_raw[0].keys()) if salons_raw else "EMPTY")
+        print(f"SalonList rows={len(salons_raw)} tenant={tenant_id} sample={list(salons_raw[0].keys()) if salons_raw else 'EMPTY'}", flush=True)
     except Exception as e:
         app.logger.warning("SalonList fetch failed (salon names will be blank): %s", e)
         salons_raw = []
