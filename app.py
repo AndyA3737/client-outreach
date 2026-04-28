@@ -579,16 +579,23 @@ Examples:
     def matches(client, f):
         field, op, val = f.get("field"), f.get("op"), f.get("value")
         cv = client.get(field)
-        if op == "eq":       return cv == val
-        if op == "ne":       return cv != val
+        # normalise strings for case-insensitive comparison
+        cv_cmp  = cv.lower()  if isinstance(cv, str)  else cv
+        val_cmp = val.lower() if isinstance(val, str) else val
+        if op == "eq":       return cv_cmp == val_cmp
+        if op == "ne":       return cv_cmp != val_cmp
         if op == "gt":       return cv is not None and cv > val
         if op == "gte":      return cv is not None and cv >= val
         if op == "lt":       return cv is not None and cv < val
         if op == "lte":      return cv is not None and cv <= val
-        if op == "in":       return cv in val
+        if op == "in":
+            val_list = [v.lower() if isinstance(v, str) else v for v in val]
+            return cv_cmp in val_list
         if op == "contains":
             if isinstance(cv, list):
-                return any(val.lower() in c.lower() for c in cv)
+                return any(val_cmp in c.lower() for c in cv)
+            if isinstance(cv, str):
+                return val_cmp in cv_cmp
         if op == "exists":   return (cv is not None) == val
         return False
 
