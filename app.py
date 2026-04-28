@@ -87,7 +87,9 @@ def fetch(report_name, sd="", ed="", tenant_id=None, server="BETA", method="POST
     params = {**API_COMMON, "TokenID": srv["token"], "TenantID": tid,
               "ReportName": report_name, "startdate": sd, "enddate": ed}
     if method == "GET":
-        r = requests.get(srv["base"], params=params, timeout=180)
+        # Build query string manually — requests encodes / as %2F which breaks the API
+        qs = "&".join(f"{k}={v}" for k, v in params.items())
+        r  = requests.get(f"{srv['base']}?{qs}", timeout=180)
     else:
         r = requests.post(srv["base"], params=params, headers={"Content-Length": "0"}, timeout=180)
     r.raise_for_status()
