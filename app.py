@@ -506,6 +506,7 @@ Fields available on each client record:
 - top_cats (array of strings): service categories e.g. ["Colour","Cut & Finish"]
 - no_shows (int): number of recorded no-shows
 - n_stylists (int): number of distinct stylists visited
+- pref_salon (string): name of the salon they visit most
 - score (float 0-100): SMS targeting score
 """
 
