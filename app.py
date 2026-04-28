@@ -88,7 +88,8 @@ def fetch(report_name, sd="", ed="", tenant_id=None, server="BETA"):
               "ReportName": report_name, "startdate": sd, "enddate": ed}
     r = requests.post(srv["base"], params=params, headers={"Content-Length": "0"}, timeout=180)
     r.raise_for_status()
-    result = r.json()["Data"]["Array"]
+    payload = r.json()
+    result  = (payload.get("Data") or {}).get("Array") or []
     app.logger.info("FETCH DONE  %s [%s→%s] rows=%d elapsed=%.1fs",
                     report_name, sd, ed, len(result), time.time() - t0)
     if report_name not in NOCACHE_REPORTS:
@@ -184,6 +185,9 @@ def build_data(tenant_id=None, server="BETA"):
     team_raw    = fetch("XXX_Export_Admin_TUBR_TeamMembers", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
     try:
         salons_raw = fetch("Export_Admin_BenchMarks_SalonList", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
+        app.logger.info("SalonList rows=%d tenant=%s sample=%s",
+                        len(salons_raw), tenant_id,
+                        list(salons_raw[0].keys()) if salons_raw else "EMPTY")
     except Exception as e:
         app.logger.warning("SalonList fetch failed (salon names will be blank): %s", e)
         salons_raw = []
