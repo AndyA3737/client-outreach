@@ -182,6 +182,7 @@ def build_data(tenant_id=None, server="BETA"):
     clients_raw = fetch("XXX_Export_Admin_TUBR_Clients", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
     svcs_raw    = fetch("XXX_Export_Admin_TUBR_services", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
     team_raw    = fetch("XXX_Export_Admin_TUBR_TeamMembers", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
+    salons_raw  = fetch("Export_Admin_BenchMarks_SalonList", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
 
     global _total_clients
     _total_clients = len(clients_raw)
@@ -189,7 +190,12 @@ def build_data(tenant_id=None, server="BETA"):
     svc_map  = {s["ServiceId"]: s for s in svcs_raw}
     team_map = {t["TeamMemberId"]: (t.get("NickName") or t["FirstName"]) for t in team_raw}
     cli_map  = {c["ClientId"]: c for c in clients_raw}
-    del svcs_raw, team_raw, clients_raw  # free raw API data now maps are built
+    salon_map = {
+        str(s.get("SalonId") or s.get("Salonid") or s.get("salonid") or s.get("ID") or ""):
+        (s.get("SalonName") or s.get("Name") or s.get("name") or "")
+        for s in salons_raw
+    }
+    del svcs_raw, team_raw, clients_raw, salons_raw  # free raw API data now maps are built
 
     # Fetch each booking chunk and process it immediately — never hold more than
     # one chunk in memory at a time
@@ -242,6 +248,7 @@ def build_data(tenant_id=None, server="BETA"):
                     "tm":    b.get("TeamMemberId", ""),
                     "cat":   svc.get("Categoty", "").replace("HAIR - ", ""),
                     "svc":   svc_name,
+                    "sid":   str(b.get("Salonid") or b.get("SalonId") or b.get("salonid") or ""),
                 })
             del chunk  # discard as soon as processed
 
@@ -272,6 +279,9 @@ def build_data(tenant_id=None, server="BETA"):
         tm_cnt     = Counter(b["tm"] for b in bkgs if b["tm"])
         pref_tm    = team_map.get(tm_cnt.most_common(1)[0][0], "?") if tm_cnt else "?"
         n_stylists = len(tm_cnt)
+
+        salon_cnt  = Counter(b["sid"] for b in bkgs if b["sid"])
+        pref_salon = salon_map.get(salon_cnt.most_common(1)[0][0], "") if salon_cnt else ""
 
         top_cats  = [c for c, _ in Counter(b["cat"] for b in bkgs if b["cat"]).most_common(2)]
         no_shows  = int(cli.get("NoShows") or 0)
@@ -330,6 +340,7 @@ def build_data(tenant_id=None, server="BETA"):
             pref_day=pref_day,
             pref_time=pref_time,
             pref_tm=pref_tm,
+            pref_salon=pref_salon,
             top_cats=top_cats,
             no_shows=no_shows,
             n_stylists=n_stylists,

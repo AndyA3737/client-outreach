@@ -305,6 +305,7 @@
     <th class="text-left py-3 px-3" onclick="sortBy(7)" id="th7">Visits</th>
     <th class="text-left py-3 px-3" onclick="sortBy(8)" id="th8">Avg Spend</th>
     <th class="text-left py-3 px-3" onclick="sortBy(9)" id="th9">Total Spend</th>
+    <th class="text-left py-3 px-3">Salon</th>
     <th class="text-left py-3 px-3">Stylist</th>
     <th class="text-left py-3 px-3">Best Contact</th>
     <th class="text-left py-3 px-3">Services</th>
@@ -436,6 +437,7 @@ function renderRow(c) {
     <td class="py-3 px-3 text-sm text-center" style="color:var(--text)" data-val="${c.n_visits}">${c.n_visits}</td>
     <td class="py-3 px-3 text-sm" style="color:var(--text)" data-val="${c.avg_spend}">£${c.avg_spend}</td>
     <td class="py-3 px-3 text-sm" style="color:var(--text)" data-val="${c.total_spend}">£${c.total_spend}</td>
+    <td class="py-3 px-3 text-sm" style="color:var(--text)">${escHtml(c.pref_salon || '—')}</td>
     <td class="py-3 px-3 text-sm" style="color:var(--text)">${escHtml(c.pref_tm)}</td>
     <td class="py-3 px-3">
       <div class="text-sm font-medium" style="color:var(--navy)">${c.pref_day}</div>
@@ -806,6 +808,7 @@ async function runLookup() {
         <div class="mini-stat"><div class="text-xs font-semibold mb-1" style="color:#64748B">Visit Gap</div><div class="font-bold" style="color:#1C2B3A">${c.avg_gap ? c.avg_gap + 'd' : '—'}</div></div>
       </div>
       <div class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4 text-sm">
+        <div><span style="color:#64748B">Salon: </span><span class="font-semibold" style="color:#1C2B3A">${escHtml(c.pref_salon || '—')}</span></div>
         <div><span style="color:#64748B">Preferred stylist: </span><span class="font-semibold" style="color:#1C2B3A">${escHtml(c.pref_tm)}</span></div>
         <div><span style="color:#64748B">Best day: </span><span class="font-semibold" style="color:#1C2B3A">${c.pref_day} ${c.pref_time}</span></div>
         <div><span style="color:#64748B">Overdue: </span>${overdueTxt}</div>
