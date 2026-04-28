@@ -182,7 +182,11 @@ def build_data(tenant_id=None, server="BETA"):
     clients_raw = fetch("XXX_Export_Admin_TUBR_Clients", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
     svcs_raw    = fetch("XXX_Export_Admin_TUBR_services", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
     team_raw    = fetch("XXX_Export_Admin_TUBR_TeamMembers", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
-    salons_raw  = fetch("Export_Admin_BenchMarks_SalonList", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
+    try:
+        salons_raw = fetch("Export_Admin_BenchMarks_SalonList", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
+    except Exception as e:
+        app.logger.warning("SalonList fetch failed (salon names will be blank): %s", e)
+        salons_raw = []
 
     global _total_clients
     _total_clients = len(clients_raw)
