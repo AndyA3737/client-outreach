@@ -355,6 +355,15 @@ def build_data(tenant_id=None, server="BETA"):
             top_cats=top_cats,
             no_shows=no_shows,
             n_stylists=n_stylists,
+            mobile=cli.get("MobilePhoneNumber", ""),
+            email=cli.get("emailaddress", ""),
+            gender=cli.get("Gender", ""),
+            birth_month=cli.get("Birthmonth", ""),
+            birth_day=cli.get("BirthDay", ""),
+            points=int(cli.get("PointsBalance") or 0),
+            age_group=cli.get("AgeGroup", ""),
+            occupation=cli.get("Occupation", ""),
+            how_heard=cli.get("HowHeard", ""),
             sr=round(r_score, 1),
             so=round(o_score, 1),
             sf=round(f_score, 1),
@@ -507,6 +516,15 @@ Fields available on each client record:
 - no_shows (int): number of recorded no-shows
 - n_stylists (int): number of distinct stylists visited
 - pref_salon (string): name of the salon they visit most
+- mobile (string): mobile phone number
+- email (string): email address
+- gender (string): client gender
+- birth_month (string): birth month
+- birth_day (string): birth day
+- points (int): loyalty points balance
+- age_group (string): age group
+- occupation (string): occupation
+- how_heard (string): how they heard about the salon
 - score (float 0-100): SMS targeting score
 """
 

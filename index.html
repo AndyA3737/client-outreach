@@ -309,6 +309,7 @@
     <th class="text-left py-3 px-3">Stylist</th>
     <th class="text-left py-3 px-3">Best Contact</th>
     <th class="text-left py-3 px-3">Services</th>
+    <th class="text-left py-3 px-3">Mobile</th>
     <th class="text-left py-3 px-3">Suggested SMS</th>
   </tr>
 </thead>
@@ -444,6 +445,7 @@ function renderRow(c) {
       <div class="text-xs" style="color:var(--muted)">${c.pref_time}</div>
     </td>
     <td class="py-3 px-3">${cats}</td>
+    <td class="py-3 px-3 text-sm" style="color:var(--text)">${escHtml(c.mobile || '—')}</td>
     <td class="py-3 px-3 min-w-[340px] max-w-[420px]">
       <div class="flex items-start gap-2">
         <span class="text-sm leading-relaxed flex-1 sms-text" style="color:var(--text)">${escHtml(c.sms)}</span>
@@ -523,6 +525,7 @@ function renderSelectionResults(clients) {
       <td class="py-3 px-3 text-sm">${escHtml(c.pref_tm)}</td>
       <td class="py-3 px-3 text-sm" style="color:var(--muted)">${c.n_stylists} stylist${c.n_stylists !== 1 ? 's' : ''}</td>
       <td class="py-3 px-3">${cats}</td>
+      <td class="py-3 px-3 text-sm" style="color:var(--text)">${escHtml(c.mobile || '—')}</td>
       <td class="py-3 px-3 min-w-[300px] max-w-[380px]">
         <div class="flex items-start gap-2">
           <span class="text-sm leading-relaxed flex-1 sms-text" style="color:var(--text)">${escHtml(c.sms)}</span>
@@ -547,6 +550,7 @@ function renderSelectionResults(clients) {
           <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Stylist</th>
           <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Stylists Seen</th>
           <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Services</th>
+          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Mobile</th>
           <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Suggested SMS</th>
         </tr>
       </thead>
@@ -557,7 +561,7 @@ function renderSelectionResults(clients) {
 
 function exportCSV() {
   if (!_selectionResults.length) return;
-  const cols = ['name','status','last_visit','days_since','n_visits','avg_spend','total_spend','pref_tm','n_stylists','no_shows','pref_day','pref_time','top_cats','sms'];
+  const cols = ['name','mobile','email','status','last_visit','days_since','n_visits','avg_spend','total_spend','pref_salon','pref_tm','n_stylists','no_shows','pref_day','pref_time','age_group','gender','points','top_cats','sms'];
   const header = cols.join(',');
   const lines  = _selectionResults.map(c =>
     cols.map(k => {
@@ -795,6 +799,11 @@ async function runLookup() {
             ${c.no_shows > 0 ? `<span class="text-red-400 text-xs">⚠ ${c.no_shows} no-show(s)</span>` : ''}
           </div>
           <div class="text-sm" style="color:#64748B">Last visit: <strong style="color:#1C2B3A">${escHtml(c.last_visit)}</strong> &nbsp;·&nbsp; ${c.days_since} days ago</div>
+          <div class="text-sm mt-1" style="color:#64748B">
+            ${c.mobile ? `📱 ${escHtml(c.mobile)}` : ''}
+            ${c.mobile && c.email ? '&nbsp;·&nbsp;' : ''}
+            ${c.email ? `✉ ${escHtml(c.email)}` : ''}
+          </div>
         </div>
         <div class="text-right">
           <div class="text-4xl font-extrabold" style="color:#00B5A4">${c.score}</div>
