@@ -73,7 +73,7 @@ _jobs = {}  # job_id -> {status, data, error}
 
 NOCACHE_REPORTS = {"XXX_Export_Admin_TUBR_Bookings"}
 
-def fetch(report_name, sd="", ed="", tenant_id=None, server="BETA"):
+def fetch(report_name, sd="", ed="", tenant_id=None, server="BETA", method="POST"):
     srv = SERVERS.get(server, SERVERS["BETA"])
     tid = tenant_id or srv["default_tenant"]
     key = f"{server}|{report_name}|{sd}|{ed}|{tid}"
@@ -86,7 +86,10 @@ def fetch(report_name, sd="", ed="", tenant_id=None, server="BETA"):
     t0 = time.time()
     params = {**API_COMMON, "TokenID": srv["token"], "TenantID": tid,
               "ReportName": report_name, "startdate": sd, "enddate": ed}
-    r = requests.post(srv["base"], params=params, headers={"Content-Length": "0"}, timeout=180)
+    if method == "GET":
+        r = requests.get(srv["base"], params=params, timeout=180)
+    else:
+        r = requests.post(srv["base"], params=params, headers={"Content-Length": "0"}, timeout=180)
     r.raise_for_status()
     payload = r.json()
     result  = (payload.get("Data") or {}).get("Array") or []
@@ -184,7 +187,7 @@ def build_data(tenant_id=None, server="BETA"):
     svcs_raw    = fetch("XXX_Export_Admin_TUBR_services", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
     team_raw    = fetch("XXX_Export_Admin_TUBR_TeamMembers", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
     try:
-        salons_raw = fetch("XXX_Export_Admin_BenchMarks_SalonList", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
+        salons_raw = fetch("XXX_Export_Admin_BenchMarks_SalonList", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server, method="GET")
         print(f"SalonList rows={len(salons_raw)} tenant={tenant_id} sample={list(salons_raw[0].keys()) if salons_raw else 'EMPTY'}", flush=True)
     except Exception as e:
         app.logger.warning("SalonList fetch failed (salon names will be blank): %s", e)
