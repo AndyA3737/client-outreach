@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SMS Targeting · SalonIQ</title>
+<title>Client Dashboard · SalonIQ</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
@@ -101,7 +101,7 @@
 <!-- Tenant selector (shown first) -->
 <div id="tenantSelector" style="position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:110;">
   <img src="https://www.saloniq.com/img/logo.svg" alt="SalonIQ" class="h-10 mb-8">
-  <div class="text-2xl font-bold mb-1" style="color:var(--navy)">SMS Targeting Dashboard</div>
+  <div class="text-2xl font-bold mb-1" style="color:var(--navy)">Client Dashboard</div>
   <div class="text-sm mb-6" style="color:var(--muted)">Select a server and salon to load client data</div>
 
   <!-- Server toggle -->
@@ -141,7 +141,7 @@
     <img src="https://www.saloniq.com/img/logo.svg" alt="SalonIQ" class="h-8">
     <div class="w-px h-8 bg-white/20"></div>
     <div>
-      <div class="text-white font-semibold text-base leading-tight">SMS Targeting Dashboard</div>
+      <div class="text-white font-semibold text-base leading-tight">Client Dashboard</div>
       <div class="text-white/50 text-xs">
         <span id="serverBadge" style="font-size:10px;font-weight:800;padding:1px 6px;border-radius:4px;margin-right:6px;background:#374151;color:#fff;letter-spacing:0.05em">BETA</span><span id="selectedSalonLabel"></span> · Top 500 clients · Generated <span id="generatedTs"></span>
       </div>
@@ -155,7 +155,7 @@
 
 <!-- Nav tabs -->
 <div style="background:#fff;border-bottom:1px solid var(--border);" class="px-6 flex gap-1">
-  <button class="nav-tab active" id="tabDashboard" onclick="switchPage('dashboard')">SMS Dashboard</button>
+  <button class="nav-tab active" id="tabDashboard" onclick="switchPage('dashboard')">Client Dashboard</button>
   <button class="nav-tab" id="tabSelections" onclick="switchPage('selections')">Client Selections</button>
 </div>
 
