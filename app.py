@@ -67,6 +67,7 @@ SERVERS = {
 _cache, _cache_ts = {}, {}
 CACHE_TTL = 3600
 _all_scored = []
+_all_clients = []   # every client including those with no visits
 _total_clients = 0
 _jobs = {}  # job_id -> {status, data, error}
 
@@ -374,8 +375,30 @@ def build_data(tenant_id=None, server="BETA"):
         ))
 
     rows.sort(key=lambda x: x["score"], reverse=True)
-    global _all_scored
+    global _all_scored, _all_clients
     _all_scored = rows
+
+    # Add never-visited clients so Client Selections can query the full database
+    visited_ids = {c["id"] for c in rows}
+    never_visited = []
+    for cid, cli in cli_map.items():
+        if cid in visited_ids:
+            continue
+        full_name = f"{cli.get('Firstname','').strip()} {cli.get('Lastname','').strip()}".strip()
+        never_visited.append(dict(
+            id=cid, name=full_name, score=0, status="Never Visited", scls="never",
+            days_since=None, last_visit=None, n_visits=0, total_spend=0, avg_spend=0,
+            avg_gap=None, overdue=None, pref_day=None, pref_time=None,
+            pref_tm=None, pref_salon=None, top_cats=[], no_shows=int(cli.get("NoShows") or 0),
+            n_stylists=0, mobile=cli.get("MobilePhoneNumber", ""),
+            email=cli.get("emailaddress", ""), gender=cli.get("Gender", ""),
+            birth_month=cli.get("Birthmonth", ""), birth_day=cli.get("BirthDay", ""),
+            points=int(cli.get("PointsBalance") or 0), age_group=cli.get("AgeGroup", ""),
+            occupation=cli.get("Occupation", ""), how_heard=cli.get("HowHeard", ""),
+            sr=0, so=0, sf=0, sm=0, sp=0, score_pct=0, sms="",
+        ))
+    _all_clients = rows + never_visited
+
     top = rows[:500]
     for i, c in enumerate(top, 1):
         c["rank"] = i
@@ -492,7 +515,7 @@ def query_clients():
     q = request.args.get("q", "").strip()
     if not q:
         return jsonify({"error": "No query provided"}), 400
-    if not _all_scored:
+    if not _all_clients:
         return jsonify({"error": "No data loaded — load a salon first"}), 400
 
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
@@ -502,7 +525,7 @@ def query_clients():
     schema = """
 Fields available on each client record:
 - name (string): full name
-- scls (string): "active" <60 days, "due" 60-120 days, "lapsing" 120-365 days, "lapsed" >365 days
+- scls (string): "active" <60 days, "due" 60-120 days, "lapsing" 120-365 days, "lapsed" >365 days, "never" never visited
 - days_since (int): days since last visit
 - n_visits (int): visits in the last 2 years
 - total_spend (int £): total spend
@@ -600,7 +623,7 @@ Examples:
         return False
 
     results = [
-        c for c in _all_scored
+        c for c in _all_clients
         if (any if logic == "OR" else all)(matches(c, f) for f in filters)
     ] if filters else []
 
