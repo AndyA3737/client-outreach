@@ -594,7 +594,7 @@ async function initTenants() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const tenants = await res.json();
     if (!tenants.length) throw new Error('No salons returned from API');
-    sel.innerHTML = '<option value="">— Select a salon —</option>';
+    sel.innerHTML = '<option value="">— Select a tenant —</option>';
     tenants.forEach(t => {
       const opt       = document.createElement('option');
       opt.value       = t.id;
