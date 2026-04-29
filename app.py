@@ -542,8 +542,8 @@ Fields available on each client record:
 - mobile (string): mobile phone number
 - email (string): email address
 - gender (string): client gender
-- birth_month (string): birth month
-- birth_day (string): birth day
+- birth_month (string): birth month as full name e.g. "January", "February", "March" etc.
+- birth_day (string): birth day as a number string e.g. "1", "15", "31"
 - points (int): loyalty points balance
 - age_group (string): age group
 - occupation (string): occupation
