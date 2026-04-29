@@ -296,6 +296,7 @@ def build_data(tenant_id=None, server="BETA"):
         pref_salon = salon_map.get(salon_cnt.most_common(1)[0][0], "") if salon_cnt else ""
 
         top_cats  = [c for c, _ in Counter(b["cat"] for b in bkgs if b["cat"]).most_common(2)]
+        top_svcs  = [s for s, _ in Counter(b["svc"] for b in bkgs if b["svc"]).most_common(5)]
         no_shows  = int(cli.get("NoShows") or 0)
 
         if days_since <= 30:
@@ -354,6 +355,7 @@ def build_data(tenant_id=None, server="BETA"):
             pref_tm=pref_tm,
             pref_salon=pref_salon,
             top_cats=top_cats,
+            top_svcs=top_svcs,
             no_shows=no_shows,
             n_stylists=n_stylists,
             mobile=cli.get("MobilePhoneNumber", ""),
@@ -389,7 +391,7 @@ def build_data(tenant_id=None, server="BETA"):
             id=cid, name=full_name, score=0, status="Never Visited", scls="never",
             days_since=None, last_visit=None, n_visits=0, total_spend=0, avg_spend=0,
             avg_gap=None, overdue=None, pref_day=None, pref_time=None,
-            pref_tm=None, pref_salon=None, top_cats=[], no_shows=int(cli.get("NoShows") or 0),
+            pref_tm=None, pref_salon=None, top_cats=[], top_svcs=[], no_shows=int(cli.get("NoShows") or 0),
             n_stylists=0, mobile=cli.get("MobilePhoneNumber", ""),
             email=cli.get("emailaddress", ""), gender=cli.get("Gender", ""),
             birth_month=cli.get("Birthmonth", ""), birth_day=cli.get("BirthDay", ""),
@@ -536,6 +538,7 @@ Fields available on each client record:
 - pref_time (string): Morning/Lunchtime/Afternoon/Evening
 - pref_tm (string): preferred stylist name
 - top_cats (array of strings): service categories e.g. ["Colour","Cut & Finish"]
+- top_svcs (array of strings): individual service names e.g. ["Full Head Colour","Ladies Cut & Blow Dry","Balayage"]
 - no_shows (int): number of recorded no-shows
 - n_stylists (int): number of distinct stylists visited
 - pref_salon (string): name of the salon they visit most
