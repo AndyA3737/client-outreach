@@ -602,6 +602,10 @@ Examples:
 "colour clients overdue" → logic AND, [{{"field":"top_cats","op":"contains","value":"Colour"}},{{"field":"overdue","op":"exists","value":true}}]
 "only ever seen one stylist" → [{{"field":"n_stylists","op":"eq","value":1}}]
 "no-show history" → [{{"field":"no_shows","op":"gte","value":1}}]
+"clients with a future booking" → [{{"field":"has_future_booking","op":"eq","value":true}}]
+"clients booked for a blow dry" → [{{"field":"future_svcs","op":"contains","value":"blow dry"}}]
+"future colour appointments" → [{{"field":"future_cats","op":"contains","value":"Colour"}}]
+"clients with no future booking" → [{{"field":"has_future_booking","op":"eq","value":false}}]
 """
 
     try:
@@ -628,7 +632,10 @@ Examples:
     def matches(client, f):
         field, op, val = f.get("field"), f.get("op"), f.get("value")
         cv = client.get(field)
-        # normalise strings for case-insensitive comparison
+        # normalise strings for case-insensitive comparison; handle bool specially
+        if isinstance(cv, bool) or isinstance(val, bool):
+            if op == "eq": return bool(cv) == bool(val)
+            if op == "ne": return bool(cv) != bool(val)
         cv_cmp  = cv.lower()  if isinstance(cv, str)  else cv
         val_cmp = val.lower() if isinstance(val, str) else val
         if op == "eq":       return cv_cmp == val_cmp
