@@ -547,6 +547,7 @@ def query_clients():
 Fields available on each client record:
 - name (string): full name
 - scls (string): "active" <60 days, "due" 60-120 days, "lapsing" 120-365 days, "lapsed" >365 days, "never" never visited
+- last_visit (string or null): date of last visit e.g. "5 Jan 2026", "31 Dec 2025"
 - days_since (int): days since last visit
 - n_visits (int): visits in the last 2 years
 - total_spend (int £): total spend
@@ -596,6 +597,7 @@ Return ONLY a JSON object — no markdown, no explanation — in this exact stru
 Supported operators: eq, ne, gt, gte, lt, lte, in (value is a list), contains (array field contains string), exists (value true=not null, false=null)
 
 Examples:
+"last visit in January 2026" → [{{"field":"last_visit","op":"contains","value":"Jan 2026"}}]
 "visited only once" → [{{"field":"n_visits","op":"eq","value":1}}]
 "loyal regulars" → [{{"field":"n_visits","op":"gte","value":10}}]
 "high value lapsing" → logic AND, [{{"field":"scls","op":"eq","value":"lapsing"}},{{"field":"avg_spend","op":"gte","value":60}}]
