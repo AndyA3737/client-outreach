@@ -225,7 +225,7 @@ def build_data(tenant_id=None, server="BETA"):
     ]
 
     by_client = defaultdict(list)
-    has_future_booking = set()
+    future_bookings = defaultdict(list)  # cid -> [{dt, svc, cat}]
 
     def _fetch_chunk(args):
         sd, ed = args
@@ -247,11 +247,16 @@ def build_data(tenant_id=None, server="BETA"):
                 dt  = parse_dt(b.get("Start"))
                 if not cid or not dt:
                     continue
-                if dt.date() > today:
-                    has_future_booking.add(cid)
-                    continue
                 svc      = svc_map.get(b.get("ServiceId"), {})
                 svc_name = svc.get("Description", "")
+                if dt.date() > today:
+                    if not any(k in svc_name.upper() for k in SKIP_KEYWORDS):
+                        future_bookings[cid].append({
+                            "dt":  dt,
+                            "svc": svc_name,
+                            "cat": svc.get("Categoty", "").replace("HAIR - ", ""),
+                        })
+                    continue
                 if any(k in svc_name.upper() for k in SKIP_KEYWORDS):
                     continue
                 by_client[cid].append({
@@ -269,8 +274,11 @@ def build_data(tenant_id=None, server="BETA"):
         cli = cli_map.get(cid)
         if not cli:
             continue
-        if cid in has_future_booking:
-            continue
+        fb          = future_bookings.get(cid, [])
+        has_future  = bool(fb)
+        future_svcs = [b["svc"] for b in sorted(fb, key=lambda x: x["dt"]) if b["svc"]]
+        future_cats = list({b["cat"] for b in fb if b["cat"]})
+        next_booking = min(fb, key=lambda x: x["dt"])["dt"].strftime("%-d %b %Y") if fb else None
 
         bkgs.sort(key=lambda x: x["dt"])
         last_dt, first_dt = bkgs[-1]["dt"], bkgs[0]["dt"]
@@ -356,6 +364,10 @@ def build_data(tenant_id=None, server="BETA"):
             pref_salon=pref_salon,
             top_cats=top_cats,
             top_svcs=top_svcs,
+            has_future_booking=has_future,
+            future_svcs=future_svcs,
+            future_cats=future_cats,
+            next_booking=next_booking,
             no_shows=no_shows,
             n_stylists=n_stylists,
             mobile=cli.get("MobilePhoneNumber", ""),
@@ -378,28 +390,35 @@ def build_data(tenant_id=None, server="BETA"):
 
     rows.sort(key=lambda x: x["score"], reverse=True)
     global _all_scored, _all_clients
-    _all_scored = rows
+    _all_scored = [r for r in rows if not r["has_future_booking"]]
 
-    # Add never-visited clients so Client Selections can query the full database
+    # Add clients with no past visits (but possibly future bookings) to _all_clients
     visited_ids = {c["id"] for c in rows}
-    never_visited = []
+    no_history = []
     for cid, cli in cli_map.items():
         if cid in visited_ids:
             continue
         full_name = f"{cli.get('Firstname','').strip()} {cli.get('Lastname','').strip()}".strip()
-        never_visited.append(dict(
+        fb          = future_bookings.get(cid, [])
+        has_future  = bool(fb)
+        future_svcs = [b["svc"] for b in sorted(fb, key=lambda x: x["dt"]) if b["svc"]]
+        future_cats = list({b["cat"] for b in fb if b["cat"]})
+        next_booking = min(fb, key=lambda x: x["dt"])["dt"].strftime("%-d %b %Y") if fb else None
+        no_history.append(dict(
             id=cid, name=full_name, score=0, status="Never Visited", scls="never",
             days_since=None, last_visit=None, n_visits=0, total_spend=0, avg_spend=0,
             avg_gap=None, overdue=None, pref_day=None, pref_time=None,
-            pref_tm=None, pref_salon=None, top_cats=[], top_svcs=[], no_shows=int(cli.get("NoShows") or 0),
-            n_stylists=0, mobile=cli.get("MobilePhoneNumber", ""),
-            email=cli.get("emailaddress", ""), gender=cli.get("Gender", ""),
-            birth_month=cli.get("Birthmonth", ""), birth_day=cli.get("BirthDay", ""),
-            points=int(cli.get("PointsBalance") or 0), age_group=cli.get("AgeGroup", ""),
-            occupation=cli.get("Occupation", ""), how_heard=cli.get("HowHeard", ""),
-            sr=0, so=0, sf=0, sm=0, sp=0, score_pct=0, sms="",
+            pref_tm=None, pref_salon=None, top_cats=[], top_svcs=[],
+            has_future_booking=has_future, future_svcs=future_svcs,
+            future_cats=future_cats, next_booking=next_booking,
+            no_shows=int(cli.get("NoShows") or 0), n_stylists=0,
+            mobile=cli.get("MobilePhoneNumber", ""), email=cli.get("emailaddress", ""),
+            gender=cli.get("Gender", ""), birth_month=cli.get("Birthmonth", ""),
+            birth_day=cli.get("BirthDay", ""), points=int(cli.get("PointsBalance") or 0),
+            age_group=cli.get("AgeGroup", ""), occupation=cli.get("Occupation", ""),
+            how_heard=cli.get("HowHeard", ""), sr=0, so=0, sf=0, sm=0, sp=0, score_pct=0, sms="",
         ))
-    _all_clients = rows + never_visited
+    _all_clients = rows + no_history
 
     top = rows[:500]
     for i, c in enumerate(top, 1):
@@ -539,6 +558,10 @@ Fields available on each client record:
 - pref_tm (string): preferred stylist name
 - top_cats (array of strings): service categories e.g. ["Colour","Cut & Finish"]
 - top_svcs (array of strings): individual service names e.g. ["Full Head Colour","Ladies Cut & Blow Dry","Balayage"]
+- has_future_booking (bool): true if client has an upcoming appointment
+- future_svcs (array of strings): service names booked for future appointments
+- future_cats (array of strings): service categories for future appointments
+- next_booking (string or null): date of their next appointment e.g. "5 May 2026"
 - no_shows (int): number of recorded no-shows
 - n_stylists (int): number of distinct stylists visited
 - pref_salon (string): name of the salon they visit most
