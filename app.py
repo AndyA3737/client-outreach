@@ -277,8 +277,7 @@ def build_data(tenant_id=None, server="BETA"):
             del chunk  # discard as soon as processed
         try:
             gc_rows = gc_future.result()
-            if gc_rows:
-                app.logger.info("GIFTCARDS sample keys=%s first_row=%s", list(gc_rows[0].keys()), gc_rows[0])
+            print(f"GIFTCARDS rows={len(gc_rows)} sample={list(gc_rows[0].keys()) if gc_rows else 'EMPTY'} first_row={gc_rows[0] if gc_rows else 'N/A'}", flush=True)
             for gc in gc_rows:
                 cid = (gc.get("ClientId") or gc.get("ClientID") or gc.get("clientid") or "")
                 if not cid:
@@ -290,7 +289,7 @@ def build_data(tenant_id=None, server="BETA"):
                 # always record the purchase; dt is only needed for last_giftcard
                 giftcard_by_client[cid].append({"dt": dt, "amount": amount})
         except Exception as e:
-            app.logger.warning("Giftcards fetch failed (gift card data will be blank): %s", e)
+            print(f"GIFTCARDS fetch failed: {e}", flush=True)
 
     rows = []
     for cid, bkgs in by_client.items():
