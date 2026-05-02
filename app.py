@@ -238,15 +238,8 @@ def build_data(tenant_id=None, server="BETA"):
 
     # Fetch all chunks in parallel (total time = slowest chunk, not sum of all)
     # Process each chunk as it completes and discard immediately to keep memory low
-    giftcard_by_client = defaultdict(list)
-    with ThreadPoolExecutor(max_workers=5) as pool:
+    with ThreadPoolExecutor(max_workers=4) as pool:
         futures = {pool.submit(_fetch_chunk, r): r for r in booking_ranges}
-        gc_future = pool.submit(
-            lambda: fetch("XXX_Export_Admin_Giftcards",
-                          (today - timedelta(days=730)).strftime(date_fmt),
-                          today.strftime(date_fmt),
-                          tenant_id=tenant_id, server=server)
-        )
         for future in as_completed(futures):
             chunk = future.result()
             for b in chunk:
@@ -275,21 +268,25 @@ def build_data(tenant_id=None, server="BETA"):
                     "sid":   str(b.get("Salonid") or b.get("SalonId") or b.get("salonid") or ""),
                 })
             del chunk  # discard as soon as processed
-        try:
-            gc_rows = gc_future.result()
-            print(f"GIFTCARDS rows={len(gc_rows)} sample={list(gc_rows[0].keys()) if gc_rows else 'EMPTY'} first_row={gc_rows[0] if gc_rows else 'N/A'}", flush=True)
-            for gc in gc_rows:
-                cid = (gc.get("ClientId") or gc.get("ClientID") or gc.get("clientid") or "")
-                if not cid:
-                    continue
-                raw_date = (gc.get("Date") or gc.get("PurchaseDate") or gc.get("SaleDate")
-                            or gc.get("CreateDate") or gc.get("CreatedDate") or "")
-                dt = parse_dt(raw_date)
-                amount = float(gc.get("Amount") or gc.get("Value") or gc.get("SaleAmount") or gc.get("Total") or 0)
-                # always record the purchase; dt is only needed for last_giftcard
-                giftcard_by_client[cid].append({"dt": dt, "amount": amount})
-        except Exception as e:
-            print(f"GIFTCARDS fetch failed: {e}", flush=True)
+
+    # Fetch gift cards separately after booking chunks complete
+    giftcard_by_client = defaultdict(list)
+    try:
+        gc_sd   = (today - timedelta(days=730)).strftime(date_fmt)
+        gc_ed   = today.strftime(date_fmt)
+        gc_rows = fetch("XXX_Export_Admin_Giftcards", gc_sd, gc_ed, tenant_id=tenant_id, server=server)
+        print(f"GIFTCARDS rows={len(gc_rows)} keys={list(gc_rows[0].keys()) if gc_rows else 'EMPTY'} first={gc_rows[0] if gc_rows else 'N/A'}", flush=True)
+        for gc in gc_rows:
+            cid = (gc.get("ClientId") or gc.get("ClientID") or gc.get("clientid") or "")
+            if not cid:
+                continue
+            raw_date = (gc.get("Date") or gc.get("PurchaseDate") or gc.get("SaleDate")
+                        or gc.get("CreateDate") or gc.get("CreatedDate") or "")
+            dt     = parse_dt(raw_date)
+            amount = float(gc.get("Amount") or gc.get("Value") or gc.get("SaleAmount") or gc.get("Total") or 0)
+            giftcard_by_client[cid].append({"dt": dt, "amount": amount})
+    except Exception as e:
+        print(f"GIFTCARDS fetch failed: {e}", flush=True)
 
     rows = []
     for cid, bkgs in by_client.items():
