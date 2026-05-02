@@ -519,6 +519,22 @@ def data():
 
 
 
+@app.route("/api/debug/promotions")
+@require_auth
+def debug_promotions():
+    server    = request.args.get("server", "BETA")
+    tenant_id = request.args.get("tenant_id") or None
+    srv       = SERVERS.get(server, SERVERS["BETA"])
+    tid       = tenant_id or srv["default_tenant"]
+    today     = date.today()
+    gc_sd     = (today - timedelta(days=730)).strftime(srv["date_fmt"])
+    gc_ed     = today.strftime(srv["date_fmt"])
+    params    = {**API_COMMON, "TokenID": srv["token"], "TenantID": tid.upper(),
+                 "ReportName": "XXX_Export_Admin_TUBR_Promotions", "startdate": gc_sd, "enddate": gc_ed}
+    r = requests.post(srv["base"], params=params, headers={"Content-Length": "0"}, timeout=60)
+    return jsonify({"status": r.status_code, "raw": r.json()})
+
+
 @app.route("/api/job/<job_id>")
 @require_auth
 def job_status(job_id):
