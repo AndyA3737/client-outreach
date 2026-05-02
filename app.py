@@ -294,8 +294,9 @@ def build_data(tenant_id=None, server="BETA"):
             if not cid:
                 continue
             dt   = parse_dt(pr.get("TransactionDate") or "")
-            name = pr.get("Description") or pr.get("PromotionCode") or ""
-            promo_by_client[cid].append({"dt": dt, "name": name})
+            name = pr.get("Description") or ""
+            code = pr.get("PromotionCode") or ""
+            promo_by_client[cid].append({"dt": dt, "name": name, "code": code})
     except Exception as e:
         print(f"PROMOTIONS fetch failed: {e}", flush=True)
 
@@ -346,6 +347,7 @@ def build_data(tenant_id=None, server="BETA"):
         pr_list      = promo_by_client.get(cid, [])
         promo_count  = len(pr_list)
         promo_names  = list(dict.fromkeys(p["name"] for p in pr_list if p["name"]))
+        promo_codes  = list(dict.fromkeys(p["code"] for p in pr_list if p["code"]))
         pr_dated     = [p for p in pr_list if p["dt"]]
         last_promo   = max(pr_dated, key=lambda x: x["dt"])["dt"].strftime("%-d %b %Y") if pr_dated else None
 
@@ -417,6 +419,7 @@ def build_data(tenant_id=None, server="BETA"):
             last_giftcard=last_giftcard,
             promo_count=promo_count,
             promo_names=promo_names,
+            promo_codes=promo_codes,
             last_promo=last_promo,
             mobile=cli.get("MobilePhoneNumber", ""),
             email=cli.get("emailaddress", ""),
@@ -465,6 +468,7 @@ def build_data(tenant_id=None, server="BETA"):
             last_giftcard=max((g for g in giftcard_by_client.get(cid, []) if g["dt"]), key=lambda x: x["dt"], default={"dt": None})["dt"].strftime("%-d %b %Y") if any(g["dt"] for g in giftcard_by_client.get(cid, [])) else None,
             promo_count=len(promo_by_client.get(cid, [])),
             promo_names=list(dict.fromkeys(p["name"] for p in promo_by_client.get(cid, []) if p["name"])),
+            promo_codes=list(dict.fromkeys(p["code"] for p in promo_by_client.get(cid, []) if p["code"])),
             last_promo=max((p for p in promo_by_client.get(cid, []) if p["dt"]), key=lambda x: x["dt"], default={"dt": None})["dt"].strftime("%-d %b %Y") if any(p["dt"] for p in promo_by_client.get(cid, [])) else None,
             mobile=cli.get("MobilePhoneNumber", ""), email=cli.get("emailaddress", ""),
             gender=cli.get("Gender", ""), birth_month=cli.get("Birthmonth", ""),
@@ -637,6 +641,7 @@ Fields available on each client record:
 - last_giftcard (string or null): date of most recent gift card purchase e.g. "5 Jan 2026"
 - promo_count (int): number of promotions used (0 if none)
 - promo_names (array of strings): names of promotions used e.g. ["20% off colour", "Refer a Friend"]
+- promo_codes (array of strings): promotion codes used e.g. ["REFER2024", "SUMMER20"]
 - last_promo (string or null): date of most recent promotion use e.g. "5 Jan 2026"
 """
 
@@ -675,6 +680,7 @@ Examples:
 "high value gift card buyers" → [{{"field":"giftcard_total","op":"gte","value":100}}]
 "clients who used a promotion" → [{{"field":"promo_count","op":"gte","value":1}}]
 "clients who used the refer a friend promotion" → [{{"field":"promo_names","op":"contains","value":"refer a friend"}}]
+"clients who used promotion code SUMMER20" → [{{"field":"promo_codes","op":"contains","value":"SUMMER20"}}]
 "promotion uses in January 2026" → [{{"field":"last_promo","op":"contains","value":"Jan 2026"}}]
 """
 
