@@ -520,6 +520,25 @@ def data():
     return jsonify({"job_id": job_id})
 
 
+@app.route("/api/debug/giftcards")
+@require_auth
+def debug_giftcards():
+    server    = request.args.get("server", "BETA")
+    tenant_id = request.args.get("tenant_id") or None
+    srv       = SERVERS.get(server, SERVERS["BETA"])
+    tid       = tenant_id or srv["default_tenant"]
+    from datetime import date, timedelta
+    today  = date.today()
+    date_fmt = srv["date_fmt"]
+    gc_sd  = (today - timedelta(days=730)).strftime(date_fmt)
+    gc_ed  = today.strftime(date_fmt)
+    params = {**API_COMMON, "TokenID": srv["token"], "TenantID": tid.upper(),
+              "ReportName": "XXX_Export_Admin_Giftcards", "startdate": gc_sd, "enddate": gc_ed}
+    import requests as _req
+    r = _req.post(srv["base"], params=params, headers={"Content-Length": "0"}, timeout=60)
+    return jsonify({"status": r.status_code, "raw": r.json(), "params_used": params})
+
+
 @app.route("/api/job/<job_id>")
 @require_auth
 def job_status(job_id):
