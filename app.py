@@ -183,10 +183,16 @@ def time_label(h):
     return "Evening"
 
 
-def build_data(tenant_id=None, server="BETA"):
+def build_data(tenant_id=None, server="BETA", step_fn=None):
+    def step(msg):
+        if step_fn:
+            step_fn(msg)
+
     today = date.today()
 
+    step("Fetching client records")
     clients_raw = fetch("XXX_Export_Admin_TUBR_Clients", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
+    step("Fetching services & team")
     svcs_raw    = fetch("XXX_Export_Admin_TUBR_services", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
     team_raw    = fetch("XXX_Export_Admin_TUBR_TeamMembers", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
     try:
@@ -236,8 +242,7 @@ def build_data(tenant_id=None, server="BETA"):
             app.logger.error("CHUNK FAILED [%s→%s]: %s", sd, ed, e)
             raise RuntimeError(f"Booking chunk {sd}→{ed} failed: {e}") from e
 
-    # Fetch all chunks in parallel (total time = slowest chunk, not sum of all)
-    # Process each chunk as it completes and discard immediately to keep memory low
+    step("Fetching booking history")
     with ThreadPoolExecutor(max_workers=4) as pool:
         futures = {pool.submit(_fetch_chunk, r): r for r in booking_ranges}
         for future in as_completed(futures):
@@ -269,7 +274,7 @@ def build_data(tenant_id=None, server="BETA"):
                 })
             del chunk  # discard as soon as processed
 
-    # Fetch gift cards separately after booking chunks complete
+    step("Fetching gift cards")
     giftcard_by_client = defaultdict(list)
     try:
         gc_sd   = (today - timedelta(days=730)).strftime(date_fmt)
@@ -286,6 +291,7 @@ def build_data(tenant_id=None, server="BETA"):
     except Exception as e:
         print(f"GIFTCARDS fetch failed: {e}", flush=True)
 
+    step("Fetching promotions")
     promo_by_client = defaultdict(list)
     try:
         pr_rows = fetch("XXX_Export_Admin_TUBR_Promotions", gc_sd, gc_ed, tenant_id=tenant_id, server=server)
@@ -300,6 +306,7 @@ def build_data(tenant_id=None, server="BETA"):
     except Exception as e:
         print(f"PROMOTIONS fetch failed: {e}", flush=True)
 
+    step("Building client profiles")
     rows = []
     for cid, bkgs in by_client.items():
         cli = cli_map.get(cid)
@@ -509,11 +516,11 @@ def tenants():
     return jsonify(result)
 
 
-def _build_response(tenant_id, server):
+def _build_response(tenant_id, server, set_step=None):
     """Build the full API response dict — called from background thread."""
     import traceback
     try:
-        clients  = build_data(tenant_id, server)
+        clients  = build_data(tenant_id, server, step_fn=set_step)
         stylists = sorted(set(c["pref_tm"] for c in clients))
         result   = dict(
             clients=clients,
@@ -538,10 +545,13 @@ def data():
     tenant_id = request.args.get("tenant_id") or None
     server    = request.args.get("server", "BETA")
     job_id    = str(uuid.uuid4())
-    _jobs[job_id] = {"status": "loading"}
+    _jobs[job_id] = {"status": "loading", "step": ""}
 
     def worker():
-        _jobs[job_id] = _build_response(tenant_id, server)
+        def set_step(msg):
+            if isinstance(_jobs.get(job_id), dict) and _jobs[job_id].get("status") == "loading":
+                _jobs[job_id]["step"] = msg
+        _jobs[job_id] = _build_response(tenant_id, server, set_step=set_step)
 
     threading.Thread(target=worker, daemon=True).start()
     return jsonify({"job_id": job_id})
@@ -562,7 +572,7 @@ def job_status(job_id):
     if job["status"] == "error":
         _jobs.pop(job_id, None)
         return jsonify({"error": job["error"]}), 500
-    return jsonify({"status": "loading"})
+    return jsonify({"status": "loading", "step": job.get("step", "")})
 
 
 @app.route("/api/refresh", methods=["POST"])

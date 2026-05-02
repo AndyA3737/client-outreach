@@ -89,10 +89,12 @@
   .mini-stat { background:#F8FAFC; border:1px solid var(--border); border-radius:10px; padding:12px; }
 
   /* Loading */
-  #loadingOverlay { position:fixed; inset:0; background:var(--bg); display:flex; flex-direction:column;
+  #loadingOverlay { position:fixed; inset:0; background:rgba(242,245,248,0.95); display:flex; flex-direction:column;
                     align-items:center; justify-content:center; z-index:100; }
   .spinner { width:48px; height:48px; border:4px solid var(--border); border-top-color:var(--teal);
              border-radius:50%; animation:spin 0.8s linear infinite; }
+  .step-spinner { width:20px; height:20px; border:2.5px solid var(--border); border-top-color:var(--teal);
+                  border-radius:50%; animation:spin 0.7s linear infinite; flex-shrink:0; }
   @keyframes spin { to { transform:rotate(360deg); } }
 </style>
 </head>
@@ -126,10 +128,13 @@
 </div>
 
 <!-- Loading overlay (shown during data fetch) -->
-<div id="loadingOverlay" style="position:fixed;inset:0;background:var(--bg);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:100;">
-  <div class="spinner mb-6"></div>
-  <div class="font-semibold text-lg" style="color:var(--navy)">Loading client data…</div>
-  <div class="text-sm mt-2" style="color:var(--muted)">Fetching bookings — this can take 10–20 seconds on first load</div>
+<div id="loadingOverlay" style="position:fixed;inset:0;background:rgba(242,245,248,0.95);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:100;">
+  <div id="loadingCard" style="background:#fff;border-radius:16px;padding:32px 40px;min-width:360px;max-width:440px;box-shadow:0 4px 32px rgba(0,0,0,0.12);border:1px solid var(--border)">
+    <div style="font-size:1rem;font-weight:700;color:var(--navy);margin-bottom:2px">Loading salon data</div>
+    <div id="loadingSalonName" style="font-size:0.82rem;color:var(--muted);margin-bottom:22px"></div>
+    <div id="loadingStepsList"></div>
+    <div id="loadingTimer" style="color:var(--muted);font-size:0.78rem;margin-top:18px;text-align:center">Starting…</div>
+  </div>
 </div>
 
 <!-- Main content (hidden until data loads) -->
@@ -615,6 +620,53 @@ async function initTenants() {
   }
 }
 
+// ── Loading progress card ─────────────────────────────────────
+const LOAD_STEPS = [
+  { match: 'client record',  label: 'Client records' },
+  { match: 'service',        label: 'Services & team members' },
+  { match: 'booking',        label: 'Booking history' },
+  { match: 'gift card',      label: 'Gift cards' },
+  { match: 'promotion',      label: 'Promotions' },
+  { match: 'building',       label: 'Building client profiles' },
+];
+
+function getStepIndex(msg) {
+  if (!msg) return -1;
+  const lower = msg.toLowerCase();
+  return LOAD_STEPS.findIndex(s => lower.includes(s.match));
+}
+
+function initLoadingCard() {
+  const nameEl = document.getElementById('loadingSalonName');
+  if (nameEl) nameEl.textContent = selectedTenantName || '';
+  renderLoadingSteps(-1);
+  const timer = document.getElementById('loadingTimer');
+  if (timer) timer.textContent = 'Starting…';
+}
+
+function renderLoadingSteps(activeIdx) {
+  const list = document.getElementById('loadingStepsList');
+  if (!list) return;
+  list.innerHTML = LOAD_STEPS.map((s, i) => {
+    let icon, labelStyle;
+    if (i < activeIdx) {
+      icon = `<svg width="20" height="20" viewBox="0 0 20 20" style="flex-shrink:0"><circle cx="10" cy="10" r="10" fill="#00B5A4"/><path d="M6 10.5l2.5 2.5 5-5" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
+      labelStyle = 'color:#94A3B8';
+    } else if (i === activeIdx) {
+      icon = `<div class="step-spinner"></div>`;
+      labelStyle = 'color:var(--navy);font-weight:600';
+    } else {
+      icon = `<svg width="20" height="20" viewBox="0 0 20 20" style="flex-shrink:0"><circle cx="10" cy="10" r="9" stroke="#E2E8EF" stroke-width="2" fill="none"/></svg>`;
+      labelStyle = 'color:#CBD5E1';
+    }
+    const border = i < LOAD_STEPS.length - 1 ? 'border-bottom:1px solid var(--border)' : '';
+    return `<div style="display:flex;align-items:center;gap:12px;padding:9px 0;${border}">
+      ${icon}
+      <span style="font-size:13.5px;${labelStyle}">${s.label}</span>
+    </div>`;
+  }).join('');
+}
+
 function loadTenant() {
   const sel = document.getElementById('tenantSelect');
   if (!sel.value) return;
@@ -626,6 +678,7 @@ function loadTenant() {
   const badge = document.getElementById('serverBadge');
   badge.textContent   = selectedServer;
   badge.style.background = selectedServer === 'LIVE' ? '#059669' : '#374151';
+  initLoadingCard();
   fetchData();
 }
 
@@ -653,16 +706,22 @@ async function fetchData() {
     let d = null;
     let elapsed = 0;
     while (!d) {
-      await new Promise(r => setTimeout(r, 3000));
-      elapsed += 3;
-      const loadingMsg = document.querySelector('#loadingOverlay div:last-child');
-      if (loadingMsg) loadingMsg.textContent = `Fetching data… ${elapsed}s elapsed`;
+      await new Promise(r => setTimeout(r, 2000));
+      elapsed += 2;
       const pollRes = await fetch(`/api/job/${job_id}`);
       if (!pollRes.ok) throw new Error(`HTTP ${pollRes.status}`);
       const pollData = await pollRes.json();
       if (pollData.error) throw new Error(pollData.error);
-      if (!pollData.status) d = pollData;  // status only present while loading
+      if (pollData.status === 'loading') {
+        const stepIdx = getStepIndex(pollData.step || '');
+        renderLoadingSteps(stepIdx);
+        const timer = document.getElementById('loadingTimer');
+        if (timer) timer.textContent = `${elapsed}s elapsed`;
+      } else {
+        d = pollData;
+      }
     }
+    renderLoadingSteps(LOAD_STEPS.length); // mark all done briefly before hiding
 
     document.getElementById('generatedTs').textContent    = d.generated;
     document.getElementById('statTotal').textContent      = d.n_total.toLocaleString();
@@ -684,10 +743,13 @@ async function fetchData() {
     document.getElementById('loadingOverlay').style.display = 'none';
     document.getElementById('mainContent').style.display    = 'block';
   } catch (err) {
-    document.getElementById('loadingOverlay').innerHTML = `
-      <div style="color:#991B1B;font-weight:600;font-size:1.1rem">Failed to load data</div>
-      <div style="color:#64748B;margin-top:8px">${escHtml(err.message)}</div>
-      <button onclick="document.getElementById('loadingOverlay').style.display='none';document.getElementById('tenantSelector').style.display='flex';" class="btn-teal mt-6">← Back to Salon List</button>`;
+    const card = document.getElementById('loadingCard');
+    if (card) {
+      card.innerHTML = `
+        <div style="color:#991B1B;font-weight:700;font-size:1rem;margin-bottom:8px">Failed to load data</div>
+        <div style="color:#64748B;font-size:13px">${escHtml(err.message)}</div>
+        <button onclick="document.getElementById('loadingOverlay').style.display='none';document.getElementById('tenantSelector').style.display='flex';" class="btn-teal mt-6">← Back to Salon List</button>`;
+    }
   }
 }
 
@@ -741,10 +803,7 @@ async function refreshData() {
   await fetch('/api/refresh?' + rp, { method: 'POST' });
   document.getElementById('mainContent').style.display  = 'none';
   document.getElementById('loadingOverlay').style.display = 'flex';
-  document.getElementById('loadingOverlay').innerHTML = `
-    <div class="spinner mb-6"></div>
-    <div class="font-semibold text-lg" style="color:var(--navy)">Refreshing client data…</div>
-    <div class="text-sm mt-2" style="color:var(--muted)">Fetching bookings — please wait</div>`;
+  initLoadingCard();
   btn.textContent = '↻ Refresh Data';
   btn.disabled = false;
   await fetchData();
