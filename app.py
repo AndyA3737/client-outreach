@@ -238,8 +238,15 @@ def build_data(tenant_id=None, server="BETA"):
 
     # Fetch all chunks in parallel (total time = slowest chunk, not sum of all)
     # Process each chunk as it completes and discard immediately to keep memory low
-    with ThreadPoolExecutor(max_workers=4) as pool:
+    giftcard_by_client = defaultdict(list)
+    with ThreadPoolExecutor(max_workers=5) as pool:
         futures = {pool.submit(_fetch_chunk, r): r for r in booking_ranges}
+        gc_future = pool.submit(
+            lambda: fetch("XXX_Export_Admin_Giftcards",
+                          (today - timedelta(days=730)).strftime(date_fmt),
+                          today.strftime(date_fmt),
+                          tenant_id=tenant_id, server=server)
+        )
         for future in as_completed(futures):
             chunk = future.result()
             for b in chunk:
@@ -268,6 +275,19 @@ def build_data(tenant_id=None, server="BETA"):
                     "sid":   str(b.get("Salonid") or b.get("SalonId") or b.get("salonid") or ""),
                 })
             del chunk  # discard as soon as processed
+        try:
+            for gc in gc_future.result():
+                cid = (gc.get("ClientId") or gc.get("ClientID") or gc.get("clientid") or "")
+                if not cid:
+                    continue
+                raw_date = (gc.get("Date") or gc.get("PurchaseDate") or gc.get("SaleDate")
+                            or gc.get("CreateDate") or gc.get("CreatedDate") or "")
+                dt = parse_dt(raw_date)
+                amount = float(gc.get("Amount") or gc.get("Value") or gc.get("SaleAmount") or gc.get("Total") or 0)
+                if dt:
+                    giftcard_by_client[cid].append({"dt": dt, "amount": amount})
+        except Exception as e:
+            app.logger.warning("Giftcards fetch failed (gift card data will be blank): %s", e)
 
     rows = []
     for cid, bkgs in by_client.items():
@@ -306,6 +326,11 @@ def build_data(tenant_id=None, server="BETA"):
         top_cats  = [c for c, _ in Counter(b["cat"] for b in bkgs if b["cat"]).most_common(2)]
         top_svcs  = [s for s, _ in Counter(b["svc"] for b in bkgs if b["svc"]).most_common(5)]
         no_shows  = int(cli.get("NoShows") or 0)
+
+        gc_list       = giftcard_by_client.get(cid, [])
+        giftcard_count = len(gc_list)
+        giftcard_total = round(sum(g["amount"] for g in gc_list))
+        last_giftcard  = max(gc_list, key=lambda x: x["dt"])["dt"].strftime("%-d %b %Y") if gc_list else None
 
         if days_since <= 30:
             r_score = 10
@@ -370,6 +395,9 @@ def build_data(tenant_id=None, server="BETA"):
             next_booking=next_booking,
             no_shows=no_shows,
             n_stylists=n_stylists,
+            giftcard_count=giftcard_count,
+            giftcard_total=giftcard_total,
+            last_giftcard=last_giftcard,
             mobile=cli.get("MobilePhoneNumber", ""),
             email=cli.get("emailaddress", ""),
             gender=cli.get("Gender", ""),
@@ -412,6 +440,9 @@ def build_data(tenant_id=None, server="BETA"):
             has_future_booking=has_future, future_svcs=future_svcs,
             future_cats=future_cats, next_booking=next_booking,
             no_shows=int(cli.get("NoShows") or 0), n_stylists=0,
+            giftcard_count=len(giftcard_by_client.get(cid, [])),
+            giftcard_total=round(sum(g["amount"] for g in giftcard_by_client.get(cid, []))),
+            last_giftcard=max(giftcard_by_client.get(cid, []), key=lambda x: x["dt"])["dt"].strftime("%-d %b %Y") if giftcard_by_client.get(cid) else None,
             mobile=cli.get("MobilePhoneNumber", ""), email=cli.get("emailaddress", ""),
             gender=cli.get("Gender", ""), birth_month=cli.get("Birthmonth", ""),
             birth_day=cli.get("BirthDay", ""), points=int(cli.get("PointsBalance") or 0),
@@ -576,6 +607,9 @@ Fields available on each client record:
 - occupation (string): occupation
 - how_heard (string): how they heard about the salon
 - score (float 0-100): SMS targeting score
+- giftcard_count (int): number of gift cards purchased (0 if none)
+- giftcard_total (int £): total value of gift cards purchased
+- last_giftcard (string or null): date of most recent gift card purchase e.g. "5 Jan 2026"
 """
 
     prompt = f"""You are a filter assistant for a hair salon CRM.
@@ -608,6 +642,9 @@ Examples:
 "clients booked for a blow dry" → [{{"field":"future_svcs","op":"contains","value":"blow dry"}}]
 "future colour appointments" → [{{"field":"future_cats","op":"contains","value":"Colour"}}]
 "clients with no future booking" → [{{"field":"has_future_booking","op":"eq","value":false}}]
+"clients who bought a gift card" → [{{"field":"giftcard_count","op":"gte","value":1}}]
+"gift card purchases in March 2026" → [{{"field":"last_giftcard","op":"contains","value":"Mar 2026"}}]
+"high value gift card buyers" → [{{"field":"giftcard_total","op":"gte","value":100}}]
 """
 
     try:
