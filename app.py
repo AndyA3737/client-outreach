@@ -274,7 +274,7 @@ def build_data(tenant_id=None, server="BETA"):
     try:
         gc_sd   = (today - timedelta(days=730)).strftime(date_fmt)
         gc_ed   = today.strftime(date_fmt)
-        gc_rows = fetch("XXX_Export_Admin_Giftcards", gc_sd, gc_ed, tenant_id=tenant_id, server=server)
+        gc_rows = fetch("XXX_Export_Admin_TUBR_GiftCards", gc_sd, gc_ed, tenant_id=tenant_id, server=server)
         print(f"GIFTCARDS rows={len(gc_rows)} keys={list(gc_rows[0].keys()) if gc_rows else 'EMPTY'} first={gc_rows[0] if gc_rows else 'N/A'}", flush=True)
         for gc in gc_rows:
             cid = (gc.get("ClientId") or gc.get("ClientID") or gc.get("clientid") or "")
@@ -533,7 +533,7 @@ def debug_giftcards():
     gc_sd  = (today - timedelta(days=730)).strftime(date_fmt)
     gc_ed  = today.strftime(date_fmt)
     params = {**API_COMMON, "TokenID": srv["token"], "TenantID": tid.upper(),
-              "ReportName": "XXX_Export_Admin_Giftcards", "startdate": gc_sd, "enddate": gc_ed}
+              "ReportName": "XXX_Export_Admin_TUBR_GiftCards", "startdate": gc_sd, "enddate": gc_ed}
     import requests as _req
     r = _req.post(srv["base"], params=params, headers={"Content-Length": "0"}, timeout=60)
     return jsonify({"status": r.status_code, "raw": r.json(), "params_used": params})
