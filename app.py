@@ -286,6 +286,19 @@ def build_data(tenant_id=None, server="BETA"):
     except Exception as e:
         print(f"GIFTCARDS fetch failed: {e}", flush=True)
 
+    promo_by_client = defaultdict(list)
+    try:
+        pr_rows = fetch("XXX_Export_Admin_TUBR_Promotions", gc_sd, gc_ed, tenant_id=tenant_id, server=server)
+        for pr in pr_rows:
+            cid = pr.get("ClientId") or ""
+            if not cid:
+                continue
+            dt   = parse_dt(pr.get("TransactionDate") or "")
+            name = pr.get("Description") or pr.get("PromotionCode") or ""
+            promo_by_client[cid].append({"dt": dt, "name": name})
+    except Exception as e:
+        print(f"PROMOTIONS fetch failed: {e}", flush=True)
+
     rows = []
     for cid, bkgs in by_client.items():
         cli = cli_map.get(cid)
@@ -329,6 +342,12 @@ def build_data(tenant_id=None, server="BETA"):
         giftcard_total = round(sum(g["amount"] for g in gc_list))
         gc_dated       = [g for g in gc_list if g["dt"]]
         last_giftcard  = max(gc_dated, key=lambda x: x["dt"])["dt"].strftime("%-d %b %Y") if gc_dated else None
+
+        pr_list      = promo_by_client.get(cid, [])
+        promo_count  = len(pr_list)
+        promo_names  = list(dict.fromkeys(p["name"] for p in pr_list if p["name"]))
+        pr_dated     = [p for p in pr_list if p["dt"]]
+        last_promo   = max(pr_dated, key=lambda x: x["dt"])["dt"].strftime("%-d %b %Y") if pr_dated else None
 
         if days_since <= 30:
             r_score = 10
@@ -396,6 +415,9 @@ def build_data(tenant_id=None, server="BETA"):
             giftcard_count=giftcard_count,
             giftcard_total=giftcard_total,
             last_giftcard=last_giftcard,
+            promo_count=promo_count,
+            promo_names=promo_names,
+            last_promo=last_promo,
             mobile=cli.get("MobilePhoneNumber", ""),
             email=cli.get("emailaddress", ""),
             gender=cli.get("Gender", ""),
@@ -441,6 +463,9 @@ def build_data(tenant_id=None, server="BETA"):
             giftcard_count=len(giftcard_by_client.get(cid, [])),
             giftcard_total=round(sum(g["amount"] for g in giftcard_by_client.get(cid, []))),
             last_giftcard=max((g for g in giftcard_by_client.get(cid, []) if g["dt"]), key=lambda x: x["dt"], default={"dt": None})["dt"].strftime("%-d %b %Y") if any(g["dt"] for g in giftcard_by_client.get(cid, [])) else None,
+            promo_count=len(promo_by_client.get(cid, [])),
+            promo_names=list(dict.fromkeys(p["name"] for p in promo_by_client.get(cid, []) if p["name"])),
+            last_promo=max((p for p in promo_by_client.get(cid, []) if p["dt"]), key=lambda x: x["dt"], default={"dt": None})["dt"].strftime("%-d %b %Y") if any(p["dt"] for p in promo_by_client.get(cid, [])) else None,
             mobile=cli.get("MobilePhoneNumber", ""), email=cli.get("emailaddress", ""),
             gender=cli.get("Gender", ""), birth_month=cli.get("Birthmonth", ""),
             birth_day=cli.get("BirthDay", ""), points=int(cli.get("PointsBalance") or 0),
@@ -518,21 +543,6 @@ def data():
     return jsonify({"job_id": job_id})
 
 
-
-@app.route("/api/debug/promotions")
-@require_auth
-def debug_promotions():
-    server    = request.args.get("server", "BETA")
-    tenant_id = request.args.get("tenant_id") or None
-    srv       = SERVERS.get(server, SERVERS["BETA"])
-    tid       = tenant_id or srv["default_tenant"]
-    today     = date.today()
-    gc_sd     = (today - timedelta(days=730)).strftime(srv["date_fmt"])
-    gc_ed     = today.strftime(srv["date_fmt"])
-    params    = {**API_COMMON, "TokenID": srv["token"], "TenantID": tid.upper(),
-                 "ReportName": "XXX_Export_Admin_TUBR_Promotions", "startdate": gc_sd, "enddate": gc_ed}
-    r = requests.post(srv["base"], params=params, headers={"Content-Length": "0"}, timeout=60)
-    return jsonify({"status": r.status_code, "raw": r.json()})
 
 
 @app.route("/api/job/<job_id>")
@@ -625,6 +635,9 @@ Fields available on each client record:
 - giftcard_count (int): number of gift cards purchased (0 if none)
 - giftcard_total (int £): total value of gift cards purchased
 - last_giftcard (string or null): date of most recent gift card purchase e.g. "5 Jan 2026"
+- promo_count (int): number of promotions used (0 if none)
+- promo_names (array of strings): names of promotions used e.g. ["20% off colour", "Refer a Friend"]
+- last_promo (string or null): date of most recent promotion use e.g. "5 Jan 2026"
 """
 
     prompt = f"""You are a filter assistant for a hair salon CRM.
@@ -660,6 +673,9 @@ Examples:
 "clients who bought a gift card" → [{{"field":"giftcard_count","op":"gte","value":1}}]
 "gift card purchases in March 2026" → [{{"field":"last_giftcard","op":"contains","value":"Mar 2026"}}]
 "high value gift card buyers" → [{{"field":"giftcard_total","op":"gte","value":100}}]
+"clients who used a promotion" → [{{"field":"promo_count","op":"gte","value":1}}]
+"clients who used the refer a friend promotion" → [{{"field":"promo_names","op":"contains","value":"refer a friend"}}]
+"promotion uses in January 2026" → [{{"field":"last_promo","op":"contains","value":"Jan 2026"}}]
 """
 
     try:
