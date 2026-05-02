@@ -280,10 +280,8 @@ def build_data(tenant_id=None, server="BETA"):
             cid = (gc.get("ClientId") or gc.get("ClientID") or gc.get("clientid") or "")
             if not cid:
                 continue
-            raw_date = (gc.get("Date") or gc.get("PurchaseDate") or gc.get("SaleDate")
-                        or gc.get("CreateDate") or gc.get("CreatedDate") or "")
-            dt     = parse_dt(raw_date)
-            amount = float(gc.get("Amount") or gc.get("Value") or gc.get("SaleAmount") or gc.get("Total") or 0)
+            dt     = parse_dt(gc.get("TransactionDate") or "")
+            amount = float(gc.get("Value") or 0)
             giftcard_by_client[cid].append({"dt": dt, "amount": amount})
     except Exception as e:
         print(f"GIFTCARDS fetch failed: {e}", flush=True)
@@ -519,24 +517,6 @@ def data():
     threading.Thread(target=worker, daemon=True).start()
     return jsonify({"job_id": job_id})
 
-
-@app.route("/api/debug/giftcards")
-@require_auth
-def debug_giftcards():
-    server    = request.args.get("server", "BETA")
-    tenant_id = request.args.get("tenant_id") or None
-    srv       = SERVERS.get(server, SERVERS["BETA"])
-    tid       = tenant_id or srv["default_tenant"]
-    from datetime import date, timedelta
-    today  = date.today()
-    date_fmt = srv["date_fmt"]
-    gc_sd  = (today - timedelta(days=730)).strftime(date_fmt)
-    gc_ed  = today.strftime(date_fmt)
-    params = {**API_COMMON, "TokenID": srv["token"], "TenantID": tid.upper(),
-              "ReportName": "XXX_Export_Admin_TUBR_GiftCards", "startdate": gc_sd, "enddate": gc_ed}
-    import requests as _req
-    r = _req.post(srv["base"], params=params, headers={"Content-Length": "0"}, timeout=60)
-    return jsonify({"status": r.status_code, "raw": r.json(), "params_used": params})
 
 
 @app.route("/api/job/<job_id>")
