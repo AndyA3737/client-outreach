@@ -215,6 +215,18 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     }
     del svcs_raw, team_raw, clients_raw, salons_raw  # free raw API data now maps are built
 
+    step("Fetching client tags")
+    tags_by_client = defaultdict(list)
+    try:
+        tags_raw = fetch("XXX_Export_Admin_TUBR_Tags", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
+        for t in tags_raw:
+            cid = t.get("ClientId") or ""
+            tag = t.get("Tag") or ""
+            if cid and tag:
+                tags_by_client[cid].append(tag)
+    except Exception as e:
+        print(f"TAGS fetch failed: {e}", flush=True)
+
     # Fetch each booking chunk and process it immediately — never hold more than
     # one chunk in memory at a time
     date_fmt = SERVERS.get(server, SERVERS["BETA"])["date_fmt"]
@@ -358,6 +370,9 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         pr_dated     = [p for p in pr_list if p["dt"]]
         last_promo   = max(pr_dated, key=lambda x: x["dt"])["dt"].strftime("%-d %b %Y") if pr_dated else None
 
+        tags      = tags_by_client.get(cid, [])
+        tag_count = len(tags)
+
         if days_since <= 30:
             r_score = 10
         elif days_since <= 90:
@@ -428,6 +443,8 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             promo_names=promo_names,
             promo_codes=promo_codes,
             last_promo=last_promo,
+            tags=tags,
+            tag_count=tag_count,
             mobile=cli.get("MobilePhoneNumber", ""),
             email=cli.get("emailaddress", ""),
             gender=cli.get("Gender", ""),
@@ -477,6 +494,8 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             promo_names=list(dict.fromkeys(p["name"] for p in promo_by_client.get(cid, []) if p["name"])),
             promo_codes=list(dict.fromkeys(p["code"] for p in promo_by_client.get(cid, []) if p["code"])),
             last_promo=max((p for p in promo_by_client.get(cid, []) if p["dt"]), key=lambda x: x["dt"], default={"dt": None})["dt"].strftime("%-d %b %Y") if any(p["dt"] for p in promo_by_client.get(cid, [])) else None,
+            tags=tags_by_client.get(cid, []),
+            tag_count=len(tags_by_client.get(cid, [])),
             mobile=cli.get("MobilePhoneNumber", ""), email=cli.get("emailaddress", ""),
             gender=cli.get("Gender", ""), birth_month=cli.get("Birthmonth", ""),
             birth_day=cli.get("BirthDay", ""), points=int(cli.get("PointsBalance") or 0),
@@ -653,6 +672,8 @@ Fields available on each client record:
 - promo_names (array of strings): names of promotions used e.g. ["20% off colour", "Refer a Friend"]
 - promo_codes (array of strings): promotion codes used e.g. ["REFER2024", "SUMMER20"]
 - last_promo (string or null): date of most recent promotion use e.g. "5 Jan 2026"
+- tags (array of strings): tags applied to the client e.g. ["New", "VIP", "Colour Client"]
+- tag_count (int): number of tags applied (0 if none)
 """
 
     prompt = f"""You are a filter assistant for a hair salon CRM.
@@ -688,6 +709,9 @@ Examples:
 "clients who bought a gift card" → [{{"field":"giftcard_count","op":"gte","value":1}}]
 "gift card purchases in March 2026" → [{{"field":"last_giftcard","op":"contains","value":"Mar 2026"}}]
 "high value gift card buyers" → [{{"field":"giftcard_total","op":"gte","value":100}}]
+"clients tagged with New" → [{{"field":"tags","op":"contains","value":"New"}}]
+"clients with any tag" → [{{"field":"tag_count","op":"gte","value":1}}]
+"VIP clients" → [{{"field":"tags","op":"contains","value":"VIP"}}]
 "clients who used a promotion" → [{{"field":"promo_count","op":"gte","value":1}}]
 "clients who used the refer a friend promotion" → [{{"field":"promo_names","op":"contains","value":"refer a friend"}}]
 "clients who used promotion code SUMMER20" → [{{"field":"promo_codes","op":"contains","value":"SUMMER20"}}]
