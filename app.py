@@ -451,6 +451,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             birth_month=cli.get("Birthmonth", ""),
             birth_day=cli.get("BirthDay", ""),
             points=int(cli.get("PointsBalance") or 0),
+            account_balance=round(float(cli.get("AccountBalance") or 0), 2),
             age_group=cli.get("AgeGroup", ""),
             occupation=cli.get("Occupation", ""),
             how_heard=cli.get("HowHeard", ""),
@@ -499,6 +500,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             mobile=cli.get("MobilePhoneNumber", ""), email=cli.get("emailaddress", ""),
             gender=cli.get("Gender", ""), birth_month=cli.get("Birthmonth", ""),
             birth_day=cli.get("BirthDay", ""), points=int(cli.get("PointsBalance") or 0),
+            account_balance=round(float(cli.get("AccountBalance") or 0), 2),
             age_group=cli.get("AgeGroup", ""), occupation=cli.get("Occupation", ""),
             how_heard=cli.get("HowHeard", ""), sr=0, so=0, sf=0, sm=0, sp=0, score_pct=0, sms="",
         ))
@@ -661,6 +663,7 @@ Fields available on each client record:
 - birth_month (string): birth month as a number string e.g. "1"=January, "6"=June, "12"=December
 - birth_day (string): birth day as a number string e.g. "1", "15", "31"
 - points (int): loyalty points balance
+- account_balance (float £): account balance e.g. 25.00 (can be negative if in debit)
 - age_group (string): age group
 - occupation (string): occupation
 - how_heard (string): how they heard about the salon
@@ -709,6 +712,8 @@ Examples:
 "clients who bought a gift card" → [{{"field":"giftcard_count","op":"gte","value":1}}]
 "gift card purchases in March 2026" → [{{"field":"last_giftcard","op":"contains","value":"Mar 2026"}}]
 "high value gift card buyers" → [{{"field":"giftcard_total","op":"gte","value":100}}]
+"clients with a balance greater than 100" → [{{"field":"account_balance","op":"gt","value":100}}]
+"clients with a negative balance" → [{{"field":"account_balance","op":"lt","value":0}}]
 "clients tagged with New" → [{{"field":"tags","op":"contains","value":"New"}}]
 "clients with any tag" → [{{"field":"tag_count","op":"gte","value":1}}]
 "VIP clients" → [{{"field":"tags","op":"contains","value":"VIP"}}]
