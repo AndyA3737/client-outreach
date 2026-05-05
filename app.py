@@ -707,7 +707,7 @@ Examples:
 "high value lapsing" → logic AND, [{{"field":"scls","op":"eq","value":"lapsing"}},{{"field":"avg_spend","op":"gte","value":60}}]
 "colour clients overdue" → logic AND, [{{"field":"top_cats","op":"contains","value":"Colour"}},{{"field":"overdue","op":"exists","value":true}}]
 "clients that have had a beauty service" → [{{"field":"all_cats","op":"contains","value":"BEAUTY"}}]
-"clients that have had a hair service" → [{{"field":"all_cats","op":"contains","value":"Colour"}}] or [{{"field":"n_visits","op":"gte","value":1}}]
+"clients that have had a hair service" → [{{"field":"n_visits","op":"gte","value":1}}]
 "clients that have had nails done" → [{{"field":"all_cats","op":"contains","value":"Nails"}}]
 "only ever seen one stylist" → [{{"field":"n_stylists","op":"eq","value":1}}]
 "no-show history" → [{{"field":"no_shows","op":"gte","value":1}}]
