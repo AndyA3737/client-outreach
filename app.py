@@ -702,7 +702,7 @@ Return ONLY a JSON object — no markdown, no explanation — in this exact stru
   "description": "Plain English explanation of the segment"
 }}
 
-Supported operators: eq, ne, gt, gte, lt, lte, in (value is a list), contains (array field contains string), exists (value true=not null, false=null)
+Supported operators: eq, ne, gt, gte, lt, lte, in (value is a list), contains (array field contains string), not_contains (array field does NOT contain string), exists (value true=not null, false=null)
 
 Examples:
 "last visit in January 2026" → [{{"field":"last_visit","op":"contains","value":"Jan 2026"}}]
@@ -713,6 +713,8 @@ Examples:
 "clients that have had a beauty service" → [{{"field":"departments","op":"contains","value":"beauty"}}]
 "clients that have had a hair service" → [{{"field":"departments","op":"contains","value":"hair"}}]
 "clients who visit both hair and beauty" → logic AND, [{{"field":"departments","op":"contains","value":"hair"}},{{"field":"departments","op":"contains","value":"beauty"}}]
+"clients that have had a beauty service but not a hair service" → logic AND, [{{"field":"departments","op":"contains","value":"beauty"}},{{"field":"departments","op":"not_contains","value":"hair"}}]
+"clients that have had a hair service but not a beauty service" → logic AND, [{{"field":"departments","op":"contains","value":"hair"}},{{"field":"departments","op":"not_contains","value":"beauty"}}]
 "only ever seen one stylist" → [{{"field":"n_stylists","op":"eq","value":1}}]
 "no-show history" → [{{"field":"no_shows","op":"gte","value":1}}]
 "clients with a future booking" → [{{"field":"has_future_booking","op":"eq","value":true}}]
@@ -781,6 +783,11 @@ IMPORTANT: when the query mentions a specific future service or treatment, ALWAY
                 return any(val_cmp in c.lower() for c in cv)
             if isinstance(cv, str):
                 return val_cmp in cv_cmp
+        if op == "not_contains":
+            if isinstance(cv, list):
+                return not any(val_cmp in c.lower() for c in cv)
+            if isinstance(cv, str):
+                return val_cmp not in cv_cmp
         if op == "exists":   return (cv is not None) == val
         return False
 
