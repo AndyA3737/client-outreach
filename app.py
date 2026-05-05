@@ -354,6 +354,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         pref_salon = salon_map.get(salon_cnt.most_common(1)[0][0], "") if salon_cnt else ""
 
         top_cats  = [c for c, _ in Counter(b["cat"] for b in bkgs if b["cat"]).most_common(2)]
+        all_cats  = list(dict.fromkeys(b["cat"] for b in bkgs if b["cat"]))
         top_svcs  = [s for s, _ in Counter(b["svc"] for b in bkgs if b["svc"]).most_common(5)]
         no_shows  = int(cli.get("NoShows") or 0)
 
@@ -429,6 +430,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             pref_tm=pref_tm,
             pref_salon=pref_salon,
             top_cats=top_cats,
+            all_cats=all_cats,
             top_svcs=top_svcs,
             has_future_booking=has_future,
             future_svcs=future_svcs,
@@ -484,7 +486,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             id=cid, name=full_name, score=0, status="Never Visited", scls="never",
             days_since=None, last_visit=None, n_visits=0, total_spend=0, avg_spend=0,
             avg_gap=None, overdue=None, pref_day=None, pref_time=None,
-            pref_tm=None, pref_salon=None, top_cats=[], top_svcs=[],
+            pref_tm=None, pref_salon=None, top_cats=[], all_cats=[], top_svcs=[],
             has_future_booking=has_future, future_svcs=future_svcs,
             future_cats=future_cats, next_booking=next_booking,
             no_shows=int(cli.get("NoShows") or 0), n_stylists=0,
@@ -648,7 +650,8 @@ Fields available on each client record:
 - pref_day (string): Mon/Tue/Wed/Thu/Fri/Sat/Sun
 - pref_time (string): Morning/Lunchtime/Afternoon/Evening
 - pref_tm (string): preferred stylist name
-- top_cats (array of strings): service categories e.g. ["Colour","Cut & Finish"]
+- top_cats (array of strings): top 2 service categories e.g. ["Colour","Cut & Finish"]
+- all_cats (array of strings): every unique service category the client has had e.g. ["Colour","Cut & Finish","BEAUTY - Nails"]. Use this for "has ever had X" queries. Hair categories have no prefix; beauty categories are prefixed "BEAUTY - ".
 - top_svcs (array of strings): individual service names e.g. ["Full Head Colour","Ladies Cut & Blow Dry","Balayage"]
 - has_future_booking (bool): true if client has an upcoming appointment
 - future_svcs (array of strings): service names booked for future appointments
@@ -703,6 +706,9 @@ Examples:
 "loyal regulars" → [{{"field":"n_visits","op":"gte","value":10}}]
 "high value lapsing" → logic AND, [{{"field":"scls","op":"eq","value":"lapsing"}},{{"field":"avg_spend","op":"gte","value":60}}]
 "colour clients overdue" → logic AND, [{{"field":"top_cats","op":"contains","value":"Colour"}},{{"field":"overdue","op":"exists","value":true}}]
+"clients that have had a beauty service" → [{{"field":"all_cats","op":"contains","value":"BEAUTY"}}]
+"clients that have had a hair service" → [{{"field":"all_cats","op":"contains","value":"Colour"}}] or [{{"field":"n_visits","op":"gte","value":1}}]
+"clients that have had nails done" → [{{"field":"all_cats","op":"contains","value":"Nails"}}]
 "only ever seen one stylist" → [{{"field":"n_stylists","op":"eq","value":1}}]
 "no-show history" → [{{"field":"no_shows","op":"gte","value":1}}]
 "clients with a future booking" → [{{"field":"has_future_booking","op":"eq","value":true}}]
