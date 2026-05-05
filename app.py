@@ -702,7 +702,7 @@ Return ONLY a JSON object — no markdown, no explanation — in this exact stru
   "description": "Plain English explanation of the segment"
 }}
 
-Supported operators: eq, ne, gt, gte, lt, lte, in (value is a list), contains (array field contains string), not_contains (array field does NOT contain string), exists (value true=not null, false=null)
+Supported operators: eq, ne, gt, gte, lt, lte, in (value is a list), contains (array field contains string), not_contains (array field does NOT contain string), every_contains (ALL items in array contain string — use for "only" queries), exists (value true=not null, false=null)
 
 Examples:
 "last visit in January 2026" → [{{"field":"last_visit","op":"contains","value":"Jan 2026"}}]
@@ -722,6 +722,7 @@ Examples:
 IMPORTANT: when the query mentions a specific future service or treatment, ALWAYS use future_svcs (not has_future_booking):
 "clients booked for a blow dry" → [{{"field":"future_svcs","op":"contains","value":"blow dry"}}]
 "clients that have a future booking for a blow dry" → [{{"field":"future_svcs","op":"contains","value":"blow dry"}}]
+"clients that have a future booking for a blow dry only" → [{{"field":"future_svcs","op":"every_contains","value":"blow dry"}}]
 "clients with a colour appointment coming up" → [{{"field":"future_svcs","op":"contains","value":"colour"}}]
 "clients booked in for a cut" → [{{"field":"future_svcs","op":"contains","value":"cut"}}]
 "future colour appointments" → [{{"field":"future_cats","op":"contains","value":"Colour"}}]
@@ -788,6 +789,10 @@ IMPORTANT: when the query mentions a specific future service or treatment, ALWAY
                 return not any(val_cmp in c.lower() for c in cv)
             if isinstance(cv, str):
                 return val_cmp not in cv_cmp
+        if op == "every_contains":
+            if isinstance(cv, list) and cv:
+                return all(val_cmp in c.lower() for c in cv)
+            return False
         if op == "exists":   return (cv is not None) == val
         return False
 
