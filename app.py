@@ -449,6 +449,8 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             last_promo=last_promo,
             tags=tags,
             tag_count=tag_count,
+            sms_optout=str(cli.get("IsSMSoptout") or "").lower() in ("true", "1", "yes"),
+            email_optout=str(cli.get("isEmailOptOut") or "").lower() in ("true", "1", "yes"),
             mobile=cli.get("MobilePhoneNumber", ""),
             email=cli.get("emailaddress", ""),
             gender=cli.get("Gender", ""),
@@ -501,6 +503,8 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             last_promo=max((p for p in promo_by_client.get(cid, []) if p["dt"]), key=lambda x: x["dt"], default={"dt": None})["dt"].strftime("%-d %b %Y") if any(p["dt"] for p in promo_by_client.get(cid, [])) else None,
             tags=tags_by_client.get(cid, []),
             tag_count=len(tags_by_client.get(cid, [])),
+            sms_optout=str(cli.get("IsSMSoptout") or "").lower() in ("true", "1", "yes"),
+            email_optout=str(cli.get("isEmailOptOut") or "").lower() in ("true", "1", "yes"),
             mobile=cli.get("MobilePhoneNumber", ""), email=cli.get("emailaddress", ""),
             gender=cli.get("Gender", ""), birth_month=cli.get("Birthmonth", ""),
             birth_day=cli.get("BirthDay", ""), points=int(cli.get("PointsBalance") or 0),
@@ -674,6 +678,8 @@ Fields available on each client record:
 - age_group (string): age group
 - occupation (string): occupation
 - how_heard (string): how they heard about the salon
+- sms_optout (bool): true if client has opted out of SMS marketing
+- email_optout (bool): true if client has opted out of email marketing
 - score (float 0-100): SMS targeting score
 - giftcard_count (int): number of gift cards purchased (0 if none)
 - giftcard_total (int £): total value of gift cards purchased
@@ -729,6 +735,9 @@ IMPORTANT: when the query mentions a specific future service or treatment, ALWAY
 "clients who bought a gift card" → [{{"field":"giftcard_count","op":"gte","value":1}}]
 "gift card purchases in March 2026" → [{{"field":"last_giftcard","op":"contains","value":"Mar 2026"}}]
 "high value gift card buyers" → [{{"field":"giftcard_total","op":"gte","value":100}}]
+"clients who have opted out of SMS" → [{{"field":"sms_optout","op":"eq","value":true}}]
+"clients who have not opted out of SMS" → [{{"field":"sms_optout","op":"eq","value":false}}]
+"clients who have opted out of email" → [{{"field":"email_optout","op":"eq","value":true}}]
 "clients with a balance greater than 100" → [{{"field":"account_balance","op":"gt","value":100}}]
 "clients with a negative balance" → [{{"field":"account_balance","op":"lt","value":0}}]
 "clients tagged with New" → [{{"field":"tags","op":"contains_exact","value":"New"}}]

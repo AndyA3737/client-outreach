@@ -323,6 +323,8 @@
     <th class="text-left py-3 px-3">Preferred Day</th>
     <th class="text-left py-3 px-3">Services</th>
     <th class="text-left py-3 px-3">Mobile</th>
+    <th class="text-left py-3 px-3">SMS Opt-out</th>
+    <th class="text-left py-3 px-3">Email Opt-out</th>
     <th class="text-left py-3 px-3">Suggested SMS</th>
   </tr>
 </thead>
@@ -460,6 +462,8 @@ function renderRow(c) {
     </td>
     <td class="py-3 px-3">${cats}</td>
     <td class="py-3 px-3 text-sm" style="color:var(--text)">${escHtml(c.mobile || '—')}</td>
+    <td class="py-3 px-3 text-center">${c.sms_optout ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#FEE2E2;color:#991B1B">Opted out</span>' : '<span style="color:#94A3B8;font-size:12px">—</span>'}</td>
+    <td class="py-3 px-3 text-center">${c.email_optout ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#FEE2E2;color:#991B1B">Opted out</span>' : '<span style="color:#94A3B8;font-size:12px">—</span>'}</td>
     <td class="py-3 px-3 min-w-[340px] max-w-[420px]">
       <div class="flex items-start gap-2">
         <span class="text-sm leading-relaxed flex-1 sms-text" style="color:var(--text)">${escHtml(c.sms)}</span>
