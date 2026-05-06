@@ -488,7 +488,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         future_cats = list({b["cat"] for b in fb if b["cat"]})
         next_booking = min(fb, key=lambda x: x["dt"])["dt"].strftime("%-d %b %Y") if fb else None
         no_history.append(dict(
-            id=cid, name=full_name, score=0, status="Never Visited", scls="never",
+            id=cid, name=full_name, score=0, status="No Visit (2yrs)", scls="never",
             days_since=None, last_visit=None, n_visits=0, total_spend=0, avg_spend=0,
             avg_gap=None, overdue=None, pref_day=None, pref_time=None,
             pref_tm=None, pref_salon=None, top_cats=[], all_cats=[], departments=[], top_svcs=[],
@@ -649,7 +649,7 @@ NOTE: Booking history, gift cards, and promotions cover the last 2 years only. C
 
 Fields available on each client record:
 - name (string): full name
-- scls (string): "active" <60 days, "due" 60-120 days, "lapsing" 120-365 days, "lapsed" >365 days, "never" never visited
+- scls (string): "active" <60 days, "due" 60-120 days, "lapsing" 120-365 days, "lapsed" >365 days, "never" no visit recorded in the last 2 years
 - last_visit (string or null): date of last visit e.g. "5 Jan 2026", "31 Dec 2025"
 - days_since (int): days since last visit
 - n_visits (int): visits in the last 2 years
