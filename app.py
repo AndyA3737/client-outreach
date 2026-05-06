@@ -702,7 +702,7 @@ Return ONLY a JSON object — no markdown, no explanation — in this exact stru
   "description": "Plain English explanation of the segment"
 }}
 
-Supported operators: eq, ne, gt, gte, lt, lte, in (value is a list), contains (array field contains string), not_contains (array field does NOT contain string), every_contains (ALL items in array contain string — use for "only" queries), exists (value true=not null, false=null)
+Supported operators: eq, ne, gt, gte, lt, lte, in (value is a list), contains (array field has an item containing the string as a substring), contains_exact (array field has an item that exactly equals the string — use for codes and tags), not_contains (array field does NOT contain string), every_contains (ALL items in array contain string — use for "only" queries), exists (value true=not null, false=null)
 
 Examples:
 "last visit in January 2026" → [{{"field":"last_visit","op":"contains","value":"Jan 2026"}}]
@@ -731,13 +731,14 @@ IMPORTANT: when the query mentions a specific future service or treatment, ALWAY
 "high value gift card buyers" → [{{"field":"giftcard_total","op":"gte","value":100}}]
 "clients with a balance greater than 100" → [{{"field":"account_balance","op":"gt","value":100}}]
 "clients with a negative balance" → [{{"field":"account_balance","op":"lt","value":0}}]
-"clients tagged with New" → [{{"field":"tags","op":"contains","value":"New"}}]
+"clients tagged with New" → [{{"field":"tags","op":"contains_exact","value":"New"}}]
 "clients with any tag" → [{{"field":"tag_count","op":"gte","value":1}}]
-"VIP clients" → [{{"field":"tags","op":"contains","value":"VIP"}}]
+"VIP clients" → [{{"field":"tags","op":"contains_exact","value":"VIP"}}]
 "clients who used a promotion" → [{{"field":"promo_count","op":"gte","value":1}}]
 "clients who used the refer a friend promotion" → [{{"field":"promo_names","op":"contains","value":"refer a friend"}}]
-"clients who used promotion code SUMMER20" → [{{"field":"promo_codes","op":"contains","value":"SUMMER20"}}]
-IMPORTANT: promotion codes are exact identifiers — always use the full code exactly as given. Never truncate, shorten, or fuzzy-match a promotion code. "SAF30" must be value "SAF30" not "SAF3" or "SAF".
+"clients who used promotion code SUMMER20" → [{{"field":"promo_codes","op":"contains_exact","value":"SUMMER20"}}]
+"clients who used promotion code SAF30" → [{{"field":"promo_codes","op":"contains_exact","value":"SAF30"}}]
+IMPORTANT: always use contains_exact (not contains) for promo_codes and tags — these are exact identifiers, not free text.
 "promotion uses in January 2026" → [{{"field":"last_promo","op":"contains","value":"Jan 2026"}}]
 """
 
@@ -786,6 +787,11 @@ IMPORTANT: promotion codes are exact identifiers — always use the full code ex
                 return any(val_cmp in c.lower() for c in cv)
             if isinstance(cv, str):
                 return val_cmp in cv_cmp
+        if op == "contains_exact":
+            if isinstance(cv, list):
+                return any(val_cmp == c.lower() for c in cv)
+            if isinstance(cv, str):
+                return val_cmp == cv_cmp
         if op == "not_contains":
             if isinstance(cv, list):
                 return not any(val_cmp in c.lower() for c in cv)
