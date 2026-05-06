@@ -735,10 +735,19 @@ IMPORTANT: when the query mentions a specific future service or treatment, ALWAY
 "clients with any tag" → [{{"field":"tag_count","op":"gte","value":1}}]
 "VIP clients" → [{{"field":"tags","op":"contains_exact","value":"VIP"}}]
 "clients who used a promotion" → [{{"field":"promo_count","op":"gte","value":1}}]
-"clients who used the refer a friend promotion" → [{{"field":"promo_names","op":"contains","value":"refer a friend"}}]
-"clients who used promotion code SUMMER20" → [{{"field":"promo_codes","op":"contains_exact","value":"SUMMER20"}}]
+Promotion field rules:
+- promo_codes = short alphanumeric identifiers e.g. "SAF30", "SUMMER20" → use contains_exact
+- promo_names = human-readable descriptions e.g. "BIRTHDAY £15", "Refer a Friend" → use contains
+- If the query mentions a descriptive name (has spaces, £, %, words), use promo_names with contains
+- If the query mentions a short code (no spaces, alphanumeric), use promo_codes with contains_exact
+- If ambiguous, search both with OR logic
 "clients who used promotion code SAF30" → [{{"field":"promo_codes","op":"contains_exact","value":"SAF30"}}]
-IMPORTANT: always use contains_exact (not contains) for promo_codes and tags — these are exact identifiers, not free text.
+"clients who used promotion code SUMMER20" → [{{"field":"promo_codes","op":"contains_exact","value":"SUMMER20"}}]
+"clients who used the refer a friend promotion" → [{{"field":"promo_names","op":"contains","value":"refer a friend"}}]
+"clients who used the promotion BIRTHDAY £15" → [{{"field":"promo_names","op":"contains","value":"BIRTHDAY £15"}}]
+"clients who used the 20% off promotion" → [{{"field":"promo_names","op":"contains","value":"20% off"}}]
+"clients who used promotion SAF30" → logic OR, [{{"field":"promo_codes","op":"contains_exact","value":"SAF30"}},{{"field":"promo_names","op":"contains","value":"SAF30"}}]
+IMPORTANT: always use contains_exact (not contains) for promo_codes — these are exact identifiers, not free text.
 "promotion uses in January 2026" → [{{"field":"last_promo","op":"contains","value":"Jan 2026"}}]
 """
 
