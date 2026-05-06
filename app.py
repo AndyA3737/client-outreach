@@ -192,6 +192,10 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
 
     step("Fetching client records")
     clients_raw = fetch("XXX_Export_Admin_TUBR_Clients", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
+    if clients_raw:
+        sample = clients_raw[0]
+        optout_fields = {k: v for k, v in sample.items() if any(x in k.lower() for x in ('opt', 'sms', 'email'))}
+        print(f"CLIENT optout fields: {optout_fields}", flush=True)
     step("Fetching services & team")
     svcs_raw    = fetch("XXX_Export_Admin_TUBR_services", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
     team_raw    = fetch("XXX_Export_Admin_TUBR_TeamMembers", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
