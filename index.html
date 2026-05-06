@@ -301,7 +301,15 @@
     <th class="text-left py-3 px-3" onclick="sortBy(0)" id="th0">#</th>
     <th class="text-left py-3 px-3" onclick="sortBy(1)" id="th1">Client</th>
     <th class="text-left py-3 px-3" onclick="sortBy(2)" id="th2">Score</th>
-    <th class="text-left py-3 px-3">Status</th>
+    <th class="text-left py-3 px-3 tip-wrap">Status
+      <span class="tip-box" style="white-space:normal;width:220px;text-align:left;line-height:1.6">
+        <b>Active</b> — visited within 60 days<br>
+        <b>Due Soon</b> — 60–120 days ago<br>
+        <b>Lapsing</b> — 120–365 days ago<br>
+        <b>Lapsed</b> — over 365 days ago<br>
+        <b>Never Visited</b> — no booking history
+      </span>
+    </th>
     <th class="text-left py-3 px-3" onclick="sortBy(4)" id="th4">Last Visit</th>
     <th class="text-left py-3 px-3" onclick="sortBy(5)" id="th5">Days Since</th>
     <th class="text-left py-3 px-3 tip-wrap">Overdue
