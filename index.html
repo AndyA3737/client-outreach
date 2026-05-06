@@ -45,6 +45,9 @@
   .tip-box::after { content:''; position:absolute; top:100%; left:50%; transform:translateX(-50%);
                     border:6px solid transparent; border-top-color:var(--navy); }
   .tip-wrap:hover .tip-box { display:block; }
+  /* Tooltip pointing downward — use inside sticky headers where upward is clipped */
+  .tip-box-down { bottom:auto; top:calc(100% + 6px); }
+  .tip-box-down::after { top:auto; bottom:100%; border-top-color:transparent; border-bottom-color:var(--navy); }
 
   input, select { background:#fff; border:1px solid var(--border); color:var(--text);
                   border-radius:8px; padding:7px 12px; font-size:14px; font-family:inherit; }
@@ -289,6 +292,13 @@
     <option>Mon</option><option>Tue</option><option>Wed</option>
     <option>Thu</option><option>Fri</option><option>Sat</option><option>Sun</option>
   </select>
+  <select id="optoutFilter" onchange="applyFilters()">
+    <option value="">All Clients</option>
+    <option value="sms">SMS Opt-out</option>
+    <option value="email">Email Opt-out</option>
+    <option value="either">Any Opt-out</option>
+    <option value="none">No Opt-outs</option>
+  </select>
   <span id="rowCount" class="text-sm ml-auto font-medium" style="color:var(--muted)"></span>
 </div>
 
@@ -302,7 +312,7 @@
     <th class="text-left py-3 px-3" onclick="sortBy(1)" id="th1">Client</th>
     <th class="text-left py-3 px-3" onclick="sortBy(2)" id="th2">Score</th>
     <th class="text-left py-3 px-3"><span class="tip-wrap">Status
-      <span class="tip-box" style="white-space:normal;width:220px;text-align:left;line-height:1.6">
+      <span class="tip-box tip-box-down" style="white-space:normal;width:220px;text-align:left;line-height:1.6">
         <b>Active</b> — visited within 60 days<br>
         <b>Due Soon</b> — 60–120 days ago<br>
         <b>Lapsing</b> — 120–365 days ago<br>
@@ -313,7 +323,7 @@
     <th class="text-left py-3 px-3" onclick="sortBy(4)" id="th4">Last Visit</th>
     <th class="text-left py-3 px-3" onclick="sortBy(5)" id="th5">Days Since</th>
     <th class="text-left py-3 px-3"><span class="tip-wrap">Overdue
-      <span class="tip-box">Days past their usual visit rhythm.<br>Blank = not yet overdue or only 1 visit.</span>
+      <span class="tip-box tip-box-down">Days past their usual visit rhythm.<br>Blank = not yet overdue or only 1 visit.</span>
     </span></th>
     <th class="text-left py-3 px-3" onclick="sortBy(7)" id="th7">Visits</th>
     <th class="text-left py-3 px-3" onclick="sortBy(8)" id="th8">Avg Spend</th>
@@ -418,7 +428,7 @@ function renderRow(c) {
   ).join('');
 
   return `
-  <tr data-status="${c.scls}" data-stylist="${escHtml(c.pref_tm)}" data-day="${c.pref_day}" data-name="${escHtml(c.name.toLowerCase())}">
+  <tr data-status="${c.scls}" data-stylist="${escHtml(c.pref_tm)}" data-day="${c.pref_day}" data-name="${escHtml(c.name.toLowerCase())}" data-smsout="${c.sms_optout ? '1' : '0'}" data-emailout="${c.email_optout ? '1' : '0'}">
     <td class="py-3 px-3 font-mono text-xs" style="color:var(--muted)">${c.rank}</td>
     <td class="py-3 px-3">
       <span class="font-semibold" style="color:var(--navy)">${escHtml(c.name)}</span>
@@ -772,12 +782,21 @@ function applyFilters() {
   const status  = document.getElementById('statusFilter').value;
   const stylist = document.getElementById('stylistFilter').value;
   const day     = document.getElementById('dayFilter').value;
+  const optout  = document.getElementById('optoutFilter').value;
   let visible   = 0;
   document.querySelectorAll('#tableBody tr').forEach(row => {
+    const smsOut   = row.dataset.smsout   === '1';
+    const emailOut = row.dataset.emailout === '1';
+    const optoutOk = !optout
+      || (optout === 'sms'    && smsOut)
+      || (optout === 'email'  && emailOut)
+      || (optout === 'either' && (smsOut || emailOut))
+      || (optout === 'none'   && !smsOut && !emailOut);
     const ok = (!search  || row.dataset.name.includes(search))
             && (!status  || row.dataset.status  === status)
             && (!stylist || row.dataset.stylist  === stylist)
-            && (!day     || row.dataset.day      === day);
+            && (!day     || row.dataset.day      === day)
+            && optoutOk;
     row.style.display = ok ? '' : 'none';
     if (ok) visible++;
   });
