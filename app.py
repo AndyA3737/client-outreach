@@ -737,6 +737,7 @@ IMPORTANT: when the query mentions a specific future service or treatment, ALWAY
 "clients who used a promotion" → [{{"field":"promo_count","op":"gte","value":1}}]
 "clients who used the refer a friend promotion" → [{{"field":"promo_names","op":"contains","value":"refer a friend"}}]
 "clients who used promotion code SUMMER20" → [{{"field":"promo_codes","op":"contains","value":"SUMMER20"}}]
+IMPORTANT: promotion codes are exact identifiers — always use the full code exactly as given. Never truncate, shorten, or fuzzy-match a promotion code. "SAF30" must be value "SAF30" not "SAF3" or "SAF".
 "promotion uses in January 2026" → [{{"field":"last_promo","op":"contains","value":"Jan 2026"}}]
 """
 
@@ -754,6 +755,7 @@ IMPORTANT: when the query mentions a specific future service or treatment, ALWAY
             if raw.startswith("json"):
                 raw = raw[4:]
         criteria = json.loads(raw.strip())
+        print(f"QUERY criteria: {criteria}", flush=True)
     except Exception as e:
         return jsonify({"error": f"Could not interpret query: {e}"}), 400
 
