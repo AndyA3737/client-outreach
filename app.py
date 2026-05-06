@@ -645,6 +645,8 @@ def query_clients():
         return jsonify({"error": "ANTHROPIC_API_KEY is not configured on this server"}), 500
 
     schema = """
+NOTE: Booking history, gift cards, and promotions cover the last 2 years only. Client records, tags, and opt-out status are current. Mention this limitation in your description when relevant.
+
 Fields available on each client record:
 - name (string): full name
 - scls (string): "active" <60 days, "due" 60-120 days, "lapsing" 120-365 days, "lapsed" >365 days, "never" never visited
