@@ -197,7 +197,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     team_raw    = fetch("XXX_Export_Admin_TUBR_TeamMembers", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
     try:
         salons_raw = fetch("XXX_Export_Admin_BenchMarks_SalonList", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
-        print(f"SalonList rows={len(salons_raw)} tenant={tenant_id} sample={list(salons_raw[0].keys()) if salons_raw else 'EMPTY'}", flush=True)
+
     except Exception as e:
         app.logger.warning("SalonList fetch failed (salon names will be blank): %s", e)
         salons_raw = []
@@ -293,7 +293,6 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         gc_sd   = (today - timedelta(days=730)).strftime(date_fmt)
         gc_ed   = today.strftime(date_fmt)
         gc_rows = fetch("XXX_Export_Admin_TUBR_GiftCards", gc_sd, gc_ed, tenant_id=tenant_id, server=server)
-        print(f"GIFTCARDS rows={len(gc_rows)} keys={list(gc_rows[0].keys()) if gc_rows else 'EMPTY'} first={gc_rows[0] if gc_rows else 'N/A'}", flush=True)
         for gc in gc_rows:
             cid = (gc.get("ClientId") or gc.get("ClientID") or gc.get("clientid") or "")
             if not cid:
@@ -308,9 +307,6 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     promo_by_client = defaultdict(list)
     try:
         pr_rows = fetch("XXX_Export_Admin_TUBR_Promotions", gc_sd, gc_ed, tenant_id=tenant_id, server=server)
-        if pr_rows:
-            sample = pr_rows[0]
-            print(f"PROMOTIONS sample: code={repr(sample.get('PromotionCode'))} name={repr(sample.get('Description'))}", flush=True)
         for pr in pr_rows:
             cid = pr.get("ClientId") or ""
             if not cid:
@@ -604,15 +600,6 @@ def job_status(job_id):
     return jsonify({"status": "loading", "step": job.get("step", "")})
 
 
-@app.route("/api/debug/promo-codes")
-@require_auth
-def debug_promo_codes():
-    codes = {}
-    for c in _all_clients:
-        for code in c.get("promo_codes", []):
-            codes[code] = codes.get(code, 0) + 1
-    return jsonify({"unique_codes": sorted(codes.items(), key=lambda x: -x[1])[:50]})
-
 
 @app.route("/api/refresh", methods=["POST"])
 @require_auth
@@ -769,7 +756,7 @@ IMPORTANT: always use contains_exact (not contains) for promo_codes and tags —
             if raw.startswith("json"):
                 raw = raw[4:]
         criteria = json.loads(raw.strip())
-        print(f"QUERY criteria: {criteria}", flush=True)
+
     except Exception as e:
         return jsonify({"error": f"Could not interpret query: {e}"}), 400
 
