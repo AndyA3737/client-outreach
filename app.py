@@ -192,10 +192,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
 
     step("Fetching client records")
     clients_raw = fetch("XXX_Export_Admin_TUBR_Clients", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
-    if clients_raw:
-        sample = clients_raw[0]
-        optout_fields = {k: v for k, v in sample.items() if any(x in k.lower() for x in ('opt', 'sms', 'email'))}
-        print(f"CLIENT optout fields: {optout_fields}", flush=True)
+
     step("Fetching services & team")
     svcs_raw    = fetch("XXX_Export_Admin_TUBR_services", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
     team_raw    = fetch("XXX_Export_Admin_TUBR_TeamMembers", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
@@ -453,8 +450,8 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             last_promo=last_promo,
             tags=tags,
             tag_count=tag_count,
-            sms_optout=str(cli.get("IsSMSoptout", 0)) in ("1", "true", "True"),
-            email_optout=str(cli.get("isEmailOptOut", 0)) in ("1", "true", "True"),
+            sms_optout=str(cli.get("IsSmsOptOut", "False")) == "True",
+            email_optout=str(cli.get("IsEmailOptOut", "False")) == "True",
             mobile=cli.get("MobilePhoneNumber", ""),
             email=cli.get("emailaddress", ""),
             gender=cli.get("Gender", ""),
@@ -507,8 +504,8 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             last_promo=max((p for p in promo_by_client.get(cid, []) if p["dt"]), key=lambda x: x["dt"], default={"dt": None})["dt"].strftime("%-d %b %Y") if any(p["dt"] for p in promo_by_client.get(cid, [])) else None,
             tags=tags_by_client.get(cid, []),
             tag_count=len(tags_by_client.get(cid, [])),
-            sms_optout=str(cli.get("IsSMSoptout", 0)) in ("1", "true", "True"),
-            email_optout=str(cli.get("isEmailOptOut", 0)) in ("1", "true", "True"),
+            sms_optout=str(cli.get("IsSmsOptOut", "False")) == "True",
+            email_optout=str(cli.get("IsEmailOptOut", "False")) == "True",
             mobile=cli.get("MobilePhoneNumber", ""), email=cli.get("emailaddress", ""),
             gender=cli.get("Gender", ""), birth_month=cli.get("Birthmonth", ""),
             birth_day=cli.get("BirthDay", ""), points=int(cli.get("PointsBalance") or 0),
