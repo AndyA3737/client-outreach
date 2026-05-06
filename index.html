@@ -40,7 +40,7 @@
   .tip-wrap { position:relative; display:inline-block; }
   .tip-box  { display:none; position:absolute; bottom:calc(100% + 8px); left:50%;
               transform:translateX(-50%); background:var(--navy); color:#E2E8F0;
-              padding:10px 14px; border-radius:10px; white-space:nowrap; z-index:50;
+              padding:10px 14px; border-radius:10px; white-space:nowrap; z-index:200;
               font-size:12px; box-shadow:0 8px 30px rgba(0,0,0,0.2); }
   .tip-box::after { content:''; position:absolute; top:100%; left:50%; transform:translateX(-50%);
                     border:6px solid transparent; border-top-color:var(--navy); }
@@ -301,7 +301,7 @@
     <th class="text-left py-3 px-3" onclick="sortBy(0)" id="th0">#</th>
     <th class="text-left py-3 px-3" onclick="sortBy(1)" id="th1">Client</th>
     <th class="text-left py-3 px-3" onclick="sortBy(2)" id="th2">Score</th>
-    <th class="text-left py-3 px-3 tip-wrap">Status
+    <th class="text-left py-3 px-3"><span class="tip-wrap">Status
       <span class="tip-box" style="white-space:normal;width:220px;text-align:left;line-height:1.6">
         <b>Active</b> — visited within 60 days<br>
         <b>Due Soon</b> — 60–120 days ago<br>
@@ -309,12 +309,12 @@
         <b>Lapsed</b> — over 365 days ago<br>
         <b>Never Visited</b> — no booking history
       </span>
-    </th>
+    </span></th>
     <th class="text-left py-3 px-3" onclick="sortBy(4)" id="th4">Last Visit</th>
     <th class="text-left py-3 px-3" onclick="sortBy(5)" id="th5">Days Since</th>
-    <th class="text-left py-3 px-3 tip-wrap">Overdue
+    <th class="text-left py-3 px-3"><span class="tip-wrap">Overdue
       <span class="tip-box">Days past their usual visit rhythm.<br>Blank = not yet overdue or only 1 visit.</span>
-    </th>
+    </span></th>
     <th class="text-left py-3 px-3" onclick="sortBy(7)" id="th7">Visits</th>
     <th class="text-left py-3 px-3" onclick="sortBy(8)" id="th8">Avg Spend</th>
     <th class="text-left py-3 px-3" onclick="sortBy(9)" id="th9">Total Spend</th>
