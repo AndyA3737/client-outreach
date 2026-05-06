@@ -308,13 +308,16 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     promo_by_client = defaultdict(list)
     try:
         pr_rows = fetch("XXX_Export_Admin_TUBR_Promotions", gc_sd, gc_ed, tenant_id=tenant_id, server=server)
+        if pr_rows:
+            sample = pr_rows[0]
+            print(f"PROMOTIONS sample: code={repr(sample.get('PromotionCode'))} name={repr(sample.get('Description'))}", flush=True)
         for pr in pr_rows:
             cid = pr.get("ClientId") or ""
             if not cid:
                 continue
             dt   = parse_dt(pr.get("TransactionDate") or "")
-            name = pr.get("Description") or ""
-            code = pr.get("PromotionCode") or ""
+            name = (pr.get("Description") or "").strip()
+            code = (pr.get("PromotionCode") or "").strip()
             promo_by_client[cid].append({"dt": dt, "name": name, "code": code})
     except Exception as e:
         print(f"PROMOTIONS fetch failed: {e}", flush=True)
@@ -789,9 +792,9 @@ IMPORTANT: always use contains_exact (not contains) for promo_codes and tags —
                 return val_cmp in cv_cmp
         if op == "contains_exact":
             if isinstance(cv, list):
-                return any(val_cmp == c.lower() for c in cv)
+                return any(val_cmp == c.strip().lower() for c in cv)
             if isinstance(cv, str):
-                return val_cmp == cv_cmp
+                return val_cmp == cv_cmp.strip()
         if op == "not_contains":
             if isinstance(cv, list):
                 return not any(val_cmp in c.lower() for c in cv)
