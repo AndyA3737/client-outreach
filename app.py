@@ -604,6 +604,16 @@ def job_status(job_id):
     return jsonify({"status": "loading", "step": job.get("step", "")})
 
 
+@app.route("/api/debug/promo-codes")
+@require_auth
+def debug_promo_codes():
+    codes = {}
+    for c in _all_clients:
+        for code in c.get("promo_codes", []):
+            codes[code] = codes.get(code, 0) + 1
+    return jsonify({"unique_codes": sorted(codes.items(), key=lambda x: -x[1])[:50]})
+
+
 @app.route("/api/refresh", methods=["POST"])
 @require_auth
 def refresh():
