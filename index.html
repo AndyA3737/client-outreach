@@ -357,7 +357,7 @@
 
 <!-- ── Page: Client Selections ────────────────────────────── -->
 <div id="pageSelections" style="display:none">
-<div class="px-6 py-8 max-w-5xl mx-auto">
+<div class="px-6 py-8 max-w-7xl mx-auto">
 
   <h2 class="text-2xl font-bold mb-1" style="color:var(--navy)">Client Selections</h2>
   <p class="text-sm mb-8" style="color:var(--muted)">Describe the clients you want in plain English — Claude will build the segment from your full client database.</p>
@@ -554,12 +554,8 @@ function renderSelectionResults(clients) {
       <td class="py-3 px-3 text-sm" style="color:var(--muted)">${c.n_stylists} stylist${c.n_stylists !== 1 ? 's' : ''}</td>
       <td class="py-3 px-3">${cats}</td>
       <td class="py-3 px-3 text-sm" style="color:var(--text)">${escHtml(c.mobile || '—')}</td>
-      <td class="py-3 px-3 min-w-[300px] max-w-[380px]">
-        <div class="flex items-start gap-2">
-          <span class="text-sm leading-relaxed flex-1 sms-text" style="color:var(--text)">${escHtml(c.sms)}</span>
-          <button onclick="copySMS(this)" class="btn-copy flex-shrink-0 mt-0.5">Copy</button>
-        </div>
-      </td>
+      <td class="py-3 px-3 text-center">${c.sms_optout ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#FEE2E2;color:#991B1B">Opted out</span>' : '<span style="color:#94A3B8;font-size:12px">—</span>'}</td>
+      <td class="py-3 px-3 text-center">${c.email_optout ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#FEE2E2;color:#991B1B">Opted out</span>' : '<span style="color:#94A3B8;font-size:12px">—</span>'}</td>
     </tr>`;
   }).join('');
 
@@ -579,7 +575,8 @@ function renderSelectionResults(clients) {
           <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Stylists Seen</th>
           <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Services</th>
           <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Mobile</th>
-          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Suggested SMS</th>
+          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">SMS Opt-out</th>
+          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Email Opt-out</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
