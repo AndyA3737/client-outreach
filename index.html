@@ -392,8 +392,10 @@
   <!-- Status / results summary -->
   <div id="queryStatus" class="text-sm mb-4" style="color:var(--muted);min-height:22px"></div>
 
-  <!-- Export button (hidden until results) -->
-  <div id="queryActions" style="display:none" class="mb-4">
+  <!-- Export + filter (hidden until results) -->
+  <div id="queryActions" style="display:none" class="flex items-center gap-3 mb-4 flex-wrap">
+    <input type="search" id="selectionSearch" placeholder="🔍  Filter results by name…"
+           oninput="filterSelectionResults()" style="width:240px">
     <button onclick="exportCSV()" class="btn-copy text-sm px-4 py-2">⬇ Export CSV</button>
   </div>
 
@@ -498,6 +500,16 @@ function switchPage(page) {
 // ── Client Selections ─────────────────────────────────────────
 let _selectionResults = [];
 
+function filterSelectionResults() {
+  const q = (document.getElementById('selectionSearch').value || '').toLowerCase().trim();
+  let visible = 0;
+  document.querySelectorAll('#queryResults tbody tr').forEach(row => {
+    const show = !q || (row.dataset.name || '').includes(q);
+    row.style.display = show ? '' : 'none';
+    if (show) visible++;
+  });
+}
+
 function setQuery(btn) {
   document.getElementById('queryInput').value = btn.textContent;
   runQuery();
@@ -521,12 +533,11 @@ async function runQuery() {
     _selectionResults = data.clients;
     document.getElementById('queryStatus').innerHTML =
       `<strong style="color:var(--navy)">${data.total.toLocaleString()} client${data.total !== 1 ? 's' : ''}</strong> matched &nbsp;·&nbsp; <em style="color:var(--muted)">${escHtml(data.description)}</em>`;
-    if (data.total > 500) {
-      document.getElementById('queryStatus').innerHTML +=
-        ` <span style="color:#F59E0B">(showing first 500)</span>`;
-    }
     renderSelectionResults(_selectionResults);
-    if (_selectionResults.length) document.getElementById('queryActions').style.display = 'block';
+    if (_selectionResults.length) {
+      document.getElementById('queryActions').style.display = 'flex';
+      document.getElementById('selectionSearch').value = '';
+    }
   } catch (err) {
     document.getElementById('queryStatus').innerHTML =
       `<span style="color:#EF4444">Error: ${escHtml(err.message)}</span>`;
@@ -546,7 +557,7 @@ function renderSelectionResults(clients) {
     const cats = (c.top_cats || []).map(cat =>
       `<span class="inline-block text-xs px-2 py-0.5 rounded-md mr-0.5 font-medium" style="background:#EEF9F8;color:var(--teal-d);border:1px solid #C8EEEB">${escHtml(cat)}</span>`
     ).join('');
-    return `<tr>
+    return `<tr data-name="${escHtml(c.name.toLowerCase())}">
       <td class="py-3 px-3 font-semibold" style="color:var(--navy)">${escHtml(c.name)}</td>
       <td class="py-3 px-3"><span class="px-2 py-0.5 rounded-full text-xs font-semibold badge-${c.scls}">${c.status}</span></td>
       <td class="py-3 px-3 text-sm" style="color:var(--muted)">${escHtml(c.last_visit)}</td>
