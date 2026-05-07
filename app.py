@@ -319,6 +319,29 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     except Exception as e:
         print(f"PROMOTIONS fetch failed: {e}", flush=True)
 
+    step("Fetching retail sales")
+    retail_by_client = defaultdict(list)
+    try:
+        products_raw = fetch("XXX_Export_Admin_TUBR_Products", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
+        product_map  = {p["ProductId"].lower(): p for p in products_raw if p.get("ProductId")}
+        del products_raw
+        retail_raw = fetch("XXX_Export_Admin_TUBR_RetailSales", gc_sd, gc_ed, tenant_id=tenant_id, server=server)
+        for r in retail_raw:
+            cid = (r.get("PayingClientId") or "").lower()
+            if not cid:
+                continue
+            pid     = (r.get("ProductId") or "").lower()
+            product = product_map.get(pid, {})
+            retail_by_client[cid].append({
+                "name":  product.get("Description", ""),
+                "brand": product.get("Supplier", ""),
+                "line":  product.get("SupplierLine", ""),
+                "price": float(r.get("UnitSalesPrice") or 0),
+            })
+        del retail_raw
+    except Exception as e:
+        print(f"RETAIL fetch failed: {e}", flush=True)
+
     step("Building client profiles")
     rows = []
     for cid, bkgs in by_client.items():
@@ -377,6 +400,13 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
 
         tags      = tags_by_client.get(cid, [])
         tag_count = len(tags)
+
+        rt_list        = retail_by_client.get(cid, [])
+        retail_count   = len(rt_list)
+        retail_total   = round(sum(r["price"] for r in rt_list))
+        retail_products = list(dict.fromkeys(r["name"]  for r in rt_list if r["name"]))
+        retail_brands   = list(dict.fromkeys(r["brand"] for r in rt_list if r["brand"]))
+        retail_lines    = list(dict.fromkeys(r["line"]  for r in rt_list if r["line"]))
 
         if days_since <= 30:
             r_score = 10
@@ -458,6 +488,11 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             email_optout=str(cli.get("IsEmailOptOut", "False")) == "True",
             salonspy_optin=str(cli.get("IsSalonSpyOptIn", "False")) == "True",
             points_enabled=str(cli.get("IsPointsEnabled", "False")) == "True",
+            retail_count=retail_count,
+            retail_total=retail_total,
+            retail_products=retail_products,
+            retail_brands=retail_brands,
+            retail_lines=retail_lines,
             mobile=cli.get("MobilePhoneNumber", ""),
             email=cli.get("emailaddress", ""),
             gender=cli.get("Gender", ""),
@@ -516,6 +551,11 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             email_optout=str(cli.get("IsEmailOptOut", "False")) == "True",
             salonspy_optin=str(cli.get("IsSalonSpyOptIn", "False")) == "True",
             points_enabled=str(cli.get("IsPointsEnabled", "False")) == "True",
+            retail_count=len(retail_by_client.get(cid, [])),
+            retail_total=round(sum(r["price"] for r in retail_by_client.get(cid, []))),
+            retail_products=list(dict.fromkeys(r["name"]  for r in retail_by_client.get(cid, []) if r["name"])),
+            retail_brands=list(dict.fromkeys(r["brand"] for r in retail_by_client.get(cid, []) if r["brand"])),
+            retail_lines=list(dict.fromkeys(r["line"]  for r in retail_by_client.get(cid, []) if r["line"])),
             mobile=cli.get("MobilePhoneNumber", ""), email=cli.get("emailaddress", ""),
             gender=cli.get("Gender", ""), birth_month=cli.get("Birthmonth", ""),
             birth_day=cli.get("BirthDay", ""), points=int(cli.get("PointsBalance") or 0),
@@ -617,29 +657,6 @@ def job_status(job_id):
 
 
 
-@app.route("/api/debug/retail")
-@require_auth
-def debug_retail():
-    server    = request.args.get("server", "BETA")
-    tenant_id = request.args.get("tenant_id") or None
-    srv       = SERVERS.get(server, SERVERS["BETA"])
-    tid       = tenant_id or srv["default_tenant"]
-    today     = date.today()
-    sd        = (today - timedelta(days=730)).strftime(srv["date_fmt"])
-    ed        = today.strftime(srv["date_fmt"])
-
-    def _fetch(report, start="01/01/2026", end="01/01/2026"):
-        params = {**API_COMMON, "TokenID": srv["token"], "TenantID": tid.upper(),
-                  "ReportName": report, "startdate": start, "enddate": end}
-        r = requests.post(srv["base"], params=params, headers={"Content-Length": "0"}, timeout=60)
-        rows = (r.json().get("Data") or {}).get("Array") or []
-        return {"rows": len(rows), "keys": list(rows[0].keys()) if rows else [], "sample": rows[0] if rows else {}}
-
-    return jsonify({
-        "products":     _fetch("XXX_Export_Admin_TUBR_Products"),
-        "retail_sales": _fetch("XXX_Export_Admin_TUBR_RetailSales", sd, ed),
-    })
-
 
 @app.route("/api/refresh", methods=["POST"])
 @require_auth
@@ -720,6 +737,11 @@ Fields available on each client record:
 - email_optout (bool): true if client has opted out of email marketing
 - salonspy_optin (bool): true if client has opted in to Salon Spy
 - points_enabled (bool): true if loyalty points are enabled for this client
+- retail_count (int): number of retail items purchased (0 if none)
+- retail_total (int £): total retail spend
+- retail_products (array of strings): product names purchased e.g. ["Shampoo X", "Conditioner Y"]
+- retail_brands (array of strings): brand/supplier names purchased e.g. ["Kerastase", "L'Oreal"]
+- retail_lines (array of strings): brand lines purchased e.g. ["TREATMENTS", "COLOUR", "SHAMPOO"]
 - score (float 0-100): SMS targeting score
 - giftcard_count (int): number of gift cards purchased (0 if none)
 - giftcard_total (int £): total value of gift cards purchased
@@ -785,6 +807,11 @@ IMPORTANT: when the query mentions a specific future service or treatment, ALWAY
 "clients not opted in to Salon Spy" → [{{"field":"salonspy_optin","op":"eq","value":false}}]
 "clients with points enabled" → [{{"field":"points_enabled","op":"eq","value":true}}]
 "clients without points enabled" → [{{"field":"points_enabled","op":"eq","value":false}}]
+"clients who bought retail" → [{{"field":"retail_count","op":"gte","value":1}}]
+"clients who spent over £50 on retail" → [{{"field":"retail_total","op":"gte","value":50}}]
+"clients who bought Kerastase" → [{{"field":"retail_brands","op":"contains","value":"Kerastase"}}]
+"clients who bought a treatment product" → [{{"field":"retail_lines","op":"contains","value":"TREATMENT"}}]
+"clients who bought shampoo X" → [{{"field":"retail_products","op":"contains","value":"shampoo x"}}]
 "clients with a balance greater than 100" → [{{"field":"account_balance","op":"gt","value":100}}]
 "clients with a negative balance" → [{{"field":"account_balance","op":"lt","value":0}}]
 "clients tagged with New" → [{{"field":"tags","op":"contains_exact","value":"New"}}]
