@@ -515,6 +515,14 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         ))
     _all_clients = rows + no_history
 
+    _tid = "039a055b-a27d-4097-97f1-7024f0a66901"
+    print(f"BUILD DIAG: cli_map={len(cli_map)} in_cli_map={_tid in cli_map} "
+          f"in_by_client={_tid in by_client} "
+          f"gc_entries={len(giftcard_by_client.get(_tid,[]))} "
+          f"in_rows={any(c['id']==_tid for c in rows)} "
+          f"in_no_history={any(c['id']==_tid for c in no_history)} "
+          f"in_all_clients={any(c['id']==_tid for c in _all_clients)}", flush=True)
+
     top = rows[:500]
     for i, c in enumerate(top, 1):
         c["rank"] = i
