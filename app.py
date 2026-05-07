@@ -606,18 +606,6 @@ def job_status(job_id):
 
 
 
-@app.route("/api/debug/client/<client_id>")
-@require_auth
-def debug_client(client_id):
-    needle = client_id.lower()
-    match  = next((c for c in _all_clients if c.get("id", "").lower() == needle), None)
-    if not match:
-        ids = [c.get("id","") for c in _all_clients[:5]]
-        return jsonify({"found": False, "total_clients": len(_all_clients), "sample_ids": ids})
-    return jsonify({"found": True, "client": {k: match[k] for k in
-        ("id","name","scls","giftcard_count","giftcard_total","last_giftcard",
-         "promo_count","promo_names","promo_codes","tags","sms_optout","email_optout")}})
-
 
 @app.route("/api/refresh", methods=["POST"])
 @require_auth
@@ -843,7 +831,7 @@ IMPORTANT: always use contains_exact (not contains) for promo_codes — these ar
         if (any if logic == "OR" else all)(matches(c, f) for f in filters)
     ] if filters else []
 
-    return jsonify({"clients": results[:500], "total": len(results),
+    return jsonify({"clients": results, "total": len(results),
                     "description": description, "criteria": criteria})
 
 
