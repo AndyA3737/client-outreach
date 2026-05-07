@@ -617,6 +617,30 @@ def job_status(job_id):
 
 
 
+@app.route("/api/debug/retail")
+@require_auth
+def debug_retail():
+    server    = request.args.get("server", "BETA")
+    tenant_id = request.args.get("tenant_id") or None
+    srv       = SERVERS.get(server, SERVERS["BETA"])
+    tid       = tenant_id or srv["default_tenant"]
+    today     = date.today()
+    sd        = (today - timedelta(days=730)).strftime(srv["date_fmt"])
+    ed        = today.strftime(srv["date_fmt"])
+
+    def _fetch(report, start="01/01/2026", end="01/01/2026"):
+        params = {**API_COMMON, "TokenID": srv["token"], "TenantID": tid.upper(),
+                  "ReportName": report, "startdate": start, "enddate": end}
+        r = requests.post(srv["base"], params=params, headers={"Content-Length": "0"}, timeout=60)
+        rows = (r.json().get("Data") or {}).get("Array") or []
+        return {"rows": len(rows), "keys": list(rows[0].keys()) if rows else [], "sample": rows[0] if rows else {}}
+
+    return jsonify({
+        "products":     _fetch("XXX_Export_Admin_TUBR_Products"),
+        "retail_sales": _fetch("XXX_Export_Admin_TUBR_RetailSales", sd, ed),
+    })
+
+
 @app.route("/api/refresh", methods=["POST"])
 @require_auth
 def refresh():
