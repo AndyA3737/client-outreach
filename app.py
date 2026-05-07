@@ -337,6 +337,8 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                 "brand": product.get("Supplier", ""),
                 "line":  product.get("SupplierLine", ""),
                 "price": float(r.get("UnitSalesPrice") or 0),
+                "qty":   int(float(r.get("Qty") or 1)),
+                "dt":    parse_dt(r.get("TransactionDate") or ""),
             })
         del retail_raw
     except Exception as e:
@@ -407,6 +409,8 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         retail_products = list(dict.fromkeys(r["name"]  for r in rt_list if r["name"]))
         retail_brands   = list(dict.fromkeys(r["brand"] for r in rt_list if r["brand"]))
         retail_lines    = list(dict.fromkeys(r["line"]  for r in rt_list if r["line"]))
+        rt_dated        = sorted([r for r in rt_list if r["dt"]], key=lambda x: x["dt"], reverse=True)
+        retail_dates    = list(dict.fromkeys(r["dt"].strftime("%-d %b %Y") for r in rt_dated))
 
         if days_since <= 30:
             r_score = 10
@@ -493,6 +497,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             retail_products=retail_products,
             retail_brands=retail_brands,
             retail_lines=retail_lines,
+            retail_dates=retail_dates,
             mobile=cli.get("MobilePhoneNumber", ""),
             email=cli.get("emailaddress", ""),
             gender=cli.get("Gender", ""),
@@ -556,6 +561,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             retail_products=list(dict.fromkeys(r["name"]  for r in retail_by_client.get(cid, []) if r["name"])),
             retail_brands=list(dict.fromkeys(r["brand"] for r in retail_by_client.get(cid, []) if r["brand"])),
             retail_lines=list(dict.fromkeys(r["line"]  for r in retail_by_client.get(cid, []) if r["line"])),
+            retail_dates=list(dict.fromkeys(r["dt"].strftime("%-d %b %Y") for r in sorted((r for r in retail_by_client.get(cid, []) if r["dt"]), key=lambda x: x["dt"], reverse=True))),
             mobile=cli.get("MobilePhoneNumber", ""), email=cli.get("emailaddress", ""),
             gender=cli.get("Gender", ""), birth_month=cli.get("Birthmonth", ""),
             birth_day=cli.get("BirthDay", ""), points=int(cli.get("PointsBalance") or 0),
@@ -742,6 +748,7 @@ Fields available on each client record:
 - retail_products (array of strings): product names purchased e.g. ["Shampoo X", "Conditioner Y"]
 - retail_brands (array of strings): brand/supplier names purchased e.g. ["Kerastase", "L'Oreal"]
 - retail_lines (array of strings): brand lines purchased e.g. ["TREATMENTS", "COLOUR", "SHAMPOO"]
+- retail_dates (array of strings): ALL retail purchase dates e.g. ["5 Jan 2026","3 Dec 2025"]. Use this to find purchases in a specific month or period.
 - score (float 0-100): SMS targeting score
 - giftcard_count (int): number of gift cards purchased (0 if none)
 - giftcard_total (int £): total value of gift cards purchased
@@ -812,6 +819,8 @@ IMPORTANT: when the query mentions a specific future service or treatment, ALWAY
 "clients who bought Kerastase" → [{{"field":"retail_brands","op":"contains","value":"Kerastase"}}]
 "clients who bought a treatment product" → [{{"field":"retail_lines","op":"contains","value":"TREATMENT"}}]
 "clients who bought shampoo X" → [{{"field":"retail_products","op":"contains","value":"shampoo x"}}]
+"clients who bought retail in December 2025" → [{{"field":"retail_dates","op":"contains","value":"Dec 2025"}}]
+"clients who bought Kerastase in 2026" → logic AND, [{{"field":"retail_brands","op":"contains","value":"Kerastase"}},{{"field":"retail_dates","op":"contains","value":"2026"}}]
 "clients with a balance greater than 100" → [{{"field":"account_balance","op":"gt","value":100}}]
 "clients with a negative balance" → [{{"field":"account_balance","op":"lt","value":0}}]
 "clients tagged with New" → [{{"field":"tags","op":"contains_exact","value":"New"}}]
