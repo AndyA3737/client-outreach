@@ -482,7 +482,7 @@ function renderRow(c) {
     <td class="py-3 px-3 text-sm" style="color:var(--text)">${escHtml(c.mobile || '—')}</td>
     <td class="py-3 px-3 text-center">${c.sms_optout ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#FEE2E2;color:#991B1B">Opted out</span>' : '<span style="color:#94A3B8;font-size:12px">—</span>'}</td>
     <td class="py-3 px-3 text-center">${c.email_optout ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#FEE2E2;color:#991B1B">Opted out</span>' : '<span style="color:#94A3B8;font-size:12px">—</span>'}</td>
-    <td class="py-3 px-3 text-center">${c.salonspy_optin ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#D1FAF5;color:#007A6D">Opted in</span>' : '<span style="color:#94A3B8;font-size:12px">—</span>'}</td>
+    <td class="py-3 px-3 text-center">${c.salonspy_optin ? '<span style="color:#94A3B8;font-size:12px">—</span>' : '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#FEE2E2;color:#991B1B">Not opted in</span>'}</td>
     <td class="py-3 px-3 min-w-[340px] max-w-[420px]">
       <div class="flex items-start gap-2">
         <span class="text-sm leading-relaxed flex-1 sms-text" style="color:var(--text)">${escHtml(c.sms)}</span>
@@ -574,7 +574,7 @@ function renderSelectionResults(clients) {
       <td class="py-3 px-3 text-sm" style="color:var(--text)">${escHtml(c.mobile || '—')}</td>
       <td class="py-3 px-3 text-center">${c.sms_optout ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#FEE2E2;color:#991B1B">Opted out</span>' : '<span style="color:#94A3B8;font-size:12px">—</span>'}</td>
       <td class="py-3 px-3 text-center">${c.email_optout ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#FEE2E2;color:#991B1B">Opted out</span>' : '<span style="color:#94A3B8;font-size:12px">—</span>'}</td>
-      <td class="py-3 px-3 text-center">${c.salonspy_optin ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#D1FAF5;color:#007A6D">Opted in</span>' : '<span style="color:#94A3B8;font-size:12px">—</span>'}</td>
+      <td class="py-3 px-3 text-center">${c.salonspy_optin ? '<span style="color:#94A3B8;font-size:12px">—</span>' : '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#FEE2E2;color:#991B1B">Not opted in</span>'}</td>
     </tr>`;
   }).join('');
 
