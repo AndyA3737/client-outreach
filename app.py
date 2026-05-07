@@ -208,7 +208,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
 
     svc_map  = {s["ServiceId"]: s for s in svcs_raw}
     team_map = {t["TeamMemberId"]: (t.get("NickName") or t["FirstName"]) for t in team_raw}
-    cli_map  = {c["ClientId"]: c for c in clients_raw}
+    cli_map  = {c["ClientId"].lower(): c for c in clients_raw if c.get("ClientId")}
     salon_map = {
         str(s.get("SalonId") or s.get("Salonid") or s.get("salonid") or s.get("ID") or ""):
         (s.get("SalonName") or s.get("Name") or s.get("name") or "")
@@ -221,7 +221,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     try:
         tags_raw = fetch("XXX_Export_Admin_TUBR_Tags", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
         for t in tags_raw:
-            cid = t.get("ClientId") or ""
+            cid = (t.get("ClientId") or "").lower()
             tag = t.get("Tag") or ""
             if cid and tag:
                 tags_by_client[cid].append(tag)
@@ -261,7 +261,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         for future in as_completed(futures):
             chunk = future.result()
             for b in chunk:
-                cid = b.get("ClientId")
+                cid = (b.get("ClientId") or "").lower()
                 dt  = parse_dt(b.get("Start"))
                 if not cid or not dt:
                     continue
@@ -295,7 +295,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         gc_ed   = today.strftime(date_fmt)
         gc_rows = fetch("XXX_Export_Admin_TUBR_GiftCards", gc_sd, gc_ed, tenant_id=tenant_id, server=server)
         for gc in gc_rows:
-            cid = (gc.get("ClientId") or gc.get("ClientID") or gc.get("clientid") or "")
+            cid = (gc.get("ClientId") or gc.get("ClientID") or gc.get("clientid") or "").lower()
             if not cid:
                 continue
             dt     = parse_dt(gc.get("TransactionDate") or "")
@@ -309,7 +309,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     try:
         pr_rows = fetch("XXX_Export_Admin_TUBR_Promotions", gc_sd, gc_ed, tenant_id=tenant_id, server=server)
         for pr in pr_rows:
-            cid = pr.get("ClientId") or ""
+            cid = (pr.get("ClientId") or "").lower()
             if not cid:
                 continue
             dt   = parse_dt(pr.get("TransactionDate") or "")
