@@ -363,15 +363,17 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         gc_list        = giftcard_by_client.get(cid, [])
         giftcard_count = len(gc_list)
         giftcard_total = round(sum(g["amount"] for g in gc_list))
-        gc_dated       = [g for g in gc_list if g["dt"]]
-        last_giftcard  = max(gc_dated, key=lambda x: x["dt"])["dt"].strftime("%-d %b %Y") if gc_dated else None
+        gc_dated       = sorted([g for g in gc_list if g["dt"]], key=lambda x: x["dt"], reverse=True)
+        last_giftcard  = gc_dated[0]["dt"].strftime("%-d %b %Y") if gc_dated else None
+        giftcard_dates = list(dict.fromkeys(g["dt"].strftime("%-d %b %Y") for g in gc_dated))
 
         pr_list      = promo_by_client.get(cid, [])
         promo_count  = len(pr_list)
         promo_names  = list(dict.fromkeys(p["name"] for p in pr_list if p["name"]))
         promo_codes  = list(dict.fromkeys(p["code"] for p in pr_list if p["code"]))
-        pr_dated     = [p for p in pr_list if p["dt"]]
-        last_promo   = max(pr_dated, key=lambda x: x["dt"])["dt"].strftime("%-d %b %Y") if pr_dated else None
+        pr_dated     = sorted([p for p in pr_list if p["dt"]], key=lambda x: x["dt"], reverse=True)
+        last_promo   = pr_dated[0]["dt"].strftime("%-d %b %Y") if pr_dated else None
+        promo_dates  = list(dict.fromkeys(p["dt"].strftime("%-d %b %Y") for p in pr_dated))
 
         tags      = tags_by_client.get(cid, [])
         tag_count = len(tags)
@@ -444,10 +446,12 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             giftcard_count=giftcard_count,
             giftcard_total=giftcard_total,
             last_giftcard=last_giftcard,
+            giftcard_dates=giftcard_dates,
             promo_count=promo_count,
             promo_names=promo_names,
             promo_codes=promo_codes,
             last_promo=last_promo,
+            promo_dates=promo_dates,
             tags=tags,
             tag_count=tag_count,
             sms_optout=str(cli.get("IsSmsOptOut", "False")) == "True",
@@ -498,10 +502,12 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             giftcard_count=len(giftcard_by_client.get(cid, [])),
             giftcard_total=round(sum(g["amount"] for g in giftcard_by_client.get(cid, []))),
             last_giftcard=max((g for g in giftcard_by_client.get(cid, []) if g["dt"]), key=lambda x: x["dt"], default={"dt": None})["dt"].strftime("%-d %b %Y") if any(g["dt"] for g in giftcard_by_client.get(cid, [])) else None,
+            giftcard_dates=list(dict.fromkeys(g["dt"].strftime("%-d %b %Y") for g in sorted((g for g in giftcard_by_client.get(cid, []) if g["dt"]), key=lambda x: x["dt"], reverse=True))),
             promo_count=len(promo_by_client.get(cid, [])),
             promo_names=list(dict.fromkeys(p["name"] for p in promo_by_client.get(cid, []) if p["name"])),
             promo_codes=list(dict.fromkeys(p["code"] for p in promo_by_client.get(cid, []) if p["code"])),
             last_promo=max((p for p in promo_by_client.get(cid, []) if p["dt"]), key=lambda x: x["dt"], default={"dt": None})["dt"].strftime("%-d %b %Y") if any(p["dt"] for p in promo_by_client.get(cid, [])) else None,
+            promo_dates=list(dict.fromkeys(p["dt"].strftime("%-d %b %Y") for p in sorted((p for p in promo_by_client.get(cid, []) if p["dt"]), key=lambda x: x["dt"], reverse=True))),
             tags=tags_by_client.get(cid, []),
             tag_count=len(tags_by_client.get(cid, [])),
             sms_optout=str(cli.get("IsSmsOptOut", "False")) == "True",
@@ -514,14 +520,6 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             how_heard=cli.get("HowHeard", ""), sr=0, so=0, sf=0, sm=0, sp=0, score_pct=0, sms="",
         ))
     _all_clients = rows + no_history
-
-    _tid = "039a055b-a27d-4097-97f1-7024f0a66901"
-    print(f"BUILD DIAG: cli_map={len(cli_map)} in_cli_map={_tid in cli_map} "
-          f"in_by_client={_tid in by_client} "
-          f"gc_entries={len(giftcard_by_client.get(_tid,[]))} "
-          f"in_rows={any(c['id']==_tid for c in rows)} "
-          f"in_no_history={any(c['id']==_tid for c in no_history)} "
-          f"in_all_clients={any(c['id']==_tid for c in _all_clients)}", flush=True)
 
     top = rows[:500]
     for i, c in enumerate(top, 1):
@@ -696,10 +694,12 @@ Fields available on each client record:
 - giftcard_count (int): number of gift cards purchased (0 if none)
 - giftcard_total (int £): total value of gift cards purchased
 - last_giftcard (string or null): date of most recent gift card purchase e.g. "5 Jan 2026"
+- giftcard_dates (array of strings): ALL gift card purchase dates e.g. ["28 Apr 2026","15 Dec 2025"]. Use this to find purchases in a specific month or period.
 - promo_count (int): number of promotions used (0 if none)
 - promo_names (array of strings): names of promotions used e.g. ["20% off colour", "Refer a Friend"]
 - promo_codes (array of strings): promotion codes used e.g. ["REFER2024", "SUMMER20"]
 - last_promo (string or null): date of most recent promotion use e.g. "5 Jan 2026"
+- promo_dates (array of strings): ALL promotion use dates e.g. ["5 Jan 2026","3 Nov 2025"]. Use this to find promotions used in a specific month or period.
 - tags (array of strings): tags applied to the client e.g. ["New", "VIP", "Colour Client"]
 - tag_count (int): number of tags applied (0 if none)
 """
@@ -745,7 +745,8 @@ IMPORTANT: when the query mentions a specific future service or treatment, ALWAY
 "clients booked in for a cut" → [{{"field":"future_svcs","op":"contains","value":"cut"}}]
 "future colour appointments" → [{{"field":"future_cats","op":"contains","value":"Colour"}}]
 "clients who bought a gift card" → [{{"field":"giftcard_count","op":"gte","value":1}}]
-"gift card purchases in March 2026" → [{{"field":"last_giftcard","op":"contains","value":"Mar 2026"}}]
+"gift card purchases in March 2026" → [{{"field":"giftcard_dates","op":"contains","value":"Mar 2026"}}]
+"gift card purchases in December 2025" → [{{"field":"giftcard_dates","op":"contains","value":"Dec 2025"}}]
 "high value gift card buyers" → [{{"field":"giftcard_total","op":"gte","value":100}}]
 "clients who have opted out of SMS" → [{{"field":"sms_optout","op":"eq","value":true}}]
 "clients who have not opted out of SMS" → [{{"field":"sms_optout","op":"eq","value":false}}]
@@ -769,7 +770,7 @@ Promotion field rules:
 "clients who used the 20% off promotion" → [{{"field":"promo_names","op":"contains","value":"20% off"}}]
 "clients who used promotion SAF30" → logic OR, [{{"field":"promo_codes","op":"contains_exact","value":"SAF30"}},{{"field":"promo_names","op":"contains","value":"SAF30"}}]
 IMPORTANT: always use contains_exact (not contains) for promo_codes — these are exact identifiers, not free text.
-"promotion uses in January 2026" → [{{"field":"last_promo","op":"contains","value":"Jan 2026"}}]
+"promotion uses in January 2026" → [{{"field":"promo_dates","op":"contains","value":"Jan 2026"}}]
 """
 
     try:
@@ -838,11 +839,6 @@ IMPORTANT: always use contains_exact (not contains) for promo_codes — these ar
         c for c in _all_clients
         if (any if logic == "OR" else all)(matches(c, f) for f in filters)
     ] if filters else []
-
-    _tid = "039a055b-a27d-4097-97f1-7024f0a66901"
-    retail = next((c for c in _all_clients if c.get("id") == _tid), None)
-    retail_match = retail and (any if logic == "OR" else all)(matches(retail, f) for f in filters) if retail else False
-    print(f"QUERY: {criteria} | total_results={len(results)} | retail_in_all={retail is not None} | retail_matches={retail_match} | retail_gc={retail.get('giftcard_count') if retail else 'N/A'}", flush=True)
 
     return jsonify({"clients": results, "total": len(results),
                     "description": description, "criteria": criteria})
