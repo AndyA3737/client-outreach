@@ -839,6 +839,11 @@ IMPORTANT: always use contains_exact (not contains) for promo_codes — these ar
         if (any if logic == "OR" else all)(matches(c, f) for f in filters)
     ] if filters else []
 
+    _tid = "039a055b-a27d-4097-97f1-7024f0a66901"
+    retail = next((c for c in _all_clients if c.get("id") == _tid), None)
+    retail_match = retail and (any if logic == "OR" else all)(matches(retail, f) for f in filters) if retail else False
+    print(f"QUERY: {criteria} | total_results={len(results)} | retail_in_all={retail is not None} | retail_matches={retail_match} | retail_gc={retail.get('giftcard_count') if retail else 'N/A'}", flush=True)
+
     return jsonify({"clients": results, "total": len(results),
                     "description": description, "criteria": criteria})
 
