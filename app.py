@@ -457,6 +457,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             sms_optout=str(cli.get("IsSmsOptOut", "False")) == "True",
             email_optout=str(cli.get("IsEmailOptOut", "False")) == "True",
             salonspy_optin=str(cli.get("IsSalonSpyOptIn", "False")) == "True",
+            points_enabled=str(cli.get("IsPointsEnabled", "False")) == "True",
             mobile=cli.get("MobilePhoneNumber", ""),
             email=cli.get("emailaddress", ""),
             gender=cli.get("Gender", ""),
@@ -514,6 +515,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             sms_optout=str(cli.get("IsSmsOptOut", "False")) == "True",
             email_optout=str(cli.get("IsEmailOptOut", "False")) == "True",
             salonspy_optin=str(cli.get("IsSalonSpyOptIn", "False")) == "True",
+            points_enabled=str(cli.get("IsPointsEnabled", "False")) == "True",
             mobile=cli.get("MobilePhoneNumber", ""), email=cli.get("emailaddress", ""),
             gender=cli.get("Gender", ""), birth_month=cli.get("Birthmonth", ""),
             birth_day=cli.get("BirthDay", ""), points=int(cli.get("PointsBalance") or 0),
@@ -693,6 +695,7 @@ Fields available on each client record:
 - sms_optout (bool): true if client has opted out of SMS marketing
 - email_optout (bool): true if client has opted out of email marketing
 - salonspy_optin (bool): true if client has opted in to Salon Spy
+- points_enabled (bool): true if loyalty points are enabled for this client
 - score (float 0-100): SMS targeting score
 - giftcard_count (int): number of gift cards purchased (0 if none)
 - giftcard_total (int £): total value of gift cards purchased
@@ -756,6 +759,8 @@ IMPORTANT: when the query mentions a specific future service or treatment, ALWAY
 "clients who have opted out of email" → [{{"field":"email_optout","op":"eq","value":true}}]
 "clients opted in to Salon Spy" → [{{"field":"salonspy_optin","op":"eq","value":true}}]
 "clients not opted in to Salon Spy" → [{{"field":"salonspy_optin","op":"eq","value":false}}]
+"clients with points enabled" → [{{"field":"points_enabled","op":"eq","value":true}}]
+"clients without points enabled" → [{{"field":"points_enabled","op":"eq","value":false}}]
 "clients with a balance greater than 100" → [{{"field":"account_balance","op":"gt","value":100}}]
 "clients with a negative balance" → [{{"field":"account_balance","op":"lt","value":0}}]
 "clients tagged with New" → [{{"field":"tags","op":"contains_exact","value":"New"}}]
