@@ -298,6 +298,8 @@
     <option value="email">Email Opt-out</option>
     <option value="either">Any Opt-out</option>
     <option value="none">No Opt-outs</option>
+    <option value="salonspy">Salon Spy: Opted In</option>
+    <option value="nosalonspy">Salon Spy: Not Opted In</option>
   </select>
   <span id="rowCount" class="text-sm ml-auto font-medium" style="color:var(--muted)"></span>
 </div>
@@ -335,6 +337,7 @@
     <th class="text-left py-3 px-3">Mobile</th>
     <th class="text-left py-3 px-3">SMS Opt-out</th>
     <th class="text-left py-3 px-3">Email Opt-out</th>
+    <th class="text-left py-3 px-3">Salon Spy</th>
     <th class="text-left py-3 px-3">Suggested SMS</th>
   </tr>
 </thead>
@@ -433,7 +436,7 @@ function renderRow(c) {
   ).join('');
 
   return `
-  <tr data-status="${c.scls}" data-stylist="${escHtml(c.pref_tm)}" data-day="${c.pref_day}" data-name="${escHtml(c.name.toLowerCase())}" data-smsout="${c.sms_optout ? '1' : '0'}" data-emailout="${c.email_optout ? '1' : '0'}">
+  <tr data-status="${c.scls}" data-stylist="${escHtml(c.pref_tm)}" data-day="${c.pref_day}" data-name="${escHtml(c.name.toLowerCase())}" data-smsout="${c.sms_optout ? '1' : '0'}" data-emailout="${c.email_optout ? '1' : '0'}" data-salonspy="${c.salonspy_optin ? '1' : '0'}">
     <td class="py-3 px-3 font-mono text-xs" style="color:var(--muted)">${c.rank}</td>
     <td class="py-3 px-3">
       <span class="font-semibold" style="color:var(--navy)">${escHtml(c.name)}</span>
@@ -479,6 +482,7 @@ function renderRow(c) {
     <td class="py-3 px-3 text-sm" style="color:var(--text)">${escHtml(c.mobile || '—')}</td>
     <td class="py-3 px-3 text-center">${c.sms_optout ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#FEE2E2;color:#991B1B">Opted out</span>' : '<span style="color:#94A3B8;font-size:12px">—</span>'}</td>
     <td class="py-3 px-3 text-center">${c.email_optout ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#FEE2E2;color:#991B1B">Opted out</span>' : '<span style="color:#94A3B8;font-size:12px">—</span>'}</td>
+    <td class="py-3 px-3 text-center">${c.salonspy_optin ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#D1FAF5;color:#007A6D">Opted in</span>' : '<span style="color:#94A3B8;font-size:12px">—</span>'}</td>
     <td class="py-3 px-3 min-w-[340px] max-w-[420px]">
       <div class="flex items-start gap-2">
         <span class="text-sm leading-relaxed flex-1 sms-text" style="color:var(--text)">${escHtml(c.sms)}</span>
@@ -570,6 +574,7 @@ function renderSelectionResults(clients) {
       <td class="py-3 px-3 text-sm" style="color:var(--text)">${escHtml(c.mobile || '—')}</td>
       <td class="py-3 px-3 text-center">${c.sms_optout ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#FEE2E2;color:#991B1B">Opted out</span>' : '<span style="color:#94A3B8;font-size:12px">—</span>'}</td>
       <td class="py-3 px-3 text-center">${c.email_optout ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#FEE2E2;color:#991B1B">Opted out</span>' : '<span style="color:#94A3B8;font-size:12px">—</span>'}</td>
+      <td class="py-3 px-3 text-center">${c.salonspy_optin ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#D1FAF5;color:#007A6D">Opted in</span>' : '<span style="color:#94A3B8;font-size:12px">—</span>'}</td>
     </tr>`;
   }).join('');
 
@@ -591,6 +596,7 @@ function renderSelectionResults(clients) {
           <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Mobile</th>
           <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">SMS Opt-out</th>
           <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Email Opt-out</th>
+          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Salon Spy</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
@@ -796,13 +802,16 @@ function applyFilters() {
   const optout  = document.getElementById('optoutFilter').value;
   let visible   = 0;
   document.querySelectorAll('#tableBody tr').forEach(row => {
-    const smsOut   = row.dataset.smsout   === '1';
-    const emailOut = row.dataset.emailout === '1';
+    const smsOut    = row.dataset.smsout    === '1';
+    const emailOut  = row.dataset.emailout  === '1';
+    const salonsspy = row.dataset.salonspy  === '1';
     const optoutOk = !optout
-      || (optout === 'sms'    && smsOut)
-      || (optout === 'email'  && emailOut)
-      || (optout === 'either' && (smsOut || emailOut))
-      || (optout === 'none'   && !smsOut && !emailOut);
+      || (optout === 'sms'        && smsOut)
+      || (optout === 'email'      && emailOut)
+      || (optout === 'either'     && (smsOut || emailOut))
+      || (optout === 'none'       && !smsOut && !emailOut)
+      || (optout === 'salonspy'   && salonsspy)
+      || (optout === 'nosalonspy' && !salonsspy);
     const ok = (!search  || row.dataset.name.includes(search))
             && (!status  || row.dataset.status  === status)
             && (!stylist || row.dataset.stylist  === stylist)
