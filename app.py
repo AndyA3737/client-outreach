@@ -16,6 +16,11 @@ import time
 
 app = Flask(__name__)
 
+@app.errorhandler(Exception)
+def json_error(e):
+    app.logger.exception(e)
+    return jsonify(error=str(e)), 500
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DASHBOARD_USER = os.environ.get('DASHBOARD_USER', 'admin').strip()
 DASHBOARD_PASS = os.environ.get('DASHBOARD_PASS', 'changeme').strip()
@@ -984,9 +989,14 @@ def build_analysis_context(question=""):
     named_clients = []
     if question:
         q_lower = question.lower()
+        q_words = set(q_lower.split())
         for c in _all_clients:
-            name = c.get("name", "")
-            if name.lower() in q_lower or (len(name.split()) > 0 and name.split()[0].lower() in q_lower.split()):
+            name = (c.get("name") or "").strip()
+            if not name:
+                continue
+            first = name.split()[0].lower()
+            # Only match on first name if it's at least 4 chars (avoids "is", "new", etc.)
+            if name.lower() in q_lower or (len(first) >= 4 and first in q_words):
                 named_clients.append(c)
 
     lines = [
@@ -1077,9 +1087,9 @@ def build_analysis_context(question=""):
 @app.route("/api/analyse", methods=["POST"])
 @require_auth
 def analyse():
-    body     = request.get_json() or {}
-    question = body.get("question", "").strip()
-    fmt      = body.get("format", "dashboard")
+    body     = request.get_json(silent=True) or {}
+    question = (body.get("question") or "").strip()
+    fmt      = body.get("format") or "dashboard"
 
     if not question:
         return jsonify(error="No question provided"), 400
