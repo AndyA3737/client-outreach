@@ -915,19 +915,26 @@ IMPORTANT: always use contains_exact (not contains) for promo_codes — these ar
 
 
 def _month_key(date_str):
-    """Extract 'Mon YYYY' from a date string like '5 Jan 2026'."""
     parts = date_str.strip().split()
     return f"{parts[1]} {parts[2]}" if len(parts) >= 3 else None
 
 
-def build_analysis_context():
+def _sort_months(keys):
+    def parse(mk):
+        try:
+            return datetime.strptime(mk, "%b %Y")
+        except ValueError:
+            return datetime.min
+    return sorted(keys, key=parse, reverse=True)
+
+
+def build_analysis_context(question=""):
     if not _all_clients:
         return "No data loaded."
 
     today = date.today()
     status_counts = Counter(c.get("scls", "") for c in _all_clients)
 
-    # Stylist aggregates
     stylist_data = defaultdict(lambda: {"clients": 0, "revenue": 0, "visits": 0})
     for c in _all_clients:
         tm = c.get("pref_tm", "?")
@@ -939,58 +946,71 @@ def build_analysis_context():
     for c in _all_clients:
         all_cats.extend(c.get("top_cats", []))
 
-    # Monthly retail activity (clients who bought retail in each month)
-    monthly_retail = defaultdict(lambda: {"clients": 0, "total_spend": 0.0})
+    # Monthly retail: distribute each client's total spend evenly across their purchase months
+    monthly_retail = defaultdict(lambda: {"clients": 0, "spend": 0.0})
     for c in _all_clients:
-        seen = set()
-        for d in c.get("retail_dates", []):
-            mk = _month_key(d)
-            if mk and mk not in seen:
-                seen.add(mk)
-                monthly_retail[mk]["clients"] += 1
-                # Distribute total retail evenly across months as a proxy
-                n = len(set(_month_key(x) for x in c.get("retail_dates", []) if _month_key(x)))
-                monthly_retail[mk]["total_spend"] += c.get("retail_total", 0) / max(n, 1)
+        months = list({_month_key(d) for d in c.get("retail_dates", []) if _month_key(d)})
+        if not months:
+            continue
+        share = c.get("retail_total", 0) / len(months)
+        for mk in months:
+            monthly_retail[mk]["clients"] += 1
+            monthly_retail[mk]["spend"]   += share
 
-    # Monthly gift card activity
     monthly_gc = defaultdict(int)
     for c in _all_clients:
-        for d in set(_month_key(x) for x in c.get("giftcard_dates", []) if _month_key(x)):
-            monthly_gc[d] += 1
+        for mk in {_month_key(d) for d in c.get("giftcard_dates", []) if _month_key(d)}:
+            monthly_gc[mk] += 1
 
-    # Monthly promo activity
     monthly_promo = defaultdict(int)
     for c in _all_clients:
-        for d in set(_month_key(x) for x in c.get("promo_dates", []) if _month_key(x)):
-            monthly_promo[d] += 1
+        for mk in {_month_key(d) for d in c.get("promo_dates", []) if _month_key(d)}:
+            monthly_promo[mk] += 1
 
-    def sort_months(keys):
-        def parse(mk):
-            try:
-                return datetime.strptime(mk, "%b %Y")
-            except ValueError:
-                return datetime.min
-        return sorted(keys, key=parse, reverse=True)
+    # Segment deep-dives (aggregated, no individual rows)
+    segments = {}
+    for seg in ("active", "due", "lapsing", "lapsed", "never"):
+        grp = [c for c in _all_clients if c.get("scls") == seg]
+        if grp:
+            segments[seg] = {
+                "count":        len(grp),
+                "total_revenue": sum(c.get("total_spend", 0) for c in grp),
+                "avg_spend":    round(sum(c.get("avg_spend", 0) for c in grp) / len(grp)),
+                "avg_visits":   round(sum(c.get("n_visits", 0) for c in grp) / len(grp), 1),
+                "retail_buyers": sum(1 for c in grp if c.get("retail_count", 0) > 0),
+            }
+
+    # Specific client lookup — include full record if the question names someone
+    named_clients = []
+    if question:
+        q_lower = question.lower()
+        for c in _all_clients:
+            name = c.get("name", "")
+            if name.lower() in q_lower or (len(name.split()) > 0 and name.split()[0].lower() in q_lower.split()):
+                named_clients.append(c)
 
     lines = [
         f"SALON DATA — {today.strftime('%-d %b %Y')}",
-        f"Total clients: {len(_all_clients)} | Scored (excl. future bookings): {len(_all_scored)}",
+        f"Total clients: {len(_all_clients)} | Active scoring pool: {len(_all_scored)}",
         f"Total 2yr service revenue: £{sum(c.get('total_spend',0) for c in _all_clients):,.0f}",
-        f"Total 2yr retail spend: £{sum(c.get('retail_total',0) for c in _all_clients):,.0f}",
+        f"Total 2yr retail spend:    £{sum(c.get('retail_total',0) for c in _all_clients):,.0f}",
         f"Total 2yr gift card spend: £{sum(c.get('giftcard_total',0) for c in _all_clients):,.0f}",
         "",
-        "CLIENT STATUS:",
-        f"  Active (≤60d): {status_counts.get('active',0)}",
-        f"  Due Soon (61-120d): {status_counts.get('due',0)}",
-        f"  Lapsing (121-365d): {status_counts.get('lapsing',0)}",
-        f"  Lapsed (>365d): {status_counts.get('lapsed',0)}",
-        f"  Never visited (2yr): {status_counts.get('never',0)}",
-        "",
-        "STYLISTS (by revenue):",
+        "CLIENT STATUS BREAKDOWN:",
     ]
-    for name, d in sorted(stylist_data.items(), key=lambda x: -x[1]["revenue"])[:15]:
+    for seg, d in segments.items():
+        lines.append(
+            f"  {seg.title()} — {d['count']} clients | "
+            f"£{d['total_revenue']:,.0f} total revenue | "
+            f"£{d['avg_spend']} avg spend/visit | "
+            f"{d['avg_visits']} avg visits | "
+            f"{d['retail_buyers']} retail buyers"
+        )
+
+    lines += ["", "STYLISTS (by revenue):"]
+    for nm, d in sorted(stylist_data.items(), key=lambda x: -x[1]["revenue"])[:15]:
         avg = d["revenue"] / d["clients"] if d["clients"] else 0
-        lines.append(f"  {name}: {d['clients']} clients, {d['visits']} visits, "
+        lines.append(f"  {nm}: {d['clients']} clients, {d['visits']} visits, "
                      f"£{d['revenue']:,.0f} revenue, £{avg:.0f} avg/client")
 
     lines += ["", "TOP SERVICE CATEGORIES:"]
@@ -998,32 +1018,32 @@ def build_analysis_context():
         lines.append(f"  {cat}: {cnt} clients")
 
     if monthly_retail:
-        lines += ["", "MONTHLY RETAIL ACTIVITY (estimated spend distributed evenly across purchase months):"]
-        for mk in sort_months(monthly_retail)[:24]:
+        lines += ["", "MONTHLY RETAIL SPEND (estimated — total distributed evenly across client purchase months):"]
+        for mk in _sort_months(monthly_retail)[:24]:
             m = monthly_retail[mk]
-            lines.append(f"  {mk}: {m['clients']} clients, ~£{m['total_spend']:,.0f} estimated retail spend")
+            lines.append(f"  {mk}: {m['clients']} buyers, ~£{m['spend']:,.0f}")
 
     if monthly_gc:
-        lines += ["", "MONTHLY GIFT CARD BUYERS (client count):"]
-        for mk in sort_months(monthly_gc)[:24]:
-            lines.append(f"  {mk}: {monthly_gc[mk]} clients bought gift cards")
+        lines += ["", "MONTHLY GIFT CARD BUYERS:"]
+        for mk in _sort_months(monthly_gc)[:24]:
+            lines.append(f"  {mk}: {monthly_gc[mk]} clients")
 
     if monthly_promo:
-        lines += ["", "MONTHLY PROMOTION USES (client count):"]
-        for mk in sort_months(monthly_promo)[:24]:
-            lines.append(f"  {mk}: {monthly_promo[mk]} clients used a promotion")
+        lines += ["", "MONTHLY PROMOTION USES:"]
+        for mk in _sort_months(monthly_promo)[:24]:
+            lines.append(f"  {mk}: {monthly_promo[mk]} clients")
 
-    lines += [
-        "",
-        "SPEND DISTRIBUTION (avg spend per visit):",
-    ]
+    lines += ["", "SPEND DISTRIBUTION (avg spend per visit):"]
     for lo, hi, label in [(0,50,"£0-50"),(50,100,"£50-100"),(100,200,"£100-200"),
                            (200,500,"£200-500"),(500,1000,"£500-1000"),(1000,9e9,"£1000+")]:
         cnt = sum(1 for c in _all_clients if lo <= c.get("avg_spend", 0) < hi)
         lines.append(f"  {label}: {cnt} clients")
 
-    lines += ["", "ALL CLIENT RECORDS (name, status, days_since, visits, service_revenue, avg_spend, retail_total, gift_total, stylist, top_services):"]
-    for c in _all_clients:
+    # Top 100 clients by total spend (compact rows, no arrays)
+    top100 = sorted(_all_clients, key=lambda x: x.get("total_spend", 0), reverse=True)[:100]
+    lines += ["", "TOP 100 CLIENTS BY TOTAL SPEND:",
+              "Name,Status,DaysSince,Visits,ServiceRevenue,AvgSpend,RetailTotal,GiftcardTotal,Stylist,Services"]
+    for c in top100:
         cats = "|".join(c.get("top_cats", []))
         lines.append(
             f"{c['name']},{c.get('scls','')},{c.get('days_since','')},{c.get('n_visits',0)},"
@@ -1031,6 +1051,26 @@ def build_analysis_context():
             f"£{c.get('retail_total',0)},£{c.get('giftcard_total',0)},"
             f"{c.get('pref_tm','')},{cats}"
         )
+
+    # Named client spotlight
+    if named_clients:
+        lines += ["", "NAMED CLIENT RECORDS (full detail):"]
+        for c in named_clients[:5]:
+            lines += [
+                f"  Name: {c['name']}",
+                f"  Status: {c.get('status','')} | Score: {c.get('score','')} | Days since visit: {c.get('days_since','')}",
+                f"  Visits: {c.get('n_visits',0)} | Last visit: {c.get('last_visit','')} | Avg gap: {c.get('avg_gap','')}d",
+                f"  Service revenue: £{c.get('total_spend',0)} | Avg spend: £{c.get('avg_spend',0)} | Overdue: {c.get('overdue','')}d",
+                f"  Retail: {c.get('retail_count',0)} purchases, £{c.get('retail_total',0)} total",
+                f"  Gift cards: {c.get('giftcard_count',0)}, £{c.get('giftcard_total',0)} total",
+                f"  Promotions: {c.get('promo_count',0)} — {', '.join(c.get('promo_names',[]))}",
+                f"  Preferred stylist: {c.get('pref_tm','')} | Day: {c.get('pref_day','')} {c.get('pref_time','')}",
+                f"  Services: {', '.join(c.get('top_cats',[]))}",
+                f"  No-shows: {c.get('no_shows',0)} | Points: {c.get('points',0)} | Balance: £{c.get('account_balance',0)}",
+                f"  SMS opt-out: {c.get('sms_optout',False)} | Email opt-out: {c.get('email_optout',False)}",
+                "",
+            ]
+
     return "\n".join(lines)
 
 
@@ -1076,7 +1116,7 @@ def analyse():
         "Return ONLY valid JSON — no markdown, no code blocks, no extra text. "
         + fmt_instructions.get(fmt, fmt_instructions["dashboard"])
     )
-    user_msg = f"SALON DATA:\n{build_analysis_context()}\n\nQUESTION: {question}\n\nOutput format: {fmt}"
+    user_msg = f"SALON DATA:\n{build_analysis_context(question)}\n\nQUESTION: {question}\n\nOutput format: {fmt}"
 
     try:
         import anthropic as _anthropic
