@@ -61,6 +61,16 @@
   .sort-asc::after  { content:" ▲"; font-size:9px; color:var(--teal); }
   .sort-desc::after { content:" ▼"; font-size:9px; color:var(--teal); }
 
+  /* AI thinking loader */
+  @keyframes ai-pulse { 0%,100%{opacity:.35;transform:scale(.92)} 50%{opacity:1;transform:scale(1)} }
+  @keyframes ai-fade  { 0%{opacity:0;transform:translateY(6px)} 100%{opacity:1;transform:translateY(0)} }
+  @keyframes dot-bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-6px)} }
+  .ai-orb { animation:ai-pulse 2s ease-in-out infinite; display:inline-block; }
+  .ai-msg { animation:ai-fade 0.5s ease forwards; }
+  .ai-dot { display:inline-block; animation:dot-bounce 1.2s ease-in-out infinite; }
+  .ai-dot:nth-child(2){ animation-delay:.15s; }
+  .ai-dot:nth-child(3){ animation-delay:.30s; }
+
   .btn-teal { background:var(--teal); color:#fff; border:none; border-radius:8px;
               padding:8px 18px; font-size:14px; font-weight:600; cursor:pointer; transition:background 0.15s; }
   .btn-teal:hover { background:var(--teal-d); }
@@ -594,21 +604,74 @@ async function runFollowUp(question, btn, box) {
   await _submitAnalysis(question, _lastAnalysis, box, btn);
 }
 
+const _thinkingMessages = [
+  "Reading through your client records…",
+  "Spotting patterns in the booking history…",
+  "Crunching the revenue numbers…",
+  "Analysing stylist performance…",
+  "Reviewing retail purchasing behaviour…",
+  "Comparing visit frequency across clients…",
+  "Identifying your top opportunities…",
+  "Looking for lapsing clients to win back…",
+  "Calculating average spend trends…",
+  "Checking gift card and promotion activity…",
+  "Pulling together the key insights…",
+  "Almost ready with your analysis…",
+];
+
+function _buildLoader() {
+  return `
+  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 24px;text-align:center">
+    <div class="ai-orb" style="font-size:52px;margin-bottom:20px">🧠</div>
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:20px">
+      <div style="width:8px;height:8px;border-radius:50%;background:var(--teal)" class="ai-dot"></div>
+      <div style="width:8px;height:8px;border-radius:50%;background:var(--teal)" class="ai-dot"></div>
+      <div style="width:8px;height:8px;border-radius:50%;background:var(--teal)" class="ai-dot"></div>
+    </div>
+    <div id="aiThinkMsg" class="ai-msg" style="font-size:15px;font-weight:600;color:var(--navy);margin-bottom:8px;min-height:24px">
+      Reading through your client records…
+    </div>
+    <div id="analyseStep" style="font-size:12px;color:var(--muted)">Starting…</div>
+  </div>`;
+}
+
 async function _submitAnalysis(question, previousResult, resultBox, triggerBtn) {
   triggerBtn.textContent = '⏳ Analysing…';
   triggerBtn.disabled    = true;
-  resultBox.innerHTML    = '<div class="text-center py-12"><div class="text-4xl mb-3">🔍</div><div id="analyseStep" class="text-sm font-medium" style="color:var(--muted)">Starting analysis…</div></div>';
+  resultBox.innerHTML    = _buildLoader();
 
-  let pollTimer = null;
+  let pollTimer   = null;
+  let msgTimer    = null;
+  let msgIndex    = 0;
+
+  function cycleMessage() {
+    const el = document.getElementById('aiThinkMsg');
+    if (!el) return;
+    el.style.animation = 'none';
+    el.offsetHeight;   // reflow to restart animation
+    el.style.animation = '';
+    el.classList.remove('ai-msg');
+    void el.offsetWidth;
+    el.classList.add('ai-msg');
+    msgIndex = (msgIndex + 1) % _thinkingMessages.length;
+    el.textContent = _thinkingMessages[msgIndex];
+  }
+
+  msgTimer = setInterval(cycleMessage, 3000);
+
+  function done() {
+    clearInterval(pollTimer);
+    clearInterval(msgTimer);
+    triggerBtn.textContent = triggerBtn.dataset.label || 'Analyse →';
+    triggerBtn.disabled    = false;
+  }
 
   function showError(msg) {
-    clearInterval(pollTimer);
+    done();
     resultBox.innerHTML = `<div class="rounded-2xl p-6" style="background:#FFF1F2;border:1px solid #FECDD3">
       <div class="font-bold text-red-600 mb-1">Error</div>
       <div class="text-sm text-red-500">${escHtml(msg)}</div>
     </div>`;
-    triggerBtn.textContent = triggerBtn.dataset.label || 'Analyse →';
-    triggerBtn.disabled    = false;
   }
 
   try {
@@ -632,10 +695,8 @@ async function _submitAnalysis(question, previousResult, resultBox, triggerBtn) 
           if (stepEl) stepEl.textContent = pollData.step || 'Working…';
           return;
         }
-        clearInterval(pollTimer);
-        _lastAnalysis          = pollData;
-        triggerBtn.textContent = triggerBtn.dataset.label || 'Analyse →';
-        triggerBtn.disabled    = false;
+        done();
+        _lastAnalysis = pollData;
         renderAnalysis(pollData, resultBox);
       } catch (err) { showError(err.message); }
     }, 2000);
