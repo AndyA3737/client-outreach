@@ -587,26 +587,59 @@ async function runAnalysis() {
   if (!question) return;
 
   btn.textContent = '⏳ Analysing…';
-  btn.disabled    = true;
-  box.innerHTML   = '<div class="text-center py-16"><div class="text-5xl mb-4">🔍</div><div class="text-sm font-medium" style="color:var(--muted)">Analysing your salon data — this may take a few seconds…</div></div>';
+  btn.disabled  = true;
+  box.innerHTML = '<div class="text-center py-16"><div class="text-5xl mb-4">🔍</div><div id="analyseStep" class="text-sm font-medium" style="color:var(--muted)">Starting analysis…</div></div>';
+
+  let pollTimer = null;
+
+  function showError(msg) {
+    clearInterval(pollTimer);
+    box.innerHTML = `<div class="rounded-2xl p-6" style="background:#FFF1F2;border:1px solid #FECDD3">
+      <div class="font-bold text-red-600 mb-1">Error</div>
+      <div class="text-sm text-red-500">${escHtml(msg)}</div>
+    </div>`;
+    btn.textContent = 'Analyse →';
+    btn.disabled    = false;
+  }
 
   try {
-    const res  = await fetch('/api/analyse', {
+    // Step 1 — kick off background job (returns instantly)
+    const kickRes  = await fetch('/api/analyse', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ question, format: _analysisFmt }),
     });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-    renderAnalysis(data);
+    const kickData = await kickRes.json();
+    if (kickData.error) { showError(kickData.error); return; }
+
+    const jobId = kickData.job_id;
+
+    // Step 2 — poll /api/job/<id> every 2 s until done
+    pollTimer = setInterval(async () => {
+      try {
+        const pollRes  = await fetch(`/api/job/${jobId}`);
+        const pollData = await pollRes.json();
+
+        if (pollData.error) { showError(pollData.error); return; }
+
+        if (pollData.status === 'loading') {
+          const stepEl = document.getElementById('analyseStep');
+          if (stepEl) stepEl.textContent = pollData.step || 'Working…';
+          return;
+        }
+
+        // done
+        clearInterval(pollTimer);
+        btn.textContent = 'Analyse →';
+        btn.disabled    = false;
+        renderAnalysis(pollData);
+      } catch (pollErr) {
+        showError(pollErr.message);
+      }
+    }, 2000);
+
   } catch (e) {
-    box.innerHTML = `<div class="rounded-2xl p-6" style="background:#FFF1F2;border:1px solid #FECDD3">
-      <div class="font-bold text-red-600 mb-1">Error</div>
-      <div class="text-sm text-red-500">${escHtml(e.message)}</div>
-    </div>`;
-  } finally {
-    btn.textContent = 'Analyse →';
-    btn.disabled    = false;
+    showError(e.message);
   }
 }
 

@@ -1089,6 +1089,7 @@ def build_analysis_context(question=""):
 @app.route("/api/analyse", methods=["POST"])
 @require_auth
 def analyse():
+    """Start a background analysis job; returns job_id immediately."""
     try:
         import anthropic as _anthropic
 
@@ -1105,55 +1106,65 @@ def analyse():
         if not api_key:
             return jsonify(error="ANTHROPIC_API_KEY is not configured on this server"), 500
 
-        fmt_instructions = {
-            "dashboard": (
-                'Return JSON: {"title":"...","format":"dashboard","summary":"1-2 sentence summary",'
-                '"kpis":[{"label":"...","value":"...","trend":"up|down|neutral","detail":"..."}],'
-                '"sections":[{"title":"...","insight":"...","items":[{"label":"...","value":"..."}]}]}'
-                " Include 3-6 KPIs and 1-3 relevant sections."
-            ),
-            "list": (
-                'Return JSON: {"title":"...","format":"list","summary":"...",'
-                '"columns":["Col1","Col2"],"rows":[["val1","val2"],...]} '
-                "Include all relevant rows sorted meaningfully."
-            ),
-            "report": (
-                'Return JSON: {"title":"...","format":"report","summary":"executive summary",'
-                '"sections":[{"heading":"...","body":"detailed paragraph"}],"conclusion":"..."}'
-                " Include 3-5 well-developed sections."
-            ),
-        }
+        job_id = str(uuid.uuid4())
+        _jobs[job_id] = {"status": "loading", "step": "Thinking…"}
 
-        system = (
-            "You are an expert salon business analyst with access to live UK hair salon data. "
-            "Analyse the data carefully and answer the user's question accurately. "
-            "All monetary values are in British Pounds (£). "
-            "Return ONLY valid JSON — no markdown, no code blocks, no extra text. "
-            + fmt_instructions.get(fmt, fmt_instructions["dashboard"])
-        )
+        def worker():
+            try:
+                fmt_instructions = {
+                    "dashboard": (
+                        'Return JSON: {"title":"...","format":"dashboard","summary":"1-2 sentence summary",'
+                        '"kpis":[{"label":"...","value":"...","trend":"up|down|neutral","detail":"..."}],'
+                        '"sections":[{"title":"...","insight":"...","items":[{"label":"...","value":"..."}]}]}'
+                        " Include 3-6 KPIs and 1-3 relevant sections."
+                    ),
+                    "list": (
+                        'Return JSON: {"title":"...","format":"list","summary":"...",'
+                        '"columns":["Col1","Col2"],"rows":[["val1","val2"],...]} '
+                        "Include all relevant rows sorted meaningfully."
+                    ),
+                    "report": (
+                        'Return JSON: {"title":"...","format":"report","summary":"executive summary",'
+                        '"sections":[{"heading":"...","body":"detailed paragraph"}],"conclusion":"..."}'
+                        " Include 3-5 well-developed sections."
+                    ),
+                }
+                system = (
+                    "You are an expert salon business analyst with access to live UK hair salon data. "
+                    "Analyse the data carefully and answer the user's question accurately. "
+                    "All monetary values are in British Pounds (£). "
+                    "Return ONLY valid JSON — no markdown, no code blocks, no extra text. "
+                    + fmt_instructions.get(fmt, fmt_instructions["dashboard"])
+                )
+                _jobs[job_id]["step"] = "Building data context…"
+                context  = build_analysis_context(question)
+                user_msg = f"SALON DATA:\n{context}\n\nQUESTION: {question}\n\nOutput format: {fmt}"
+                app.logger.info("ANALYSE question=%r fmt=%s context_chars=%d", question, fmt, len(context))
 
-        context  = build_analysis_context(question)
-        user_msg = f"SALON DATA:\n{context}\n\nQUESTION: {question}\n\nOutput format: {fmt}"
+                _jobs[job_id]["step"] = "Asking Claude…"
+                ai  = _anthropic.Anthropic(api_key=api_key)
+                msg = ai.messages.create(
+                    model="claude-sonnet-4-6",
+                    max_tokens=8192,
+                    system=system,
+                    messages=[{"role": "user", "content": user_msg}],
+                )
+                text = msg.content[0].text.strip()
+                app.logger.info("ANALYSE done chars=%d stop=%s", len(text), msg.stop_reason)
 
-        app.logger.info("ANALYSE question=%r fmt=%s context_chars=%d", question, fmt, len(context))
+                if text.startswith("```"):
+                    text = text.split("```", 1)[1]
+                    if text.startswith("json"):
+                        text = text[4:]
+                    text = text.rsplit("```", 1)[0]
 
-        ai  = _anthropic.Anthropic(api_key=api_key)
-        msg = ai.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=8192,
-            system=system,
-            messages=[{"role": "user", "content": user_msg}],
-        )
-        text = msg.content[0].text.strip()
-        app.logger.info("ANALYSE response_chars=%d stop=%s", len(text), msg.stop_reason)
+                _jobs[job_id] = {"status": "done", "data": json.loads(text.strip())}
+            except Exception as e:
+                app.logger.exception("ANALYSE worker error: %s", e)
+                _jobs[job_id] = {"status": "error", "error": str(e)}
 
-        if text.startswith("```"):
-            text = text.split("```", 1)[1]
-            if text.startswith("json"):
-                text = text[4:]
-            text = text.rsplit("```", 1)[0]
-
-        return jsonify(json.loads(text.strip()))
+        threading.Thread(target=worker, daemon=True).start()
+        return jsonify({"job_id": job_id})
 
     except Exception as e:
         app.logger.exception("ANALYSE error: %s", e)
