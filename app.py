@@ -18,8 +18,10 @@ app = Flask(__name__)
 
 @app.errorhandler(Exception)
 def json_error(e):
+    from werkzeug.exceptions import HTTPException
+    code = e.code if isinstance(e, HTTPException) else 500
     app.logger.exception(e)
-    return jsonify(error=str(e)), 500
+    return jsonify(error=str(e)), code
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DASHBOARD_USER = os.environ.get('DASHBOARD_USER', 'admin').strip()
@@ -1087,63 +1089,74 @@ def build_analysis_context(question=""):
 @app.route("/api/analyse", methods=["POST"])
 @require_auth
 def analyse():
-    body     = request.get_json(silent=True) or {}
-    question = (body.get("question") or "").strip()
-    fmt      = body.get("format") or "dashboard"
-
-    if not question:
-        return jsonify(error="No question provided"), 400
-    if not _all_clients:
-        return jsonify(error="No data loaded — load a salon first."), 400
-
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    if not api_key:
-        return jsonify(error="ANTHROPIC_API_KEY is not configured on this server"), 500
-
-    fmt_instructions = {
-        "dashboard": (
-            'Return JSON: {"title":"...","format":"dashboard","summary":"1-2 sentence summary",'
-            '"kpis":[{"label":"...","value":"...","trend":"up|down|neutral","detail":"..."}],'
-            '"sections":[{"title":"...","insight":"...","items":[{"label":"...","value":"..."}]}]}'
-            " Include 3-6 KPIs and 1-3 relevant sections."
-        ),
-        "list": (
-            'Return JSON: {"title":"...","format":"list","summary":"...",'
-            '"columns":["Col1","Col2"],"rows":[["val1","val2"],...]} '
-            "Include all relevant rows sorted meaningfully."
-        ),
-        "report": (
-            'Return JSON: {"title":"...","format":"report","summary":"executive summary",'
-            '"sections":[{"heading":"...","body":"detailed paragraph"}],"conclusion":"..."}'
-            " Include 3-5 well-developed sections."
-        ),
-    }
-
-    system = (
-        "You are an expert salon business analyst with access to live UK hair salon data. "
-        "Analyse the data carefully and answer the user's question accurately. "
-        "All monetary values are in British Pounds (£). "
-        "Return ONLY valid JSON — no markdown, no code blocks, no extra text. "
-        + fmt_instructions.get(fmt, fmt_instructions["dashboard"])
-    )
     try:
         import anthropic as _anthropic
-        user_msg = f"SALON DATA:\n{build_analysis_context(question)}\n\nQUESTION: {question}\n\nOutput format: {fmt}"
+
+        body     = request.get_json(silent=True) or {}
+        question = (body.get("question") or "").strip()
+        fmt      = body.get("format") or "dashboard"
+
+        if not question:
+            return jsonify(error="No question provided"), 400
+        if not _all_clients:
+            return jsonify(error="No data loaded — load a salon first."), 400
+
+        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+        if not api_key:
+            return jsonify(error="ANTHROPIC_API_KEY is not configured on this server"), 500
+
+        fmt_instructions = {
+            "dashboard": (
+                'Return JSON: {"title":"...","format":"dashboard","summary":"1-2 sentence summary",'
+                '"kpis":[{"label":"...","value":"...","trend":"up|down|neutral","detail":"..."}],'
+                '"sections":[{"title":"...","insight":"...","items":[{"label":"...","value":"..."}]}]}'
+                " Include 3-6 KPIs and 1-3 relevant sections."
+            ),
+            "list": (
+                'Return JSON: {"title":"...","format":"list","summary":"...",'
+                '"columns":["Col1","Col2"],"rows":[["val1","val2"],...]} '
+                "Include all relevant rows sorted meaningfully."
+            ),
+            "report": (
+                'Return JSON: {"title":"...","format":"report","summary":"executive summary",'
+                '"sections":[{"heading":"...","body":"detailed paragraph"}],"conclusion":"..."}'
+                " Include 3-5 well-developed sections."
+            ),
+        }
+
+        system = (
+            "You are an expert salon business analyst with access to live UK hair salon data. "
+            "Analyse the data carefully and answer the user's question accurately. "
+            "All monetary values are in British Pounds (£). "
+            "Return ONLY valid JSON — no markdown, no code blocks, no extra text. "
+            + fmt_instructions.get(fmt, fmt_instructions["dashboard"])
+        )
+
+        context  = build_analysis_context(question)
+        user_msg = f"SALON DATA:\n{context}\n\nQUESTION: {question}\n\nOutput format: {fmt}"
+
+        app.logger.info("ANALYSE question=%r fmt=%s context_chars=%d", question, fmt, len(context))
+
         ai  = _anthropic.Anthropic(api_key=api_key)
         msg = ai.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=4096,
+            max_tokens=8192,
             system=system,
             messages=[{"role": "user", "content": user_msg}],
         )
         text = msg.content[0].text.strip()
+        app.logger.info("ANALYSE response_chars=%d stop=%s", len(text), msg.stop_reason)
+
         if text.startswith("```"):
             text = text.split("```", 1)[1]
             if text.startswith("json"):
                 text = text[4:]
             text = text.rsplit("```", 1)[0]
+
         return jsonify(json.loads(text.strip()))
+
     except Exception as e:
+        app.logger.exception("ANALYSE error: %s", e)
         return jsonify(error=str(e)), 500
 
 
