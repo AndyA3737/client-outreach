@@ -914,64 +914,122 @@ IMPORTANT: always use contains_exact (not contains) for promo_codes — these ar
                     "description": description, "criteria": criteria})
 
 
+def _month_key(date_str):
+    """Extract 'Mon YYYY' from a date string like '5 Jan 2026'."""
+    parts = date_str.strip().split()
+    return f"{parts[1]} {parts[2]}" if len(parts) >= 3 else None
+
+
 def build_analysis_context():
     if not _all_clients:
         return "No data loaded."
 
     today = date.today()
-    status_counts = Counter(c["scls"] for c in _all_clients if c.get("scls"))
+    status_counts = Counter(c.get("scls", "") for c in _all_clients)
 
-    stylist_data = defaultdict(lambda: {"clients": 0, "revenue": 0})
+    # Stylist aggregates
+    stylist_data = defaultdict(lambda: {"clients": 0, "revenue": 0, "visits": 0})
     for c in _all_clients:
-        stylist_data[c["pref_tm"]]["clients"] += 1
-        stylist_data[c["pref_tm"]]["revenue"] += c.get("total_spend", 0)
+        tm = c.get("pref_tm", "?")
+        stylist_data[tm]["clients"] += 1
+        stylist_data[tm]["revenue"] += c.get("total_spend", 0)
+        stylist_data[tm]["visits"]  += c.get("n_visits", 0)
 
     all_cats = []
     for c in _all_clients:
         all_cats.extend(c.get("top_cats", []))
 
+    # Monthly retail activity (clients who bought retail in each month)
+    monthly_retail = defaultdict(lambda: {"clients": 0, "total_spend": 0.0})
+    for c in _all_clients:
+        seen = set()
+        for d in c.get("retail_dates", []):
+            mk = _month_key(d)
+            if mk and mk not in seen:
+                seen.add(mk)
+                monthly_retail[mk]["clients"] += 1
+                # Distribute total retail evenly across months as a proxy
+                n = len(set(_month_key(x) for x in c.get("retail_dates", []) if _month_key(x)))
+                monthly_retail[mk]["total_spend"] += c.get("retail_total", 0) / max(n, 1)
+
+    # Monthly gift card activity
+    monthly_gc = defaultdict(int)
+    for c in _all_clients:
+        for d in set(_month_key(x) for x in c.get("giftcard_dates", []) if _month_key(x)):
+            monthly_gc[d] += 1
+
+    # Monthly promo activity
+    monthly_promo = defaultdict(int)
+    for c in _all_clients:
+        for d in set(_month_key(x) for x in c.get("promo_dates", []) if _month_key(x)):
+            monthly_promo[d] += 1
+
+    def sort_months(keys):
+        def parse(mk):
+            try:
+                return datetime.strptime(mk, "%b %Y")
+            except ValueError:
+                return datetime.min
+        return sorted(keys, key=parse, reverse=True)
+
     lines = [
         f"SALON DATA — {today.strftime('%-d %b %Y')}",
-        f"Total clients: {len(_all_clients)} | Scored (no future booking): {len(_all_scored)}",
-        f"Total 2-year revenue: £{sum(c.get('total_spend',0) for c in _all_clients):,.0f}",
-        f"Total retail spend: £{sum(c.get('retail_total',0) for c in _all_clients):,.0f}",
-        f"Total gift card spend: £{sum(c.get('giftcard_total',0) for c in _all_clients):,.0f}",
+        f"Total clients: {len(_all_clients)} | Scored (excl. future bookings): {len(_all_scored)}",
+        f"Total 2yr service revenue: £{sum(c.get('total_spend',0) for c in _all_clients):,.0f}",
+        f"Total 2yr retail spend: £{sum(c.get('retail_total',0) for c in _all_clients):,.0f}",
+        f"Total 2yr gift card spend: £{sum(c.get('giftcard_total',0) for c in _all_clients):,.0f}",
         "",
         "CLIENT STATUS:",
         f"  Active (≤60d): {status_counts.get('active',0)}",
         f"  Due Soon (61-120d): {status_counts.get('due',0)}",
         f"  Lapsing (121-365d): {status_counts.get('lapsing',0)}",
         f"  Lapsed (>365d): {status_counts.get('lapsed',0)}",
-        f"  Never visited: {status_counts.get('never',0)}",
+        f"  Never visited (2yr): {status_counts.get('never',0)}",
         "",
         "STYLISTS (by revenue):",
     ]
     for name, d in sorted(stylist_data.items(), key=lambda x: -x[1]["revenue"])[:15]:
-        lines.append(f"  {name}: {d['clients']} clients, £{d['revenue']:,.0f}")
+        avg = d["revenue"] / d["clients"] if d["clients"] else 0
+        lines.append(f"  {name}: {d['clients']} clients, {d['visits']} visits, "
+                     f"£{d['revenue']:,.0f} revenue, £{avg:.0f} avg/client")
 
     lines += ["", "TOP SERVICE CATEGORIES:"]
     for cat, cnt in Counter(all_cats).most_common(15):
         lines.append(f"  {cat}: {cnt} clients")
 
+    if monthly_retail:
+        lines += ["", "MONTHLY RETAIL ACTIVITY (estimated spend distributed evenly across purchase months):"]
+        for mk in sort_months(monthly_retail)[:24]:
+            m = monthly_retail[mk]
+            lines.append(f"  {mk}: {m['clients']} clients, ~£{m['total_spend']:,.0f} estimated retail spend")
+
+    if monthly_gc:
+        lines += ["", "MONTHLY GIFT CARD BUYERS (client count):"]
+        for mk in sort_months(monthly_gc)[:24]:
+            lines.append(f"  {mk}: {monthly_gc[mk]} clients bought gift cards")
+
+    if monthly_promo:
+        lines += ["", "MONTHLY PROMOTION USES (client count):"]
+        for mk in sort_months(monthly_promo)[:24]:
+            lines.append(f"  {mk}: {monthly_promo[mk]} clients used a promotion")
+
     lines += [
         "",
-        "CLIENT DATA (CSV):",
-        "Name,Status,Score,DaysSinceVisit,LastVisit,Visits2yr,TotalSpend,AvgSpend,"
-        "RetailCount,RetailTotal,GiftcardCount,GiftcardTotal,PromoCount,"
-        "Stylist,PrefDay,PrefTime,TopServices,RetailDates,GiftcardDates,PromoDates",
+        "SPEND DISTRIBUTION (avg spend per visit):",
     ]
+    for lo, hi, label in [(0,50,"£0-50"),(50,100,"£50-100"),(100,200,"£100-200"),
+                           (200,500,"£200-500"),(500,1000,"£500-1000"),(1000,9e9,"£1000+")]:
+        cnt = sum(1 for c in _all_clients if lo <= c.get("avg_spend", 0) < hi)
+        lines.append(f"  {label}: {cnt} clients")
+
+    lines += ["", "ALL CLIENT RECORDS (name, status, days_since, visits, service_revenue, avg_spend, retail_total, gift_total, stylist, top_services):"]
     for c in _all_clients:
-        cats    = "|".join(c.get("top_cats", []))
-        rdates  = "|".join(c.get("retail_dates", []))
-        gdates  = "|".join(c.get("giftcard_dates", []))
-        pdates  = "|".join(c.get("promo_dates", []))
+        cats = "|".join(c.get("top_cats", []))
         lines.append(
-            f"{c['name']},{c.get('status','')},{c.get('score','')},{c.get('days_since','')},"
-            f"{c.get('last_visit','')},{c.get('n_visits',0)},£{c.get('total_spend',0)},"
-            f"£{c.get('avg_spend',0)},{c.get('retail_count',0)},£{c.get('retail_total',0)},"
-            f"{c.get('giftcard_count',0)},£{c.get('giftcard_total',0)},{c.get('promo_count',0)},"
-            f"{c.get('pref_tm','')},{c.get('pref_day','')},{c.get('pref_time','')},"
-            f"{cats},{rdates},{gdates},{pdates}"
+            f"{c['name']},{c.get('scls','')},{c.get('days_since','')},{c.get('n_visits',0)},"
+            f"£{c.get('total_spend',0)},£{c.get('avg_spend',0)},"
+            f"£{c.get('retail_total',0)},£{c.get('giftcard_total',0)},"
+            f"{c.get('pref_tm','')},{cats}"
         )
     return "\n".join(lines)
 
