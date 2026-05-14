@@ -914,6 +914,133 @@ IMPORTANT: always use contains_exact (not contains) for promo_codes — these ar
                     "description": description, "criteria": criteria})
 
 
+def build_analysis_context():
+    if not _all_clients:
+        return "No data loaded."
+
+    today = date.today()
+    status_counts = Counter(c["scls"] for c in _all_clients if c.get("scls"))
+
+    stylist_data = defaultdict(lambda: {"clients": 0, "revenue": 0})
+    for c in _all_clients:
+        stylist_data[c["pref_tm"]]["clients"] += 1
+        stylist_data[c["pref_tm"]]["revenue"] += c.get("total_spend", 0)
+
+    all_cats = []
+    for c in _all_clients:
+        all_cats.extend(c.get("top_cats", []))
+
+    lines = [
+        f"SALON DATA — {today.strftime('%-d %b %Y')}",
+        f"Total clients: {len(_all_clients)} | Scored (no future booking): {len(_all_scored)}",
+        f"Total 2-year revenue: £{sum(c.get('total_spend',0) for c in _all_clients):,.0f}",
+        f"Total retail spend: £{sum(c.get('retail_total',0) for c in _all_clients):,.0f}",
+        f"Total gift card spend: £{sum(c.get('giftcard_total',0) for c in _all_clients):,.0f}",
+        "",
+        "CLIENT STATUS:",
+        f"  Active (≤60d): {status_counts.get('active',0)}",
+        f"  Due Soon (61-120d): {status_counts.get('due',0)}",
+        f"  Lapsing (121-365d): {status_counts.get('lapsing',0)}",
+        f"  Lapsed (>365d): {status_counts.get('lapsed',0)}",
+        f"  Never visited: {status_counts.get('never',0)}",
+        "",
+        "STYLISTS (by revenue):",
+    ]
+    for name, d in sorted(stylist_data.items(), key=lambda x: -x[1]["revenue"])[:15]:
+        lines.append(f"  {name}: {d['clients']} clients, £{d['revenue']:,.0f}")
+
+    lines += ["", "TOP SERVICE CATEGORIES:"]
+    for cat, cnt in Counter(all_cats).most_common(15):
+        lines.append(f"  {cat}: {cnt} clients")
+
+    lines += [
+        "",
+        "CLIENT DATA (CSV):",
+        "Name,Status,Score,DaysSinceVisit,LastVisit,Visits2yr,TotalSpend,AvgSpend,"
+        "RetailCount,RetailTotal,GiftcardCount,GiftcardTotal,PromoCount,"
+        "Stylist,PrefDay,PrefTime,TopServices,RetailDates,GiftcardDates,PromoDates",
+    ]
+    for c in _all_clients:
+        cats    = "|".join(c.get("top_cats", []))
+        rdates  = "|".join(c.get("retail_dates", []))
+        gdates  = "|".join(c.get("giftcard_dates", []))
+        pdates  = "|".join(c.get("promo_dates", []))
+        lines.append(
+            f"{c['name']},{c.get('status','')},{c.get('score','')},{c.get('days_since','')},"
+            f"{c.get('last_visit','')},{c.get('n_visits',0)},£{c.get('total_spend',0)},"
+            f"£{c.get('avg_spend',0)},{c.get('retail_count',0)},£{c.get('retail_total',0)},"
+            f"{c.get('giftcard_count',0)},£{c.get('giftcard_total',0)},{c.get('promo_count',0)},"
+            f"{c.get('pref_tm','')},{c.get('pref_day','')},{c.get('pref_time','')},"
+            f"{cats},{rdates},{gdates},{pdates}"
+        )
+    return "\n".join(lines)
+
+
+@app.route("/api/analyse", methods=["POST"])
+@require_auth
+def analyse():
+    body     = request.get_json() or {}
+    question = body.get("question", "").strip()
+    fmt      = body.get("format", "dashboard")
+
+    if not question:
+        return jsonify(error="No question provided"), 400
+    if not _all_clients:
+        return jsonify(error="No data loaded — load a salon first."), 400
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        return jsonify(error="ANTHROPIC_API_KEY is not configured on this server"), 500
+
+    fmt_instructions = {
+        "dashboard": (
+            'Return JSON: {"title":"...","format":"dashboard","summary":"1-2 sentence summary",'
+            '"kpis":[{"label":"...","value":"...","trend":"up|down|neutral","detail":"..."}],'
+            '"sections":[{"title":"...","insight":"...","items":[{"label":"...","value":"..."}]}]}'
+            " Include 3-6 KPIs and 1-3 relevant sections."
+        ),
+        "list": (
+            'Return JSON: {"title":"...","format":"list","summary":"...",'
+            '"columns":["Col1","Col2"],"rows":[["val1","val2"],...]} '
+            "Include all relevant rows sorted meaningfully."
+        ),
+        "report": (
+            'Return JSON: {"title":"...","format":"report","summary":"executive summary",'
+            '"sections":[{"heading":"...","body":"detailed paragraph"}],"conclusion":"..."}'
+            " Include 3-5 well-developed sections."
+        ),
+    }
+
+    system = (
+        "You are an expert salon business analyst with access to live UK hair salon data. "
+        "Analyse the data carefully and answer the user's question accurately. "
+        "All monetary values are in British Pounds (£). "
+        "Return ONLY valid JSON — no markdown, no code blocks, no extra text. "
+        + fmt_instructions.get(fmt, fmt_instructions["dashboard"])
+    )
+    user_msg = f"SALON DATA:\n{build_analysis_context()}\n\nQUESTION: {question}\n\nOutput format: {fmt}"
+
+    try:
+        import anthropic as _anthropic
+        ai  = _anthropic.Anthropic(api_key=api_key)
+        msg = ai.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=4096,
+            system=system,
+            messages=[{"role": "user", "content": user_msg}],
+        )
+        text = msg.content[0].text.strip()
+        if text.startswith("```"):
+            text = text.split("```", 1)[1]
+            if text.startswith("json"):
+                text = text[4:]
+            text = text.rsplit("```", 1)[0]
+        return jsonify(json.loads(text.strip()))
+    except Exception as e:
+        return jsonify(error=str(e)), 500
+
+
 if __name__ == "__main__":
-    print("Starting Salon SMS Dashboard on http://127.0.0.1:5000")
-    app.run(debug=False, port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    print(f"Starting Salon SMS Dashboard on http://127.0.0.1:{port}")
+    app.run(debug=False, port=port, host="0.0.0.0")

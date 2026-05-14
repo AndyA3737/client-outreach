@@ -79,6 +79,18 @@
                 cursor:pointer; transition:all 0.15s; white-space:nowrap; }
   .query-chip:hover { background:var(--teal); color:#fff; border-color:var(--teal); }
 
+  /* Data Analysis page */
+  .fmt-btn { padding:8px 18px; font-size:13px; font-weight:600; border:none; cursor:pointer;
+             background:#F1F5F9; color:var(--muted); transition:all 0.15s; font-family:inherit; }
+  .fmt-btn:first-child { border-radius:10px 0 0 10px; }
+  .fmt-btn:last-child  { border-radius:0 10px 10px 0; }
+  .fmt-btn:hover  { background:#E2E8EF; }
+  .fmt-btn.active { background:var(--teal); color:#fff; }
+  .eg-chip { background:#F1F5F9; color:var(--navy); border:1px solid var(--border);
+             border-radius:20px; padding:5px 14px; font-size:12px; cursor:pointer;
+             font-family:inherit; transition:all 0.15s; }
+  .eg-chip:hover { background:var(--teal); color:#fff; border-color:var(--teal); }
+
   .btn-copy { background:#F1F5F9; color:var(--muted); border:1px solid var(--border);
               border-radius:6px; padding:4px 10px; font-size:12px; cursor:pointer; transition:all 0.15s; white-space:nowrap; }
   .btn-copy:hover { background:var(--teal); color:#fff; border-color:var(--teal); }
@@ -165,6 +177,7 @@
 <div style="background:#fff;border-bottom:1px solid var(--border);" class="px-6 flex gap-1">
   <button class="nav-tab active" id="tabDashboard" onclick="switchPage('dashboard')">Client Dashboard</button>
   <button class="nav-tab" id="tabSelections" onclick="switchPage('selections')">Client Selections</button>
+  <button class="nav-tab" id="tabAnalysis" onclick="switchPage('analysis')">Data Analysis</button>
 </div>
 
 <!-- ── Page: SMS Dashboard ─────────────────────────────────── -->
@@ -408,6 +421,55 @@
 </div>
 </div><!-- end #pageSelections -->
 
+<!-- ── Page: Data Analysis ────────────────────────────────── -->
+<div id="pageAnalysis" style="display:none">
+<div class="px-6 py-8" style="max-width:96rem;margin:0 auto">
+
+  <h2 class="text-2xl font-bold mb-1" style="color:var(--navy)">Data Analysis</h2>
+  <p class="text-sm mb-6" style="color:var(--muted)">Ask the AI anything about your salon data. Choose how you want the answer presented.</p>
+
+  <!-- Format toggle -->
+  <div class="flex items-center gap-4 mb-5">
+    <span class="text-sm font-semibold" style="color:var(--muted)">Output as:</span>
+    <div class="flex rounded-xl overflow-hidden border" style="border-color:var(--border)">
+      <button onclick="setAnalysisFmt('dashboard')" id="fmtDashboard" class="fmt-btn active">📊 Dashboard</button>
+      <button onclick="setAnalysisFmt('list')"      id="fmtList"      class="fmt-btn">📋 List / Grid</button>
+      <button onclick="setAnalysisFmt('report')"    id="fmtReport"    class="fmt-btn">📄 Report</button>
+    </div>
+  </div>
+
+  <!-- Example prompts -->
+  <div class="flex flex-wrap items-center gap-2 mb-5">
+    <span class="text-xs font-semibold mr-1" style="color:var(--muted)">Try:</span>
+    <button class="eg-chip" onclick="useEgPrompt(this)">Total retail sales for March 2025</button>
+    <button class="eg-chip" onclick="useEgPrompt(this)">Personal dashboard for Stacey — strengths, weaknesses, opportunities</button>
+    <button class="eg-chip" onclick="useEgPrompt(this)">Top 10 clients by revenue</button>
+    <button class="eg-chip" onclick="useEgPrompt(this)">Which stylist has the highest average spend per client?</button>
+    <button class="eg-chip" onclick="useEgPrompt(this)">Lapsing clients and potential revenue recovery</button>
+    <button class="eg-chip" onclick="useEgPrompt(this)">Monthly appointment trends for the last 12 months</button>
+  </div>
+
+  <!-- Question input -->
+  <div class="rounded-2xl border p-6 mb-6" style="background:#fff;border-color:var(--border);box-shadow:0 1px 4px rgba(0,0,0,0.06)">
+    <label class="block text-sm font-semibold mb-2" style="color:var(--navy)">Your question</label>
+    <div class="flex gap-3">
+      <textarea id="analysisInput" placeholder="Ask anything about your salon data…"
+                class="flex-1 rounded-xl p-3 text-sm resize-none"
+                style="height:80px;border:1px solid var(--border);font-family:inherit;color:var(--text);outline:none;transition:border-color 0.15s"
+                onfocus="this.style.borderColor='var(--teal)'"
+                onblur="this.style.borderColor='var(--border)'"
+                onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey))runAnalysis()"></textarea>
+      <button onclick="runAnalysis()" id="analyseBtn" class="btn-teal self-end px-8" style="height:46px">Analyse →</button>
+    </div>
+    <div class="text-xs mt-2" style="color:var(--muted)">Ctrl + Enter to submit</div>
+  </div>
+
+  <!-- Results -->
+  <div id="analysisResults"></div>
+
+</div>
+</div><!-- end #pageAnalysis -->
+
 </div><!-- end #mainContent -->
 
 <script>
@@ -497,8 +559,129 @@ function renderRow(c) {
 function switchPage(page) {
   document.getElementById('pageDashboard').style.display  = page === 'dashboard'  ? '' : 'none';
   document.getElementById('pageSelections').style.display = page === 'selections' ? '' : 'none';
+  document.getElementById('pageAnalysis').style.display   = page === 'analysis'   ? '' : 'none';
   document.getElementById('tabDashboard').classList.toggle('active',  page === 'dashboard');
   document.getElementById('tabSelections').classList.toggle('active', page === 'selections');
+  document.getElementById('tabAnalysis').classList.toggle('active',   page === 'analysis');
+}
+
+// ── Data Analysis ─────────────────────────────────────────────
+let _analysisFmt = 'dashboard';
+
+function setAnalysisFmt(fmt) {
+  _analysisFmt = fmt;
+  ['dashboard','list','report'].forEach(f =>
+    document.getElementById('fmt' + f.charAt(0).toUpperCase() + f.slice(1)).classList.toggle('active', f === fmt)
+  );
+}
+
+function useEgPrompt(btn) {
+  document.getElementById('analysisInput').value = btn.textContent.trim();
+  document.getElementById('analysisInput').focus();
+}
+
+async function runAnalysis() {
+  const question = document.getElementById('analysisInput').value.trim();
+  const box      = document.getElementById('analysisResults');
+  const btn      = document.getElementById('analyseBtn');
+  if (!question) return;
+
+  btn.textContent = '⏳ Analysing…';
+  btn.disabled    = true;
+  box.innerHTML   = '<div class="text-center py-16"><div class="text-5xl mb-4">🔍</div><div class="text-sm font-medium" style="color:var(--muted)">Analysing your salon data — this may take a few seconds…</div></div>';
+
+  try {
+    const res  = await fetch('/api/analyse', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ question, format: _analysisFmt }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    renderAnalysis(data);
+  } catch (e) {
+    box.innerHTML = `<div class="rounded-2xl p-6" style="background:#FFF1F2;border:1px solid #FECDD3">
+      <div class="font-bold text-red-600 mb-1">Error</div>
+      <div class="text-sm text-red-500">${escHtml(e.message)}</div>
+    </div>`;
+  } finally {
+    btn.textContent = 'Analyse →';
+    btn.disabled    = false;
+  }
+}
+
+function renderAnalysis(data) {
+  const box = document.getElementById('analysisResults');
+  let html  = `<div class="mb-5">
+    <h3 class="text-xl font-bold mb-1" style="color:var(--navy)">${escHtml(data.title || '')}</h3>
+    ${data.summary ? `<p class="text-sm" style="color:var(--muted)">${escHtml(data.summary)}</p>` : ''}
+  </div>`;
+
+  if (data.format === 'dashboard') {
+    if (data.kpis && data.kpis.length) {
+      html += '<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">';
+      data.kpis.forEach(k => {
+        const tColor = k.trend === 'up' ? '#10B981' : k.trend === 'down' ? '#EF4444' : 'var(--muted)';
+        const tIcon  = k.trend === 'up' ? '↑' : k.trend === 'down' ? '↓' : '→';
+        html += `<div class="stat-card">
+          <div class="text-xs font-semibold uppercase tracking-widest mb-2" style="color:var(--muted)">${escHtml(k.label)}</div>
+          <div class="text-3xl font-extrabold mb-1" style="color:var(--navy)">${escHtml(k.value)}</div>
+          ${k.detail ? `<div class="text-xs" style="color:${tColor}">${tIcon} ${escHtml(k.detail)}</div>` : ''}
+        </div>`;
+      });
+      html += '</div>';
+    }
+    (data.sections || []).forEach(sec => {
+      html += `<div class="rounded-2xl border p-6 mb-4" style="border-color:var(--border);background:#fff">`;
+      if (sec.title)   html += `<h4 class="font-bold text-base mb-3" style="color:var(--navy)">${escHtml(sec.title)}</h4>`;
+      if (sec.insight) html += `<p class="text-sm mb-3" style="color:var(--muted)">${escHtml(sec.insight)}</p>`;
+      (sec.items || []).forEach(item => {
+        if (typeof item === 'string') {
+          html += `<div class="py-2 border-b text-sm" style="border-color:var(--border);color:var(--text)">${escHtml(item)}</div>`;
+        } else {
+          html += `<div class="flex justify-between items-center py-2 border-b text-sm" style="border-color:var(--border)">
+            <span style="color:var(--text)">${escHtml(item.label)}</span>
+            <span class="font-bold" style="color:var(--navy)">${escHtml(item.value)}</span>
+          </div>`;
+        }
+      });
+      html += '</div>';
+    });
+
+  } else if (data.format === 'list') {
+    if (data.columns && data.rows) {
+      html += '<div class="rounded-2xl border overflow-hidden mb-4" style="border-color:var(--border);background:#fff"><div class="overflow-x-auto"><table style="width:100%;border-collapse:collapse">';
+      html += '<thead><tr class="text-xs uppercase tracking-wider" style="background:#F8FAFC">';
+      data.columns.forEach(col => {
+        html += `<th class="text-left py-3 px-4 font-semibold" style="color:var(--muted);border-bottom:2px solid var(--border)">${escHtml(col)}</th>`;
+      });
+      html += '</tr></thead><tbody>';
+      data.rows.forEach((row, i) => {
+        html += `<tr style="${i % 2 ? 'background:#F8FAFC' : ''}">`;
+        row.forEach(cell => {
+          html += `<td class="py-3 px-4 text-sm" style="color:var(--text);border-bottom:1px solid var(--border)">${escHtml(String(cell))}</td>`;
+        });
+        html += '</tr>';
+      });
+      html += '</tbody></table></div></div>';
+    }
+
+  } else if (data.format === 'report') {
+    html += '<div class="rounded-2xl border p-8 mb-4" style="border-color:var(--border);background:#fff;max-width:820px">';
+    (data.sections || []).forEach(sec => {
+      if (sec.heading) html += `<h4 class="font-bold text-lg mb-3 mt-6" style="color:var(--navy)">${escHtml(sec.heading)}</h4>`;
+      if (sec.body)    html += `<p class="text-sm mb-4" style="color:var(--text);line-height:1.85">${escHtml(sec.body)}</p>`;
+    });
+    if (data.conclusion) {
+      html += `<div class="mt-6 p-4 rounded-xl" style="background:#F0FBF9;border:1px solid #C8EEEB">
+        <div class="font-bold mb-2" style="color:var(--teal-d)">Conclusion</div>
+        <p class="text-sm" style="color:var(--text);line-height:1.75">${escHtml(data.conclusion)}</p>
+      </div>`;
+    }
+    html += '</div>';
+  }
+
+  box.innerHTML = html;
 }
 
 // ── Client Selections ─────────────────────────────────────────
