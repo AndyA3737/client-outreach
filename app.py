@@ -202,7 +202,11 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
 
     step("Fetching services & team")
     svcs_raw    = fetch("XXX_Export_Admin_TUBR_services", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
-    team_raw    = fetch("XXX_Export_Admin_TUBR_TeamMembers", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
+    # Use a wide date range so team members who have left are still included —
+    # bookings go back 2 years and their TeamMemberId must resolve to a name.
+    _team_sd = (today - timedelta(days=730)).strftime(SERVERS.get(server, SERVERS["BETA"])["date_fmt"])
+    _team_ed = today.strftime(SERVERS.get(server, SERVERS["BETA"])["date_fmt"])
+    team_raw    = fetch("XXX_Export_Admin_TUBR_TeamMembers", _team_sd, _team_ed, tenant_id=tenant_id, server=server)
     try:
         salons_raw = fetch("XXX_Export_Admin_BenchMarks_SalonList", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
 
@@ -214,7 +218,10 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     _total_clients = len(clients_raw)
 
     svc_map  = {s["ServiceId"]: s for s in svcs_raw}
-    team_map = {t["TeamMemberId"]: (t.get("NickName") or t["FirstName"]) for t in team_raw}
+    team_map = {
+        t["TeamMemberId"]: (t.get("NickName") or t.get("FirstName") or "Unknown")
+        for t in team_raw if t.get("TeamMemberId")
+    }
     cli_map  = {c["ClientId"].lower(): c for c in clients_raw if c.get("ClientId")}
     salon_map = {
         str(s.get("SalonId") or s.get("Salonid") or s.get("salonid") or s.get("ID") or ""):
