@@ -1093,9 +1093,10 @@ def analyse():
     try:
         import anthropic as _anthropic
 
-        body     = request.get_json(silent=True) or {}
-        question = (body.get("question") or "").strip()
-        fmt      = body.get("format") or "dashboard"
+        body            = request.get_json(silent=True) or {}
+        question        = (body.get("question") or "").strip()
+        fmt             = body.get("format") or "dashboard"
+        previous_result = body.get("previous_result")  # optional JSON of prior analysis
 
         if not question:
             return jsonify(error="No question provided"), 400
@@ -1138,8 +1139,20 @@ def analyse():
                 )
                 _jobs[job_id]["step"] = "Building data context…"
                 context  = build_analysis_context(question)
-                user_msg = f"SALON DATA:\n{context}\n\nQUESTION: {question}\n\nOutput format: {fmt}"
-                app.logger.info("ANALYSE question=%r fmt=%s context_chars=%d", question, fmt, len(context))
+                prev_block = ""
+                if previous_result:
+                    prev_block = (
+                        "\n\nPREVIOUS ANALYSIS (the result you already showed the user — "
+                        "use this as context for the follow-up question):\n"
+                        + json.dumps(previous_result, ensure_ascii=False)
+                    )
+                user_msg = (
+                    f"SALON DATA:\n{context}"
+                    f"{prev_block}"
+                    f"\n\nQUESTION: {question}\n\nOutput format: {fmt}"
+                )
+                app.logger.info("ANALYSE question=%r fmt=%s context_chars=%d followup=%s",
+                                question, fmt, len(context), bool(previous_result))
 
                 _jobs[job_id]["step"] = "Asking Claude…"
                 ai  = _anthropic.Anthropic(api_key=api_key)
