@@ -949,7 +949,7 @@ def build_analysis_context(question=""):
     # Monthly retail: distribute each client's total spend evenly across their purchase months
     monthly_retail = defaultdict(lambda: {"clients": 0, "spend": 0.0})
     for c in _all_clients:
-        months = list({_month_key(d) for d in c.get("retail_dates", []) if _month_key(d)})
+        months = list({_month_key(d) for d in (c.get("retail_dates") or []) if _month_key(d)})
         if not months:
             continue
         share = c.get("retail_total", 0) / len(months)
@@ -959,12 +959,12 @@ def build_analysis_context(question=""):
 
     monthly_gc = defaultdict(int)
     for c in _all_clients:
-        for mk in {_month_key(d) for d in c.get("giftcard_dates", []) if _month_key(d)}:
+        for mk in {_month_key(d) for d in (c.get("giftcard_dates") or []) if _month_key(d)}:
             monthly_gc[mk] += 1
 
     monthly_promo = defaultdict(int)
     for c in _all_clients:
-        for mk in {_month_key(d) for d in c.get("promo_dates", []) if _month_key(d)}:
+        for mk in {_month_key(d) for d in (c.get("promo_dates") or []) if _month_key(d)}:
             monthly_promo[mk] += 1
 
     # Segment deep-dives (aggregated, no individual rows)
@@ -1063,7 +1063,7 @@ def build_analysis_context(question=""):
                 f"  Service revenue: £{c.get('total_spend',0)} | Avg spend: £{c.get('avg_spend',0)} | Overdue: {c.get('overdue','')}d",
                 f"  Retail: {c.get('retail_count',0)} purchases, £{c.get('retail_total',0)} total",
                 f"  Gift cards: {c.get('giftcard_count',0)}, £{c.get('giftcard_total',0)} total",
-                f"  Promotions: {c.get('promo_count',0)} — {', '.join(c.get('promo_names',[]))}",
+                f"  Promotions: {c.get('promo_count',0)} — {', '.join(c.get('promo_names') or [])}",
                 f"  Preferred stylist: {c.get('pref_tm','')} | Day: {c.get('pref_day','')} {c.get('pref_time','')}",
                 f"  Services: {', '.join(c.get('top_cats',[]))}",
                 f"  No-shows: {c.get('no_shows',0)} | Points: {c.get('points',0)} | Balance: £{c.get('account_balance',0)}",
@@ -1116,10 +1116,9 @@ def analyse():
         "Return ONLY valid JSON — no markdown, no code blocks, no extra text. "
         + fmt_instructions.get(fmt, fmt_instructions["dashboard"])
     )
-    user_msg = f"SALON DATA:\n{build_analysis_context(question)}\n\nQUESTION: {question}\n\nOutput format: {fmt}"
-
     try:
         import anthropic as _anthropic
+        user_msg = f"SALON DATA:\n{build_analysis_context(question)}\n\nQUESTION: {question}\n\nOutput format: {fmt}"
         ai  = _anthropic.Anthropic(api_key=api_key)
         msg = ai.messages.create(
             model="claude-sonnet-4-6",
