@@ -701,11 +701,43 @@ def job_status(job_id):
 @app.route("/api/debug/utilisation")
 @require_auth
 def debug_utilisation():
-    return jsonify({
-        "row_count":   len(_utilisation),
-        "sample_rows": _utilisation[:3],
-        "has_data":    bool(_utilisation),
-    })
+    """Try several date-format combinations and report which returns rows."""
+    server    = request.args.get("server", "BETA")
+    tenant_id = request.args.get("tenant_id") or SERVERS.get(server, SERVERS["BETA"])["default_tenant"]
+    today_d   = date.today()
+    results   = {}
+
+    attempts = {
+        "cached_global":       ("", "", None),   # just show what's already loaded
+        "empty_dates":         ("", "", "fetch"),
+        "hardcoded_2026":      ("01/01/2026", "01/01/2026", "fetch"),
+        "ddmmyyyy_6m_3m":      (
+            (today_d - timedelta(days=182)).strftime("%d/%m/%Y"),
+            (today_d + timedelta(days=91)).strftime("%d/%m/%Y"),
+            "fetch"),
+        "mmddyyyy_6m_3m":      (
+            (today_d - timedelta(days=182)).strftime("%m/%d/%Y"),
+            (today_d + timedelta(days=91)).strftime("%m/%d/%Y"),
+            "fetch"),
+        "mmddyyyy_this_month": (
+            today_d.replace(day=1).strftime("%m/%d/%Y"),
+            today_d.strftime("%m/%d/%Y"),
+            "fetch"),
+    }
+
+    results["cached_global"] = {"row_count": len(_utilisation), "sample": _utilisation[:2]}
+
+    for label, (sd, ed, action) in attempts.items():
+        if action != "fetch":
+            continue
+        try:
+            rows = fetch("XXX_Export_Admin_Utilisation", sd, ed,
+                         tenant_id=tenant_id, server=server)
+            results[label] = {"sd": sd, "ed": ed, "row_count": len(rows), "sample": rows[:2]}
+        except Exception as e:
+            results[label] = {"sd": sd, "ed": ed, "error": str(e)}
+
+    return jsonify(results)
 
 
 @app.route("/api/refresh", methods=["POST"])
