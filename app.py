@@ -402,10 +402,13 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
 
     # Aggregate retail transactions into summary tables while retail_by_client is in scope
     global _retail_summary
-    prod_agg    = defaultdict(lambda: {"clients": set(), "units": 0, "revenue": 0.0})
-    brand_agg   = defaultdict(lambda: {"clients": set(), "units": 0, "revenue": 0.0})
-    line_agg    = defaultdict(lambda: {"clients": set(), "units": 0, "revenue": 0.0})
-    monthly_agg = defaultdict(lambda: {"units": 0, "revenue": 0.0})
+    prod_agg         = defaultdict(lambda: {"clients": set(), "units": 0, "revenue": 0.0})
+    brand_agg        = defaultdict(lambda: {"clients": set(), "units": 0, "revenue": 0.0})
+    line_agg         = defaultdict(lambda: {"clients": set(), "units": 0, "revenue": 0.0})
+    monthly_agg      = defaultdict(lambda: {"units": 0, "revenue": 0.0})
+    monthly_prod_agg = defaultdict(lambda: defaultdict(lambda: {"units": 0, "revenue": 0.0}))
+    monthly_brand_agg= defaultdict(lambda: defaultdict(lambda: {"units": 0, "revenue": 0.0}))
+
     for cid, items in retail_by_client.items():
         for r in items:
             name   = (r.get("name")  or "").strip()
@@ -414,22 +417,30 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             qty    = int(r.get("qty") or 1)
             price  = float(r.get("price") or 0) * qty
             dt     = r.get("dt")
+            mk     = dt.strftime("%b %Y") if dt else None
+
             if name:
                 prod_agg[name]["clients"].add(cid)
                 prod_agg[name]["units"]   += qty
                 prod_agg[name]["revenue"] += price
+                if mk:
+                    monthly_prod_agg[mk][name]["units"]   += qty
+                    monthly_prod_agg[mk][name]["revenue"] += price
             if brand:
                 brand_agg[brand]["clients"].add(cid)
                 brand_agg[brand]["units"]   += qty
                 brand_agg[brand]["revenue"] += price
+                if mk:
+                    monthly_brand_agg[mk][brand]["units"]   += qty
+                    monthly_brand_agg[mk][brand]["revenue"] += price
             if line:
                 line_agg[line]["clients"].add(cid)
                 line_agg[line]["units"]   += qty
                 line_agg[line]["revenue"] += price
-            if dt:
-                mk = dt.strftime("%b %Y")
+            if mk:
                 monthly_agg[mk]["units"]   += qty
                 monthly_agg[mk]["revenue"] += price
+
     _retail_summary = {
         "products": {k: {"clients": len(v["clients"]), "units": v["units"],
                          "revenue": round(v["revenue"])}
@@ -442,6 +453,17 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                      for k, v in line_agg.items()},
         "monthly":  {k: {"units": v["units"], "revenue": round(v["revenue"])}
                      for k, v in monthly_agg.items()},
+        # month → top products/brands (for "top products in May" type questions)
+        "monthly_products": {
+            mk: {prod: {"units": d["units"], "revenue": round(d["revenue"])}
+                 for prod, d in prods.items()}
+            for mk, prods in monthly_prod_agg.items()
+        },
+        "monthly_brands": {
+            mk: {brand: {"units": d["units"], "revenue": round(d["revenue"])}
+                 for brand, d in brands.items()}
+            for mk, brands in monthly_brand_agg.items()
+        },
     }
 
     step("Building client profiles")
@@ -1201,6 +1223,22 @@ def build_analysis_context(question=""):
             for mk in _sort_months(rs["monthly"])[:24]:
                 m = rs["monthly"][mk]
                 lines.append(f"{mk},{m['units']},£{m['revenue']}")
+
+        if rs.get("monthly_products"):
+            lines += ["", "TOP RETAIL PRODUCTS BY MONTH (top 20 per month by revenue):",
+                      "Month,Product,UnitsSold,Revenue£"]
+            for mk in _sort_months(rs["monthly_products"])[:24]:
+                prods = rs["monthly_products"][mk]
+                for prod, d in sorted(prods.items(), key=lambda x: -x[1]["revenue"])[:20]:
+                    lines.append(f"{mk},{prod},{d['units']},£{d['revenue']}")
+
+        if rs.get("monthly_brands"):
+            lines += ["", "TOP RETAIL BRANDS BY MONTH (top 10 per month by revenue):",
+                      "Month,Brand,UnitsSold,Revenue£"]
+            for mk in _sort_months(rs["monthly_brands"])[:24]:
+                brands = rs["monthly_brands"][mk]
+                for brand, d in sorted(brands.items(), key=lambda x: -x[1]["revenue"])[:10]:
+                    lines.append(f"{mk},{brand},{d['units']},£{d['revenue']}")
     else:
         # Fallback: aggregate product/brand names from client records (buyer counts only)
         prod_counts  = Counter()
