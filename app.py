@@ -1176,10 +1176,11 @@ def build_analysis_context(question=""):
     for cat, cnt in Counter(all_cats).most_common(15):
         lines.append(f"  {cat}: {cnt} clients")
 
-    # Retail product aggregates from transaction-level data
+    # Retail product aggregates — use transaction-level data if available,
+    # fall back to counting product names across client records
     if _retail_summary.get("products"):
         rs = _retail_summary
-        lines += ["", "TOP RETAIL PRODUCTS (by revenue, from transaction data):",
+        lines += ["", "TOP RETAIL PRODUCTS (transaction data — units sold + revenue):",
                   "Product,ClientsBuying,UnitsSold,Revenue£"]
         for name, d in sorted(rs["products"].items(), key=lambda x: -x[1]["revenue"])[:30]:
             lines.append(f"{name},{d['clients']},{d['units']},£{d['revenue']}")
@@ -1200,11 +1201,32 @@ def build_analysis_context(question=""):
             for mk in _sort_months(rs["monthly"])[:24]:
                 m = rs["monthly"][mk]
                 lines.append(f"{mk},{m['units']},£{m['revenue']}")
-    elif monthly_retail:
-        lines += ["", "MONTHLY RETAIL SPEND (estimated):"]
-        for mk in _sort_months(monthly_retail)[:24]:
-            m = monthly_retail[mk]
-            lines.append(f"  {mk}: {m['clients']} buyers, ~£{m['spend']:,.0f}")
+    else:
+        # Fallback: aggregate product/brand names from client records (buyer counts only)
+        prod_counts  = Counter()
+        brand_counts = Counter()
+        line_counts  = Counter()
+        for c in _all_clients:
+            for p in (c.get("retail_products") or []):
+                if p: prod_counts[p] += 1
+            for b in (c.get("retail_brands") or []):
+                if b: brand_counts[b] += 1
+            for l in (c.get("retail_lines") or []):
+                if l: line_counts[l] += 1
+        if prod_counts:
+            lines += ["", "TOP RETAIL PRODUCTS (client buyer counts — reload data for full revenue figures):",
+                      "Product,ClientsBuying"]
+            for name, cnt in prod_counts.most_common(30):
+                lines.append(f"{name},{cnt}")
+        if brand_counts:
+            lines += ["", "TOP RETAIL BRANDS (client buyer counts):", "Brand,ClientsBuying"]
+            for brand, cnt in brand_counts.most_common(15):
+                lines.append(f"{brand},{cnt}")
+        if monthly_retail:
+            lines += ["", "MONTHLY RETAIL SPEND (estimated):", "Month,BuyerCount,EstRevenue£"]
+            for mk in _sort_months(monthly_retail)[:24]:
+                m = monthly_retail[mk]
+                lines.append(f"{mk},{m['clients']},~£{m['spend']:,.0f}")
 
     if monthly_gc:
         lines += ["", "MONTHLY GIFT CARD BUYERS:"]
