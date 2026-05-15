@@ -244,8 +244,10 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             row["StylistName"] = team_map.get(row.get("TeamMemberId", ""), "Unknown")
         _utilisation = raw_util
         app.logger.info("Utilisation rows fetched: %d", len(_utilisation))
+        step(f"Utilisation loaded ({len(_utilisation)} rows)")
     except Exception as e:
-        app.logger.warning("Utilisation fetch failed (analysis will continue without it): %s", e)
+        app.logger.warning("Utilisation fetch failed: %s", e)
+        step(f"Utilisation unavailable: {e}")
         _utilisation = []
 
     step("Fetching client tags")
@@ -694,6 +696,16 @@ def job_status(job_id):
 
 
 
+
+
+@app.route("/api/debug/utilisation")
+@require_auth
+def debug_utilisation():
+    return jsonify({
+        "row_count":   len(_utilisation),
+        "sample_rows": _utilisation[:3],
+        "has_data":    bool(_utilisation),
+    })
 
 
 @app.route("/api/refresh", methods=["POST"])
