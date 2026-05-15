@@ -80,6 +80,7 @@ _jobs = {}  # job_id -> {status, data, error}
 _utilisation = []   # raw rows from XXX_Export_Admin_Utilisation
 _loaded_tenant_id = None
 _loaded_server    = "BETA"
+_loaded_salon_ids = []   # SalonIds from the salon list, needed for utilisation API
 
 
 NOCACHE_REPORTS = {"XXX_Export_Admin_TUBR_Bookings"}
@@ -221,7 +222,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         app.logger.warning("SalonList fetch failed (salon names will be blank): %s", e)
         salons_raw = []
 
-    global _total_clients
+    global _total_clients, _loaded_salon_ids
     _total_clients = len(clients_raw)
 
     svc_map  = {s["ServiceId"]: s for s in svcs_raw}
@@ -235,6 +236,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         (s.get("SalonName") or s.get("Name") or s.get("name") or "")
         for s in salons_raw
     }
+    _loaded_salon_ids = [sid for sid in salon_map if sid]
     del svcs_raw, team_raw, clients_raw, salons_raw  # free raw API data now maps are built
 
     step("Fetching utilisation data")
@@ -707,43 +709,53 @@ def job_status(job_id):
 @app.route("/api/debug/utilisation")
 @require_auth
 def debug_utilisation():
-    """Try several date-format combinations and report which returns rows."""
+    """Try TenantID-only and SalonId combinations to find what returns rows."""
     server    = request.args.get("server", _loaded_server)
     tenant_id = request.args.get("tenant_id") or _loaded_tenant_id or SERVERS.get(server, SERVERS["BETA"])["default_tenant"]
     today_d   = date.today()
-    # include which tenant we're actually querying so user can verify
-    results   = {}
+    srv       = SERVERS.get(server, SERVERS["BETA"])
+    sd        = (today_d - timedelta(days=182)).strftime("%m/%d/%Y")
+    ed        = (today_d + timedelta(days=91)).strftime("%m/%d/%Y")
 
-    attempts = {
-        "cached_global":       ("", "", None),   # just show what's already loaded
-        "empty_dates":         ("", "", "fetch"),
-        "hardcoded_2026":      ("01/01/2026", "01/01/2026", "fetch"),
-        "ddmmyyyy_6m_3m":      (
-            (today_d - timedelta(days=182)).strftime("%d/%m/%Y"),
-            (today_d + timedelta(days=91)).strftime("%d/%m/%Y"),
-            "fetch"),
-        "mmddyyyy_6m_3m":      (
-            (today_d - timedelta(days=182)).strftime("%m/%d/%Y"),
-            (today_d + timedelta(days=91)).strftime("%m/%d/%Y"),
-            "fetch"),
-        "mmddyyyy_this_month": (
-            today_d.replace(day=1).strftime("%m/%d/%Y"),
-            today_d.strftime("%m/%d/%Y"),
-            "fetch"),
+    results = {
+        "_query_info": {
+            "server":          server,
+            "tenant_id":       tenant_id,
+            "known_salon_ids": _loaded_salon_ids,
+        },
+        "cached_global": {"row_count": len(_utilisation), "sample": _utilisation[:2]},
     }
 
-    results["_query_info"]   = {"server": server, "tenant_id": tenant_id}
-    results["cached_global"] = {"row_count": len(_utilisation), "sample": _utilisation[:2]}
-
-    for label, (sd, ed, action) in attempts.items():
-        if action != "fetch":
-            continue
+    # Test with no SalonId (current approach)
+    for label, tsd, ted in [("empty_dates", "", ""), ("mmddyyyy_range", sd, ed)]:
         try:
-            rows = fetch("XXX_Export_Admin_Utilisation", sd, ed,
+            rows = fetch("XXX_Export_Admin_Utilisation", tsd, ted,
                          tenant_id=tenant_id, server=server)
-            results[label] = {"sd": sd, "ed": ed, "row_count": len(rows), "sample": rows[:2]}
+            results[f"no_salonid__{label}"] = {"row_count": len(rows), "sample": rows[:1]}
         except Exception as e:
-            results[label] = {"sd": sd, "ed": ed, "error": str(e)}
+            results[f"no_salonid__{label}"] = {"error": str(e)}
+
+    # Test passing each known SalonId explicitly in the Salonid parameter
+    for salon_id in (_loaded_salon_ids or ["0f3bc7d0-38d4-10be-2960-1c6d71b3dc8a"])[:5]:
+        for tsd, ted, dlabel in [("", "", "empty"), (sd, ed, "range")]:
+            key = f"salonid_{salon_id[:8]}__{dlabel}"
+            try:
+                params = {
+                    **API_COMMON,
+                    "Salonid":    salon_id,
+                    "TokenID":    srv["token"],
+                    "TenantID":   tenant_id.upper(),
+                    "ReportName": "XXX_Export_Admin_Utilisation",
+                    "startdate":  tsd,
+                    "enddate":    ted,
+                }
+                r    = requests.post(srv["base"], params=params,
+                                     headers={"Content-Length": "0"}, timeout=30)
+                r.raise_for_status()
+                rows = (r.json().get("Data") or {}).get("Array") or []
+                results[key] = {"salon_id": salon_id, "row_count": len(rows), "sample": rows[:1]}
+            except Exception as e:
+                results[key] = {"salon_id": salon_id, "error": str(e)}
 
     return jsonify(results)
 
