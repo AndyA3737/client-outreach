@@ -78,11 +78,12 @@ _all_clients = []   # every client including those with no visits
 _total_clients = 0
 _jobs = {}  # job_id -> {status, data, error}
 _utilisation = []   # raw rows from XXX_Export_Admin_TUBR_Utilisation
-_loaded_tenant_id = None
-_loaded_server    = "BETA"
-_loaded_salon_ids = []   # SalonIds from the salon list, needed for utilisation API
-_salon_map        = {}   # SalonId → salon name
-_retail_summary   = {}   # pre-aggregated retail: products, brands, lines, monthly
+_loaded_tenant_id   = None
+_loaded_server      = "BETA"
+_loaded_salon_ids   = []   # SalonIds from the salon list, needed for utilisation API
+_loaded_salon_name  = ""   # human-readable name of the currently loaded tenant/salon
+_salon_map          = {}   # SalonId → salon name
+_retail_summary     = {}   # pre-aggregated retail: products, brands, lines, monthly
 
 
 NOCACHE_REPORTS = {"XXX_Export_Admin_TUBR_Bookings"}
@@ -197,7 +198,14 @@ def time_label(h):
 
 
 def build_data(tenant_id=None, server="BETA", step_fn=None):
-    global _loaded_tenant_id, _loaded_server
+    global _loaded_tenant_id, _loaded_server, _loaded_salon_name
+    global _all_scored, _all_clients, _total_clients
+    global _utilisation, _retail_summary, _salon_map, _loaded_salon_ids
+
+    # Clear all globals immediately so no stale data from a previous tenant lingers
+    _all_scored = []; _all_clients = []; _total_clients = 0
+    _utilisation = []; _retail_summary = {}
+    _salon_map = {}; _loaded_salon_ids = []; _loaded_salon_name = ""
     _loaded_server    = server
     _loaded_tenant_id = tenant_id or SERVERS.get(server, SERVERS["BETA"])["default_tenant"]
 
@@ -224,7 +232,6 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         app.logger.warning("SalonList fetch failed (salon names will be blank): %s", e)
         salons_raw = []
 
-    global _total_clients, _loaded_salon_ids
     _total_clients = len(clients_raw)
 
     svc_map  = {s["ServiceId"]: s for s in svcs_raw}
@@ -239,12 +246,13 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         for s in salons_raw
     }
     _loaded_salon_ids = [sid for sid in salon_map if sid]
-    global _salon_map
     _salon_map = {sid: name for sid, name in salon_map.items() if sid}
+    # Pick the most common salon name as the primary label for this tenant
+    if _salon_map:
+        _loaded_salon_name = next(iter(_salon_map.values()), "")
     del svcs_raw, team_raw, clients_raw, salons_raw  # free raw API data now maps are built
 
     step("Fetching utilisation data")
-    global _utilisation
     try:
         date_fmt = SERVERS.get(server, SERVERS["BETA"])["date_fmt"]
         util_sd  = (today - timedelta(days=182)).strftime(date_fmt)   # 6 months back
@@ -401,7 +409,6 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         print(f"RETAIL fetch failed: {e}", flush=True)
 
     # Aggregate retail transactions into summary tables while retail_by_client is in scope
-    global _retail_summary
     prod_agg         = defaultdict(lambda: {"clients": set(), "units": 0, "revenue": 0.0})
     brand_agg        = defaultdict(lambda: {"clients": set(), "units": 0, "revenue": 0.0})
     line_agg         = defaultdict(lambda: {"clients": set(), "units": 0, "revenue": 0.0})
@@ -640,7 +647,6 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         ))
 
     rows.sort(key=lambda x: x["score"], reverse=True)
-    global _all_scored, _all_clients
     _all_scored = [r for r in rows if not r["has_future_booking"]]
 
     # Add clients with no past visits (but possibly future bookings) to _all_clients
@@ -1171,7 +1177,10 @@ def build_analysis_context(question=""):
                 named_clients.append(c)
 
     lines = [
-        f"SALON DATA — {today.strftime('%-d %b %Y')}",
+        f"SALON / TENANT: {_loaded_salon_name or _loaded_tenant_id or 'Unknown'} "
+        f"(server: {_loaded_server}) — data as of {today.strftime('%-d %b %Y')}",
+        f"IMPORTANT: All analysis in this response must refer to this salon/tenant only. "
+        f"Do not reference any other salon name.",
         f"Total clients: {len(_all_clients)} | Active scoring pool: {len(_all_scored)}",
         f"Total 2yr service revenue: £{sum(c.get('total_spend',0) for c in _all_clients):,.0f}",
         f"Total 2yr retail spend:    £{sum(c.get('retail_total',0) for c in _all_clients):,.0f}",
