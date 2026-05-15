@@ -237,8 +237,12 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         date_fmt = SERVERS.get(server, SERVERS["BETA"])["date_fmt"]
         util_sd  = (today - timedelta(days=182)).strftime(date_fmt)   # 6 months back
         util_ed  = (today + timedelta(days=91)).strftime(date_fmt)    # 3 months forward
-        _utilisation = fetch("XXX_Export_Admin_Utilisation", util_sd, util_ed,
-                             tenant_id=tenant_id, server=server)
+        raw_util = fetch("XXX_Export_Admin_Utilisation", util_sd, util_ed,
+                         tenant_id=tenant_id, server=server)
+        # Resolve TeamMemberId → name while team_map is in scope
+        for row in raw_util:
+            row["StylistName"] = team_map.get(row.get("TeamMemberId", ""), "Unknown")
+        _utilisation = raw_util
         app.logger.info("Utilisation rows fetched: %d", len(_utilisation))
     except Exception as e:
         app.logger.warning("Utilisation fetch failed (analysis will continue without it): %s", e)
@@ -1104,17 +1108,68 @@ def build_analysis_context(question=""):
                 "",
             ]
 
-    # Utilisation data
+    # Utilisation data — aggregated from daily rows (ClientMinutes / AvailablTime)
     if _utilisation:
-        # Discover field names from the first row so Claude knows the schema
-        sample = _utilisation[0]
-        field_names = list(sample.keys())
-        lines += ["", f"UTILISATION DATA ({len(_utilisation)} rows, last 6 months + 3 months forward):",
-                  f"Fields: {', '.join(field_names)}"]
-        # Include all rows as compact CSV — utilisation rows are typically small
-        lines.append(",".join(field_names))
+        # Per-stylist totals
+        stylist_util = defaultdict(lambda: {"client_mins": 0, "avail_mins": 0, "days": 0, "future_days": 0, "future_client_mins": 0, "future_avail_mins": 0})
+        # Monthly salon totals
+        monthly_util = defaultdict(lambda: {"client_mins": 0, "avail_mins": 0})
         for row in _utilisation:
-            lines.append(",".join(str(row.get(f, "")) for f in field_names))
+            name = row.get("StylistName", "Unknown")
+            cm   = int(row.get("ClientMinutes", 0) or 0)
+            am   = int(row.get("AvailablTime",  0) or 0)   # note API typo — no 'e'
+            if am <= 0:
+                continue
+            dt = None
+            for fmt in ("%m/%d/%Y %I:%M:%S %p", "%m/%d/%Y %H:%M:%S"):
+                try:
+                    dt = datetime.strptime(row.get("Date", ""), fmt)
+                    break
+                except ValueError:
+                    pass
+            if not dt:
+                continue
+
+            is_future = dt.date() > today
+            if is_future:
+                stylist_util[name]["future_days"]        += 1
+                stylist_util[name]["future_client_mins"] += cm
+                stylist_util[name]["future_avail_mins"]  += am
+            else:
+                stylist_util[name]["client_mins"] += cm
+                stylist_util[name]["avail_mins"]  += am
+                stylist_util[name]["days"]        += 1
+                mk = dt.strftime("%b %Y")
+                monthly_util[mk]["client_mins"] += cm
+                monthly_util[mk]["avail_mins"]  += am
+
+        lines += ["", "STYLIST UTILISATION (past 6 months):",
+                  "Stylist,WorkingDays,ClientMins,AvailMins,Utilisation%,AvgDailyUtil%"]
+        for name, d in sorted(stylist_util.items(), key=lambda x: -(x[1]["client_mins"] / max(x[1]["avail_mins"], 1))):
+            if d["avail_mins"] == 0:
+                continue
+            util_pct     = round(d["client_mins"] / d["avail_mins"] * 100, 1)
+            avg_daily    = round(util_pct, 1)  # same calc across all days
+            lines.append(f"{name},{d['days']},{d['client_mins']},{d['avail_mins']},{util_pct}%,{avg_daily}%")
+
+        if monthly_util:
+            lines += ["", "MONTHLY SALON UTILISATION (past 6 months):",
+                      "Month,TotalClientMins,TotalAvailMins,Utilisation%"]
+            for mk in _sort_months(monthly_util):
+                m = monthly_util[mk]
+                if m["avail_mins"] == 0:
+                    continue
+                pct = round(m["client_mins"] / m["avail_mins"] * 100, 1)
+                lines.append(f"{mk},{m['client_mins']},{m['avail_mins']},{pct}%")
+
+        # Forward-looking availability (booked vs available in next 3 months)
+        future = {n: d for n, d in stylist_util.items() if d["future_avail_mins"] > 0}
+        if future:
+            lines += ["", "FORWARD DIARY — next 3 months (already booked vs available):",
+                      "Stylist,FutureDays,BookedMins,AvailMins,BookedPct%"]
+            for name, d in sorted(future.items(), key=lambda x: -(x[1]["future_client_mins"] / max(x[1]["future_avail_mins"], 1))):
+                pct = round(d["future_client_mins"] / d["future_avail_mins"] * 100, 1)
+                lines.append(f"{name},{d['future_days']},{d['future_client_mins']},{d['future_avail_mins']},{pct}%")
 
     return "\n".join(lines)
 
