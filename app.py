@@ -82,6 +82,7 @@ _loaded_tenant_id = None
 _loaded_server    = "BETA"
 _loaded_salon_ids = []   # SalonIds from the salon list, needed for utilisation API
 _salon_map        = {}   # SalonId → salon name
+_retail_summary   = {}   # pre-aggregated retail: products, brands, lines, monthly
 
 
 NOCACHE_REPORTS = {"XXX_Export_Admin_TUBR_Bookings"}
@@ -398,6 +399,50 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         del retail_raw
     except Exception as e:
         print(f"RETAIL fetch failed: {e}", flush=True)
+
+    # Aggregate retail transactions into summary tables while retail_by_client is in scope
+    global _retail_summary
+    prod_agg    = defaultdict(lambda: {"clients": set(), "units": 0, "revenue": 0.0})
+    brand_agg   = defaultdict(lambda: {"clients": set(), "units": 0, "revenue": 0.0})
+    line_agg    = defaultdict(lambda: {"clients": set(), "units": 0, "revenue": 0.0})
+    monthly_agg = defaultdict(lambda: {"units": 0, "revenue": 0.0})
+    for cid, items in retail_by_client.items():
+        for r in items:
+            name   = (r.get("name")  or "").strip()
+            brand  = (r.get("brand") or "").strip()
+            line   = (r.get("line")  or "").strip()
+            qty    = int(r.get("qty") or 1)
+            price  = float(r.get("price") or 0) * qty
+            dt     = r.get("dt")
+            if name:
+                prod_agg[name]["clients"].add(cid)
+                prod_agg[name]["units"]   += qty
+                prod_agg[name]["revenue"] += price
+            if brand:
+                brand_agg[brand]["clients"].add(cid)
+                brand_agg[brand]["units"]   += qty
+                brand_agg[brand]["revenue"] += price
+            if line:
+                line_agg[line]["clients"].add(cid)
+                line_agg[line]["units"]   += qty
+                line_agg[line]["revenue"] += price
+            if dt:
+                mk = dt.strftime("%b %Y")
+                monthly_agg[mk]["units"]   += qty
+                monthly_agg[mk]["revenue"] += price
+    _retail_summary = {
+        "products": {k: {"clients": len(v["clients"]), "units": v["units"],
+                         "revenue": round(v["revenue"])}
+                     for k, v in prod_agg.items()},
+        "brands":   {k: {"clients": len(v["clients"]), "units": v["units"],
+                         "revenue": round(v["revenue"])}
+                     for k, v in brand_agg.items()},
+        "lines":    {k: {"clients": len(v["clients"]), "units": v["units"],
+                         "revenue": round(v["revenue"])}
+                     for k, v in line_agg.items()},
+        "monthly":  {k: {"units": v["units"], "revenue": round(v["revenue"])}
+                     for k, v in monthly_agg.items()},
+    }
 
     step("Building client profiles")
     rows = []
@@ -1131,8 +1176,32 @@ def build_analysis_context(question=""):
     for cat, cnt in Counter(all_cats).most_common(15):
         lines.append(f"  {cat}: {cnt} clients")
 
-    if monthly_retail:
-        lines += ["", "MONTHLY RETAIL SPEND (estimated — total distributed evenly across client purchase months):"]
+    # Retail product aggregates from transaction-level data
+    if _retail_summary.get("products"):
+        rs = _retail_summary
+        lines += ["", "TOP RETAIL PRODUCTS (by revenue, from transaction data):",
+                  "Product,ClientsBuying,UnitsSold,Revenue£"]
+        for name, d in sorted(rs["products"].items(), key=lambda x: -x[1]["revenue"])[:30]:
+            lines.append(f"{name},{d['clients']},{d['units']},£{d['revenue']}")
+
+        lines += ["", "TOP RETAIL BRANDS (by revenue):",
+                  "Brand,ClientsBuying,UnitsSold,Revenue£"]
+        for brand, d in sorted(rs["brands"].items(), key=lambda x: -x[1]["revenue"])[:15]:
+            lines.append(f"{brand},{d['clients']},{d['units']},£{d['revenue']}")
+
+        lines += ["", "TOP RETAIL LINES (by revenue):",
+                  "Line,ClientsBuying,UnitsSold,Revenue£"]
+        for line, d in sorted(rs["lines"].items(), key=lambda x: -x[1]["revenue"])[:15]:
+            lines.append(f"{line},{d['clients']},{d['units']},£{d['revenue']}")
+
+        if rs.get("monthly"):
+            lines += ["", "MONTHLY RETAIL SALES (from transaction data):",
+                      "Month,UnitsSold,Revenue£"]
+            for mk in _sort_months(rs["monthly"])[:24]:
+                m = rs["monthly"][mk]
+                lines.append(f"{mk},{m['units']},£{m['revenue']}")
+    elif monthly_retail:
+        lines += ["", "MONTHLY RETAIL SPEND (estimated):"]
         for mk in _sort_months(monthly_retail)[:24]:
             m = monthly_retail[mk]
             lines.append(f"  {mk}: {m['clients']} buyers, ~£{m['spend']:,.0f}")
