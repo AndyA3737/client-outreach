@@ -247,8 +247,9 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     }
     _loaded_salon_ids = [sid for sid in salon_map if sid]
     _salon_map = {sid: name for sid, name in salon_map.items() if sid}
-    # Pick the most common salon name as the primary label for this tenant
-    if _salon_map:
+    # Use the SalonList name if available; the /api/data route will override with
+    # the tenant name from the UI dropdown if this remains blank
+    if _salon_map and not _loaded_salon_name:
         _loaded_salon_name = next(iter(_salon_map.values()), "")
     del svcs_raw, team_raw, clients_raw, salons_raw  # free raw API data now maps are built
 
@@ -756,16 +757,22 @@ def _build_response(tenant_id, server, set_step=None):
 @require_auth
 def data():
     """Start a background job and return its ID immediately."""
-    tenant_id = request.args.get("tenant_id") or None
-    server    = request.args.get("server", "BETA")
-    job_id    = str(uuid.uuid4())
+    tenant_id   = request.args.get("tenant_id") or None
+    server      = request.args.get("server", "BETA")
+    tenant_name = request.args.get("tenant_name", "").strip()
+    job_id      = str(uuid.uuid4())
     _jobs[job_id] = {"status": "loading", "step": ""}
 
     def worker():
+        global _loaded_salon_name
         def set_step(msg):
             if isinstance(_jobs.get(job_id), dict) and _jobs[job_id].get("status") == "loading":
                 _jobs[job_id]["step"] = msg
-        _jobs[job_id] = _build_response(tenant_id, server, set_step=set_step)
+        result = _build_response(tenant_id, server, set_step=set_step)
+        # Use the UI tenant name if the salon map didn't yield one
+        if tenant_name and not _loaded_salon_name:
+            _loaded_salon_name = tenant_name
+        _jobs[job_id] = result
 
     threading.Thread(target=worker, daemon=True).start()
     return jsonify({"job_id": job_id})

@@ -1163,7 +1163,8 @@ function changeSalon() {
 async function fetchData() {
   try {
     const params = new URLSearchParams({ server: selectedServer });
-    if (selectedTenantId) params.set('tenant_id', selectedTenantId);
+    if (selectedTenantId)   params.set('tenant_id',   selectedTenantId);
+    if (selectedTenantName) params.set('tenant_name', selectedTenantName);
 
     // Start background job — returns immediately with a job_id
     const startRes = await fetch('/api/data?' + params);
