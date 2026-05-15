@@ -78,6 +78,8 @@ _all_clients = []   # every client including those with no visits
 _total_clients = 0
 _jobs = {}  # job_id -> {status, data, error}
 _utilisation = []   # raw rows from XXX_Export_Admin_Utilisation
+_loaded_tenant_id = None
+_loaded_server    = "BETA"
 
 
 NOCACHE_REPORTS = {"XXX_Export_Admin_TUBR_Bookings"}
@@ -192,6 +194,10 @@ def time_label(h):
 
 
 def build_data(tenant_id=None, server="BETA", step_fn=None):
+    global _loaded_tenant_id, _loaded_server
+    _loaded_server    = server
+    _loaded_tenant_id = tenant_id or SERVERS.get(server, SERVERS["BETA"])["default_tenant"]
+
     def step(msg):
         if step_fn:
             step_fn(msg)
@@ -702,9 +708,10 @@ def job_status(job_id):
 @require_auth
 def debug_utilisation():
     """Try several date-format combinations and report which returns rows."""
-    server    = request.args.get("server", "BETA")
-    tenant_id = request.args.get("tenant_id") or SERVERS.get(server, SERVERS["BETA"])["default_tenant"]
+    server    = request.args.get("server", _loaded_server)
+    tenant_id = request.args.get("tenant_id") or _loaded_tenant_id or SERVERS.get(server, SERVERS["BETA"])["default_tenant"]
     today_d   = date.today()
+    # include which tenant we're actually querying so user can verify
     results   = {}
 
     attempts = {
@@ -725,6 +732,7 @@ def debug_utilisation():
             "fetch"),
     }
 
+    results["_query_info"]   = {"server": server, "tenant_id": tenant_id}
     results["cached_global"] = {"row_count": len(_utilisation), "sample": _utilisation[:2]}
 
     for label, (sd, ed, action) in attempts.items():
