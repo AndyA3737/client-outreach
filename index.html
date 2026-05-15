@@ -436,8 +436,18 @@
 <div id="pageAnalysis" style="display:none">
 <div class="px-6 py-8" style="max-width:96rem;margin:0 auto">
 
-  <h2 class="text-2xl font-bold mb-1" style="color:var(--navy)">Data Analysis</h2>
-  <p class="text-sm mb-6" style="color:var(--muted)">Ask the AI anything about your salon data. Choose how you want the answer presented.</p>
+  <div class="flex items-start justify-between gap-4 mb-6">
+    <div>
+      <h2 class="text-2xl font-bold mb-1" style="color:var(--navy)">Data Analysis</h2>
+      <p class="text-sm" style="color:var(--muted)">Ask the AI anything about your salon data. Choose how you want the answer presented.</p>
+    </div>
+    <!-- Session usage strip -->
+    <div id="usageBar" style="display:none;flex-shrink:0;text-align:right">
+      <div class="text-xs font-semibold mb-0.5" style="color:var(--muted)">Session usage</div>
+      <div id="usageDetails" class="text-xs" style="color:var(--navy)"></div>
+      <div id="usageCost" class="text-xs font-semibold mt-0.5" style="color:var(--teal)"></div>
+    </div>
+  </div>
 
   <!-- Format toggle -->
   <div class="flex items-center gap-4 mb-5">
@@ -577,6 +587,31 @@ function switchPage(page) {
   document.getElementById('tabAnalysis').classList.toggle('active',   page === 'analysis');
 }
 
+// ── Session usage tracker ─────────────────────────────────────
+// Sonnet 4.6 pricing (USD): $3/MTok input, $15/MTok output
+const _PRICE_IN  = 3  / 1_000_000;
+const _PRICE_OUT = 15 / 1_000_000;
+let _session = { queries: 0, input: 0, output: 0 };
+
+function _recordUsage(data) {
+  const u = data._usage;
+  if (!u) return;
+  _session.queries++;
+  _session.input  += u.input_tokens  || 0;
+  _session.output += u.output_tokens || 0;
+  delete data._usage;   // strip before passing to renderer
+
+  const totalTok = _session.input + _session.output;
+  const costUSD  = _session.input * _PRICE_IN + _session.output * _PRICE_OUT;
+  const bar      = document.getElementById('usageBar');
+  if (!bar) return;
+  bar.style.display = '';
+  document.getElementById('usageDetails').textContent =
+    `${_session.queries} quer${_session.queries === 1 ? 'y' : 'ies'} · ${totalTok.toLocaleString()} tokens`;
+  document.getElementById('usageCost').textContent =
+    `~$${costUSD.toFixed(4)} estimated`;
+}
+
 // ── Data Analysis ─────────────────────────────────────────────
 let _analysisFmt    = 'dashboard';
 let _lastAnalysis   = null;   // stores the most recent result for follow-up context
@@ -698,6 +733,7 @@ async function _submitAnalysis(question, previousResult, resultBox, triggerBtn) 
           return;
         }
         done();
+        _recordUsage(pollData);   // extract _usage and update session strip
         _lastAnalysis = pollData;
         renderAnalysis(pollData, resultBox);
       } catch (err) { showError(err.message); }

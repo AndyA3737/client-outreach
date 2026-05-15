@@ -1496,7 +1496,9 @@ def analyse():
                     messages=[{"role": "user", "content": user_msg}],
                 )
                 text = msg.content[0].text.strip()
-                app.logger.info("ANALYSE done chars=%d stop=%s", len(text), msg.stop_reason)
+                app.logger.info("ANALYSE done chars=%d stop=%s in=%d out=%d",
+                                len(text), msg.stop_reason,
+                                msg.usage.input_tokens, msg.usage.output_tokens)
 
                 if text.startswith("```"):
                     text = text.split("```", 1)[1]
@@ -1504,7 +1506,12 @@ def analyse():
                         text = text[4:]
                     text = text.rsplit("```", 1)[0]
 
-                _jobs[job_id] = {"status": "done", "data": json.loads(text.strip())}
+                result = json.loads(text.strip())
+                result["_usage"] = {
+                    "input_tokens":  msg.usage.input_tokens,
+                    "output_tokens": msg.usage.output_tokens,
+                }
+                _jobs[job_id] = {"status": "done", "data": result}
             except Exception as e:
                 app.logger.exception("ANALYSE worker error: %s", e)
                 _jobs[job_id] = {"status": "error", "error": str(e)}
