@@ -77,7 +77,7 @@ _all_scored = []
 _all_clients = []   # every client including those with no visits
 _total_clients = 0
 _jobs = {}  # job_id -> {status, data, error}
-_utilisation = []   # raw rows from XXX_Export_Admin_Utilisation
+_utilisation = []   # raw rows from XXX_Export_Admin_TUBR_Utilisation
 _loaded_tenant_id = None
 _loaded_server    = "BETA"
 _loaded_salon_ids = []   # SalonIds from the salon list, needed for utilisation API
@@ -245,7 +245,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         date_fmt = SERVERS.get(server, SERVERS["BETA"])["date_fmt"]
         util_sd  = (today - timedelta(days=182)).strftime(date_fmt)   # 6 months back
         util_ed  = (today + timedelta(days=91)).strftime(date_fmt)    # 3 months forward
-        raw_util = fetch("XXX_Export_Admin_Utilisation", util_sd, util_ed,
+        raw_util = fetch("XXX_Export_Admin_TUBR_Utilisation", util_sd, util_ed,
                          tenant_id=tenant_id, server=server)
         # Resolve TeamMemberId → name while team_map is in scope
         for row in raw_util:
@@ -729,7 +729,7 @@ def debug_utilisation():
     # Test with no SalonId (current approach)
     for label, tsd, ted in [("empty_dates", "", ""), ("mmddyyyy_range", sd, ed)]:
         try:
-            rows = fetch("XXX_Export_Admin_Utilisation", tsd, ted,
+            rows = fetch("XXX_Export_Admin_TUBR_Utilisation", tsd, ted,
                          tenant_id=tenant_id, server=server)
             results[f"no_salonid__{label}"] = {"row_count": len(rows), "sample": rows[:1]}
         except Exception as e:
@@ -745,7 +745,7 @@ def debug_utilisation():
                     "Salonid":    salon_id,
                     "TokenID":    srv["token"],
                     "TenantID":   tenant_id.upper(),
-                    "ReportName": "XXX_Export_Admin_Utilisation",
+                    "ReportName": "XXX_Export_Admin_TUBR_Utilisation",
                     "startdate":  tsd,
                     "enddate":    ted,
                 }
