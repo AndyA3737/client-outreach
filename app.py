@@ -77,6 +77,7 @@ _all_scored = []
 _all_clients = []   # every client including those with no visits
 _total_clients = 0
 _jobs = {}  # job_id -> {status, data, error}
+_utilisation = []   # raw rows from XXX_Export_Admin_Utilisation
 
 
 NOCACHE_REPORTS = {"XXX_Export_Admin_TUBR_Bookings"}
@@ -229,6 +230,19 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         for s in salons_raw
     }
     del svcs_raw, team_raw, clients_raw, salons_raw  # free raw API data now maps are built
+
+    step("Fetching utilisation data")
+    global _utilisation
+    try:
+        date_fmt = SERVERS.get(server, SERVERS["BETA"])["date_fmt"]
+        util_sd  = (today - timedelta(days=182)).strftime(date_fmt)   # 6 months back
+        util_ed  = (today + timedelta(days=91)).strftime(date_fmt)    # 3 months forward
+        _utilisation = fetch("XXX_Export_Admin_Utilisation", util_sd, util_ed,
+                             tenant_id=tenant_id, server=server)
+        app.logger.info("Utilisation rows fetched: %d", len(_utilisation))
+    except Exception as e:
+        app.logger.warning("Utilisation fetch failed (analysis will continue without it): %s", e)
+        _utilisation = []
 
     step("Fetching client tags")
     tags_by_client = defaultdict(list)
@@ -1089,6 +1103,18 @@ def build_analysis_context(question=""):
                 f"  SMS opt-out: {c.get('sms_optout',False)} | Email opt-out: {c.get('email_optout',False)}",
                 "",
             ]
+
+    # Utilisation data
+    if _utilisation:
+        # Discover field names from the first row so Claude knows the schema
+        sample = _utilisation[0]
+        field_names = list(sample.keys())
+        lines += ["", f"UTILISATION DATA ({len(_utilisation)} rows, last 6 months + 3 months forward):",
+                  f"Fields: {', '.join(field_names)}"]
+        # Include all rows as compact CSV — utilisation rows are typically small
+        lines.append(",".join(field_names))
+        for row in _utilisation:
+            lines.append(",".join(str(row.get(f, "")) for f in field_names))
 
     return "\n".join(lines)
 
