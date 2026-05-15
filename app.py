@@ -81,6 +81,7 @@ _utilisation = []   # raw rows from XXX_Export_Admin_TUBR_Utilisation
 _loaded_tenant_id = None
 _loaded_server    = "BETA"
 _loaded_salon_ids = []   # SalonIds from the salon list, needed for utilisation API
+_salon_map        = {}   # SalonId → salon name
 
 
 NOCACHE_REPORTS = {"XXX_Export_Admin_TUBR_Bookings"}
@@ -237,6 +238,8 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         for s in salons_raw
     }
     _loaded_salon_ids = [sid for sid in salon_map if sid]
+    global _salon_map
+    _salon_map = {sid: name for sid, name in salon_map.items() if sid}
     del svcs_raw, team_raw, clients_raw, salons_raw  # free raw API data now maps are built
 
     step("Fetching utilisation data")
@@ -254,11 +257,15 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             if not name:
                 continue   # skip staff not in the stylist/team list
             row["StylistName"] = name
+            sid = row.get("SalonId", "")
+            row["SalonName"] = salon_map.get(sid, sid)  # fallback to ID if name unknown
             resolved.append(row)
         _utilisation = resolved
-        app.logger.info("Utilisation rows fetched: %d total, %d resolved to named stylists",
-                        len(raw_util), len(_utilisation))
-        step(f"Utilisation loaded ({len(_utilisation)} rows across {len({r['StylistName'] for r in _utilisation})} stylists)")
+        salon_count   = len({r["SalonName"] for r in _utilisation})
+        stylist_count = len({r["StylistName"] for r in _utilisation})
+        app.logger.info("Utilisation: %d rows, %d salons, %d stylists",
+                        len(_utilisation), salon_count, stylist_count)
+        step(f"Utilisation loaded ({len(_utilisation)} rows · {salon_count} salon(s) · {stylist_count} stylist(s))")
     except Exception as e:
         app.logger.warning("Utilisation fetch failed: %s", e)
         step(f"Utilisation unavailable: {e}")
@@ -1180,20 +1187,25 @@ def build_analysis_context(question=""):
 
     # Utilisation data — aggregated from daily rows (ClientMinutes / AvailablTime)
     if _utilisation:
-        # Per-stylist totals
-        stylist_util = defaultdict(lambda: {"client_mins": 0, "avail_mins": 0, "days": 0, "future_days": 0, "future_client_mins": 0, "future_avail_mins": 0})
-        # Monthly salon totals
+        zero = lambda: {"client_mins": 0, "avail_mins": 0, "days": 0,
+                        "future_days": 0, "future_client_mins": 0, "future_avail_mins": 0}
+        salon_util   = defaultdict(zero)
+        stylist_util = defaultdict(zero)
+        # keyed (salon, stylist) so we can show stylist-within-salon
+        salon_stylist_util = defaultdict(zero)
         monthly_util = defaultdict(lambda: {"client_mins": 0, "avail_mins": 0})
+
         for row in _utilisation:
-            name = row.get("StylistName", "Unknown")
-            cm   = int(row.get("ClientMinutes", 0) or 0)
-            am   = int(row.get("AvailablTime",  0) or 0)   # note API typo — no 'e'
+            stylist    = row.get("StylistName", "Unknown")
+            salon      = row.get("SalonName") or row.get("SalonId", "Unknown salon")
+            cm         = int(row.get("ClientMinutes", 0) or 0)
+            am         = int(row.get("AvailablTime",  0) or 0)
             if am <= 0:
                 continue
             dt = None
-            for fmt in ("%m/%d/%Y %I:%M:%S %p", "%m/%d/%Y %H:%M:%S"):
+            for dfmt in ("%m/%d/%Y %I:%M:%S %p", "%m/%d/%Y %H:%M:%S"):
                 try:
-                    dt = datetime.strptime(row.get("Date", ""), fmt)
+                    dt = datetime.strptime(row.get("Date", ""), dfmt)
                     break
                 except ValueError:
                     pass
@@ -1202,44 +1214,71 @@ def build_analysis_context(question=""):
 
             is_future = dt.date() > today
             if is_future:
-                stylist_util[name]["future_days"]        += 1
-                stylist_util[name]["future_client_mins"] += cm
-                stylist_util[name]["future_avail_mins"]  += am
+                for d in (salon_util[salon], stylist_util[stylist],
+                          salon_stylist_util[(salon, stylist)]):
+                    d["future_days"]        += 1
+                    d["future_client_mins"] += cm
+                    d["future_avail_mins"]  += am
             else:
-                stylist_util[name]["client_mins"] += cm
-                stylist_util[name]["avail_mins"]  += am
-                stylist_util[name]["days"]        += 1
                 mk = dt.strftime("%b %Y")
+                for d in (salon_util[salon], stylist_util[stylist],
+                          salon_stylist_util[(salon, stylist)]):
+                    d["client_mins"] += cm
+                    d["avail_mins"]  += am
+                    d["days"]        += 1
                 monthly_util[mk]["client_mins"] += cm
                 monthly_util[mk]["avail_mins"]  += am
 
-        lines += ["", "STYLIST UTILISATION (past 6 months):",
-                  "Stylist,WorkingDays,ClientMins,AvailMins,Utilisation%,AvgDailyUtil%"]
-        for name, d in sorted(stylist_util.items(), key=lambda x: -(x[1]["client_mins"] / max(x[1]["avail_mins"], 1))):
+        def util_pct(d):
+            return round(d["client_mins"] / d["avail_mins"] * 100, 1) if d["avail_mins"] else 0
+
+        # Per-salon summary
+        lines += ["", "UTILISATION BY SALON (past 6 months):",
+                  "Salon,WorkingDays,ClientMins,AvailMins,Utilisation%"]
+        for salon, d in sorted(salon_util.items(), key=lambda x: -util_pct(x[1])):
+            lines.append(f"{salon},{d['days']},{d['client_mins']},{d['avail_mins']},{util_pct(d)}%")
+
+        # Per-stylist within each salon
+        lines += ["", "UTILISATION BY STYLIST PER SALON (past 6 months):",
+                  "Salon,Stylist,WorkingDays,ClientMins,AvailMins,Utilisation%"]
+        for (salon, stylist), d in sorted(salon_stylist_util.items(),
+                                          key=lambda x: (-util_pct(x[1]), x[0][0])):
             if d["avail_mins"] == 0:
                 continue
-            util_pct     = round(d["client_mins"] / d["avail_mins"] * 100, 1)
-            avg_daily    = round(util_pct, 1)  # same calc across all days
-            lines.append(f"{name},{d['days']},{d['client_mins']},{d['avail_mins']},{util_pct}%,{avg_daily}%")
+            lines.append(f"{salon},{stylist},{d['days']},{d['client_mins']},{d['avail_mins']},{util_pct(d)}%")
 
         if monthly_util:
-            lines += ["", "MONTHLY SALON UTILISATION (past 6 months):",
-                      "Month,TotalClientMins,TotalAvailMins,Utilisation%"]
+            lines += ["", "MONTHLY OVERALL UTILISATION (past 6 months):",
+                      "Month,ClientMins,AvailMins,Utilisation%"]
             for mk in _sort_months(monthly_util):
                 m = monthly_util[mk]
                 if m["avail_mins"] == 0:
                     continue
-                pct = round(m["client_mins"] / m["avail_mins"] * 100, 1)
-                lines.append(f"{mk},{m['client_mins']},{m['avail_mins']},{pct}%")
+                lines.append(f"{mk},{m['client_mins']},{m['avail_mins']},{util_pct(m)}%")
 
-        # Forward-looking availability (booked vs available in next 3 months)
-        future = {n: d for n, d in stylist_util.items() if d["future_avail_mins"] > 0}
-        if future:
-            lines += ["", "FORWARD DIARY — next 3 months (already booked vs available):",
-                      "Stylist,FutureDays,BookedMins,AvailMins,BookedPct%"]
-            for name, d in sorted(future.items(), key=lambda x: -(x[1]["future_client_mins"] / max(x[1]["future_avail_mins"], 1))):
-                pct = round(d["future_client_mins"] / d["future_avail_mins"] * 100, 1)
-                lines.append(f"{name},{d['future_days']},{d['future_client_mins']},{d['future_avail_mins']},{pct}%")
+        # Forward diary — per salon
+        future_salons = {s: d for s, d in salon_util.items() if d["future_avail_mins"] > 0}
+        if future_salons:
+            lines += ["", "FORWARD DIARY BY SALON — next 3 months:",
+                      "Salon,FutureDays,BookedMins,AvailMins,BookedPct%,AvailabilityPct%"]
+            for salon, d in sorted(future_salons.items(),
+                                   key=lambda x: x[1]["future_client_mins"] / max(x[1]["future_avail_mins"], 1)):
+                booked = round(d["future_client_mins"] / d["future_avail_mins"] * 100, 1)
+                avail  = round(100 - booked, 1)
+                lines.append(f"{salon},{d['future_days']},{d['future_client_mins']},"
+                             f"{d['future_avail_mins']},{booked}%,{avail}%")
+
+        # Forward diary — per stylist within salon
+        future_ss = {k: d for k, d in salon_stylist_util.items() if d["future_avail_mins"] > 0}
+        if future_ss:
+            lines += ["", "FORWARD DIARY BY STYLIST PER SALON — next 3 months:",
+                      "Salon,Stylist,FutureDays,BookedMins,AvailMins,BookedPct%,AvailabilityPct%"]
+            for (salon, stylist), d in sorted(future_ss.items(),
+                                              key=lambda x: x[1]["future_client_mins"] / max(x[1]["future_avail_mins"], 1)):
+                booked = round(d["future_client_mins"] / d["future_avail_mins"] * 100, 1)
+                avail  = round(100 - booked, 1)
+                lines.append(f"{salon},{stylist},{d['future_days']},{d['future_client_mins']},"
+                             f"{d['future_avail_mins']},{booked}%,{avail}%")
 
     return "\n".join(lines)
 
