@@ -1423,7 +1423,6 @@ def analyse():
         question        = (body.get("question") or "").strip()
         fmt             = body.get("format") or "dashboard"
         previous_result = body.get("previous_result")  # optional JSON of prior analysis
-
         if not question:
             return jsonify(error="No question provided"), 400
         if not _all_clients:
