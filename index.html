@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <style>
   :root {
     --navy:   #1C2B3A;
@@ -445,6 +446,7 @@
       <button onclick="setAnalysisFmt('dashboard')" id="fmtDashboard" class="fmt-btn active">📊 Dashboard</button>
       <button onclick="setAnalysisFmt('list')"      id="fmtList"      class="fmt-btn">📋 List / Grid</button>
       <button onclick="setAnalysisFmt('report')"    id="fmtReport"    class="fmt-btn">📄 Report</button>
+      <button onclick="setAnalysisFmt('chart')"     id="fmtChart"     class="fmt-btn">📈 Chart</button>
     </div>
   </div>
 
@@ -581,7 +583,7 @@ let _lastAnalysis   = null;   // stores the most recent result for follow-up con
 
 function setAnalysisFmt(fmt) {
   _analysisFmt = fmt;
-  ['dashboard','list','report'].forEach(f =>
+  ['dashboard','list','report','chart'].forEach(f =>
     document.getElementById('fmt' + f.charAt(0).toUpperCase() + f.slice(1)).classList.toggle('active', f === fmt)
   );
 }
@@ -773,9 +775,27 @@ function renderAnalysis(data, box) {
       </div>`;
     }
     html += '</div>';
+
+  } else if (data.format === 'chart') {
+    // Placeholder divs that _drawChart() will populate after innerHTML is set
+    (data.charts || []).forEach((chart, idx) => {
+      html += `<div id="chart-wrap-${idx}" class="rounded-2xl border mb-4" style="border-color:var(--border);background:#fff;padding:24px">
+        ${chart.title ? `<h4 class="font-bold text-base mb-4" style="color:var(--navy)">${escHtml(chart.title)}</h4>` : ''}
+        <div style="position:relative;${chart.type==='pie'||chart.type==='doughnut'?'max-width:420px;margin:0 auto':''}">
+          <canvas id="chart-canvas-${idx}"></canvas>
+        </div>
+        ${chart.insight ? `<p class="text-sm mt-3" style="color:var(--muted)">${escHtml(chart.insight)}</p>` : ''}
+      </div>`;
+    });
   }
 
-  box.innerHTML = html;
+  if (data.format === 'chart') {
+    // Charts are rendered onto canvas elements after innerHTML is set
+    box.innerHTML = html;
+    (data.charts || []).forEach((chart, idx) => _drawChart(chart, idx));
+  } else {
+    box.innerHTML = html;
+  }
 
   // Append follow-up input below every result
   const followupId = 'followup-' + Date.now();
@@ -805,6 +825,71 @@ function renderAnalysis(data, box) {
 
   box.appendChild(followupDiv);
   box.appendChild(followupResult);
+}
+
+// ── Chart renderer ────────────────────────────────────────────
+const _chartPalette = [
+  '#00B5A4','#1C2B3A','#F59E0B','#8B5CF6','#EF4444',
+  '#10B981','#3B82F6','#F97316','#EC4899','#6B7280',
+  '#06B6D4','#84CC16','#A855F7','#F43F5E','#14B8A6',
+];
+
+function _drawChart(chart, idx) {
+  const canvas = document.getElementById('chart-canvas-' + idx);
+  if (!canvas) return;
+
+  const isPie   = chart.type === 'pie' || chart.type === 'doughnut';
+  const isHoriz = chart.type === 'horizontalBar';
+  const type    = isHoriz ? 'bar' : (chart.type || 'bar');
+
+  const datasets = (chart.datasets || []).map((ds, i) => {
+    const col = _chartPalette[i % _chartPalette.length];
+    return {
+      label:           ds.label || '',
+      data:            ds.data  || [],
+      backgroundColor: isPie
+        ? (ds.data || []).map((_, j) => _chartPalette[j % _chartPalette.length])
+        : type === 'line' ? col + '33' : col,
+      borderColor:     isPie ? '#fff' : col,
+      borderWidth:     isPie ? 2 : (type === 'line' ? 2 : 0),
+      fill:            type === 'line',
+      tension:         type === 'line' ? 0.35 : undefined,
+      pointBackgroundColor: type === 'line' ? col : undefined,
+      pointRadius:          type === 'line' ? 4  : undefined,
+    };
+  });
+
+  new Chart(canvas, {
+    type: type,
+    data: { labels: chart.labels || [], datasets },
+    options: {
+      indexAxis:       isHoriz ? 'y' : 'x',
+      responsive:      true,
+      maintainAspectRatio: true,
+      plugins: {
+        legend: {
+          display:  isPie || datasets.length > 1,
+          position: isPie ? 'right' : 'top',
+          labels:   { font: { family: 'Inter, sans-serif', size: 12 }, color: '#1C2B3A' },
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const v = ctx.parsed.y ?? ctx.parsed;
+              const fmt = typeof v === 'number' && v >= 1000
+                ? '£' + v.toLocaleString()
+                : (typeof v === 'number' ? v.toLocaleString() : v);
+              return ` ${ctx.dataset.label || ctx.label}: ${fmt}`;
+            },
+          },
+        },
+      },
+      scales: isPie ? {} : {
+        x: { grid: { display: isHoriz }, ticks: { font: { family: 'Inter' }, color: '#64748B' } },
+        y: { beginAtZero: true, grid: { color: '#E2E8EF' }, ticks: { font: { family: 'Inter' }, color: '#64748B' } },
+      },
+    },
+  });
 }
 
 // ── Client Selections ─────────────────────────────────────────

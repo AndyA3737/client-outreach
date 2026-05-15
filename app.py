@@ -1455,6 +1455,14 @@ def analyse():
                         '"sections":[{"heading":"...","body":"detailed paragraph"}],"conclusion":"..."}'
                         " Include 3-5 well-developed sections."
                     ),
+                    "chart": (
+                        'Return JSON: {"title":"...","format":"chart","summary":"1-2 sentence insight",'
+                        '"charts":[{"type":"bar|line|pie|doughnut|horizontalBar","title":"...","insight":"optional 1-line note",'
+                        '"labels":["label1","label2",...],"datasets":[{"label":"series name","data":[1,2,3]}]}]}'
+                        " Include 1-4 charts that best visualise the data. "
+                        "Use bar for comparisons, horizontalBar for rankings, line for trends over time, "
+                        "pie/doughnut for proportions. Keep labels short. Numbers only in data arrays (no £ symbols)."
+                    ),
                 }
                 system = (
                     "You are an expert salon business analyst with access to live UK hair salon data. "
