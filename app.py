@@ -247,12 +247,18 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         util_ed  = (today + timedelta(days=91)).strftime(date_fmt)    # 3 months forward
         raw_util = fetch("XXX_Export_Admin_TUBR_Utilisation", util_sd, util_ed,
                          tenant_id=tenant_id, server=server)
-        # Resolve TeamMemberId → name while team_map is in scope
+        # Resolve TeamMemberId → name; drop rows for unrecognised IDs (admin/reception staff)
+        resolved = []
         for row in raw_util:
-            row["StylistName"] = team_map.get(row.get("TeamMemberId", ""), "Unknown")
-        _utilisation = raw_util
-        app.logger.info("Utilisation rows fetched: %d", len(_utilisation))
-        step(f"Utilisation loaded ({len(_utilisation)} rows)")
+            name = team_map.get(row.get("TeamMemberId", ""))
+            if not name:
+                continue   # skip staff not in the stylist/team list
+            row["StylistName"] = name
+            resolved.append(row)
+        _utilisation = resolved
+        app.logger.info("Utilisation rows fetched: %d total, %d resolved to named stylists",
+                        len(raw_util), len(_utilisation))
+        step(f"Utilisation loaded ({len(_utilisation)} rows across {len({r['StylistName'] for r in _utilisation})} stylists)")
     except Exception as e:
         app.logger.warning("Utilisation fetch failed: %s", e)
         step(f"Utilisation unavailable: {e}")
