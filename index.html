@@ -813,25 +813,24 @@ function renderAnalysis(data, box) {
     html += '</div>';
 
   } else if (data.format === 'chart') {
-    // Placeholder divs that _drawChart() will populate after innerHTML is set
-    (data.charts || []).forEach((chart, idx) => {
-      html += `<div id="chart-wrap-${idx}" class="rounded-2xl border mb-4" style="border-color:var(--border);background:#fff;padding:24px">
+    // Use globally unique IDs so follow-up charts never clash with earlier ones
+    const chartIds = (data.charts || []).map(() => ++_chartSeq);
+    chartIds.forEach((uid, idx) => {
+      const chart = data.charts[idx];
+      html += `<div class="rounded-2xl border mb-4" style="border-color:var(--border);background:#fff;padding:24px">
         ${chart.title ? `<h4 class="font-bold text-base mb-4" style="color:var(--navy)">${escHtml(chart.title)}</h4>` : ''}
         <div style="position:relative;${chart.type==='pie'||chart.type==='doughnut'?'max-width:420px;margin:0 auto':''}">
-          <canvas id="chart-canvas-${idx}"></canvas>
+          <canvas id="chart-canvas-${uid}"></canvas>
         </div>
         ${chart.insight ? `<p class="text-sm mt-3" style="color:var(--muted)">${escHtml(chart.insight)}</p>` : ''}
       </div>`;
     });
+    box.innerHTML = html;
+    chartIds.forEach((uid, idx) => _drawChart(data.charts[idx], uid));
+    return;   // skip the generic box.innerHTML = html below
   }
 
-  if (data.format === 'chart') {
-    // Charts are rendered onto canvas elements after innerHTML is set
-    box.innerHTML = html;
-    (data.charts || []).forEach((chart, idx) => _drawChart(chart, idx));
-  } else {
-    box.innerHTML = html;
-  }
+  box.innerHTML = html;
 
   // Append follow-up input below every result
   const followupId = 'followup-' + Date.now();
@@ -864,15 +863,20 @@ function renderAnalysis(data, box) {
 }
 
 // ── Chart renderer ────────────────────────────────────────────
+let _chartSeq = 0;   // ever-increasing counter — guarantees unique canvas IDs across all renders
+
 const _chartPalette = [
   '#00B5A4','#1C2B3A','#F59E0B','#8B5CF6','#EF4444',
   '#10B981','#3B82F6','#F97316','#EC4899','#6B7280',
   '#06B6D4','#84CC16','#A855F7','#F43F5E','#14B8A6',
 ];
 
-function _drawChart(chart, idx) {
-  const canvas = document.getElementById('chart-canvas-' + idx);
+function _drawChart(chart, uid) {
+  const canvas = document.getElementById('chart-canvas-' + uid);
   if (!canvas) return;
+  // Destroy any existing Chart.js instance on this canvas (safety net)
+  const existing = Chart.getChart(canvas);
+  if (existing) existing.destroy();
 
   const isPie   = chart.type === 'pie' || chart.type === 'doughnut';
   const isHoriz = chart.type === 'horizontalBar';
