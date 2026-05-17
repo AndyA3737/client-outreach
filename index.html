@@ -827,10 +827,10 @@ function renderAnalysis(data, box) {
     });
     box.innerHTML = html;
     chartIds.forEach((uid, idx) => _drawChart(data.charts[idx], uid));
-    return;   // skip the generic box.innerHTML = html below
+    // fall through to append follow-up bar below
+  } else {
+    box.innerHTML = html;
   }
-
-  box.innerHTML = html;
 
   // Append follow-up input below every result
   const followupId = 'followup-' + Date.now();
