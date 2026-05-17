@@ -489,6 +489,19 @@
   <!-- Results -->
   <div id="analysisResults"></div>
 
+  <!-- Follow-up bar — hidden until first result renders -->
+  <div id="followupBar" style="display:none;margin-top:20px;padding:16px 20px;background:#F8FAFC;border:1px solid var(--border);border-radius:16px;display:none;gap:10px;align-items:center">
+    <span style="font-size:18px">💬</span>
+    <input id="followupInput" type="text" placeholder="Ask a follow-up question…"
+           style="flex:1;border-radius:8px;padding:8px 12px;font-size:14px;border:1px solid var(--border)"
+           onkeydown="if(event.key==='Enter')submitFollowup()">
+    <button id="followupBtn" data-label="Ask →" class="btn-teal" style="height:38px;font-size:13px;padding:0 16px"
+            onclick="submitFollowup()">Ask →</button>
+  </div>
+
+  <!-- Follow-up result area -->
+  <div id="followupResult"></div>
+
 </div>
 </div><!-- end #pageAnalysis -->
 
@@ -632,13 +645,23 @@ async function runAnalysis() {
   const question = document.getElementById('analysisInput').value.trim();
   if (!question) return;
   _lastAnalysis = null;
+  // Hide follow-up bar and clear follow-up result while main question loads
+  const fbar = document.getElementById('followupBar');
+  if (fbar) fbar.style.display = 'none';
+  document.getElementById('followupResult').innerHTML = '';
   await _submitAnalysis(question, null,
     document.getElementById('analysisResults'),
     document.getElementById('analyseBtn'));
 }
 
-async function runFollowUp(question, btn, box) {
-  await _submitAnalysis(question, _lastAnalysis, box, btn);
+function submitFollowup() {
+  const q   = document.getElementById('followupInput').value.trim();
+  const btn = document.getElementById('followupBtn');
+  if (!q) return;
+  // Hide bar while loading, clear previous follow-up result
+  document.getElementById('followupBar').style.display = 'none';
+  _submitAnalysis(q, _lastAnalysis,
+    document.getElementById('followupResult'), btn);
 }
 
 const _thinkingMessages = [
@@ -831,46 +854,16 @@ function renderAnalysis(data, box) {
     });
     box.innerHTML = html;
     chartIds.forEach((uid, idx) => _drawChart(data.charts[idx], uid));
-    // fall through to append follow-up bar below
   } else {
     box.innerHTML = html;
   }
 
-  // Append follow-up input below every result
-  const followupId = 'followup-' + Date.now();
-  const followupDiv = document.createElement('div');
-  followupDiv.className = 'followup-bar';
-  followupDiv.style.cssText = 'margin-top:20px;padding:16px 20px;background:#F8FAFC;border:1px solid var(--border);border-radius:16px;display:flex;gap:10px;align-items:center';
-  followupDiv.innerHTML = `
-    <span style="font-size:18px">💬</span>
-    <input id="${followupId}" type="text" placeholder="Ask a follow-up question…"
-           style="flex:1;border-radius:8px;padding:8px 12px;font-size:14px;border:1px solid var(--border)"
-           onkeydown="if(event.key==='Enter')document.getElementById('${followupId}-btn').click()">
-    <button id="${followupId}-btn" data-label="Ask →" class="btn-teal" style="height:38px;font-size:13px;padding:0 16px"
-            onclick="const q=document.getElementById('${followupId}').value.trim();if(q)runFollowUp(q,this)">
-      Ask →
-    </button>`;
-
-  // The follow-up result replaces itself below the bar
-  const followupResult = document.createElement('div');
-  followupResult.style.marginTop = '12px';
-
-  // Hide the bar while the follow-up is loading so it doesn't sit
-  // alongside the loading animation (followupDiv is a sibling of followupResult)
-  followupDiv.querySelector('button').onclick = function() {
-    const q = document.getElementById(followupId).value.trim();
-    if (!q) return;
-    followupDiv.style.display = 'none';
-    runFollowUp(q, this, followupResult).finally(() => {
-      // If runFollowUp errored, restore the bar so the user can try again
-      if (!followupResult.innerHTML || followupResult.innerHTML.includes('Error')) {
-        followupDiv.style.display = '';
-      }
-    });
-  };
-
-  box.appendChild(followupDiv);
-  box.appendChild(followupResult);
+  // Reveal the static follow-up bar now that results are rendered
+  const fbar = document.getElementById('followupBar');
+  if (fbar) {
+    fbar.style.display = 'flex';
+    document.getElementById('followupInput').value = '';
+  }
 }
 
 // ── Chart renderer ────────────────────────────────────────────
