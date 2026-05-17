@@ -735,7 +735,11 @@ async function _submitAnalysis(question, previousResult, resultBox, triggerBtn) 
         done();
         _recordUsage(pollData);   // extract _usage and update session strip
         _lastAnalysis = pollData;
-        renderAnalysis(pollData, resultBox);
+        try {
+          renderAnalysis(pollData, resultBox);
+        } catch (renderErr) {
+          showError('Render error: ' + renderErr.message);
+        }
       } catch (err) { showError(err.message); }
     }, 2000);
 
@@ -851,11 +855,18 @@ function renderAnalysis(data, box) {
   const followupResult = document.createElement('div');
   followupResult.style.marginTop = '12px';
 
-  // Swap runFollowUp to target the right box
+  // Hide the bar while the follow-up is loading so it doesn't sit
+  // alongside the loading animation (followupDiv is a sibling of followupResult)
   followupDiv.querySelector('button').onclick = function() {
     const q = document.getElementById(followupId).value.trim();
     if (!q) return;
-    runFollowUp(q, this, followupResult);
+    followupDiv.style.display = 'none';
+    runFollowUp(q, this, followupResult).finally(() => {
+      // If runFollowUp errored, restore the bar so the user can try again
+      if (!followupResult.innerHTML || followupResult.innerHTML.includes('Error')) {
+        followupDiv.style.display = '';
+      }
+    });
   };
 
   box.appendChild(followupDiv);
