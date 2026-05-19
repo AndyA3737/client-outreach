@@ -82,7 +82,8 @@ _loaded_tenant_id   = None
 _loaded_server      = "BETA"
 _loaded_salon_ids   = []   # SalonIds from the salon list, needed for utilisation API
 _loaded_salon_name  = ""   # human-readable name of the currently loaded tenant/salon
-_service_monthly    = {}   # month → {revenue, visits, clients} aggregated from bookings
+_service_monthly    = {}   # month → {revenue, visits, no_shows, clients} aggregated from bookings
+_booking_stats      = {}   # {status: {label: count}, source: {label: count}}
 _salon_map          = {}   # SalonId → salon name
 _retail_summary     = {}   # pre-aggregated retail: products, brands, lines, monthly
 
@@ -202,11 +203,11 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     global _loaded_tenant_id, _loaded_server, _loaded_salon_name
     global _all_scored, _all_clients, _total_clients
     global _utilisation, _retail_summary, _salon_map, _loaded_salon_ids
-    global _service_monthly
+    global _service_monthly, _booking_stats
 
     # Clear all globals immediately so no stale data from a previous tenant lingers
     _all_scored = []; _all_clients = []; _total_clients = 0
-    _utilisation = []; _retail_summary = {}; _service_monthly = {}
+    _utilisation = []; _retail_summary = {}; _service_monthly = {}; _booking_stats = {}
     _salon_map = {}; _loaded_salon_ids = []; _loaded_salon_name = ""
     _loaded_server    = server
     _loaded_tenant_id = tenant_id or SERVERS.get(server, SERVERS["BETA"])["default_tenant"]
@@ -334,38 +335,68 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                     continue
                 svc      = svc_map.get(b.get("ServiceId"), {})
                 svc_name = svc.get("Description", "")
+                bk_status = int(b.get("Status") or 0)   # 0=booked,1=arrived,2=paid,3=no-show
+                bk_source = int(b.get("Source") or 5)   # 1=online,5=in-salon
                 if dt.date() > today:
                     if not any(k in svc_name.upper() for k in SKIP_KEYWORDS):
                         future_bookings[cid].append({
-                            "dt":  dt,
-                            "svc": svc_name,
-                            "cat": svc.get("Categoty", "").replace("HAIR - ", ""),
+                            "dt":     dt,
+                            "svc":    svc_name,
+                            "cat":    svc.get("Categoty", "").replace("HAIR - ", ""),
+                            "source": bk_source,
                         })
                     continue
                 if any(k in svc_name.upper() for k in SKIP_KEYWORDS):
                     continue
                 by_client[cid].append({
-                    "dt":    dt,
-                    "price": float(b.get("TotalSalesPrice") or 0),
-                    "tm":    b.get("TeamMemberId", ""),
-                    "cat":   svc.get("Categoty", "").replace("HAIR - ", ""),
-                    "svc":   svc_name,
-                    "sid":   str(b.get("Salonid") or b.get("SalonId") or b.get("salonid") or ""),
-                    "dept":  (svc.get("Department") or "").lower(),
+                    "dt":     dt,
+                    "price":  float(b.get("TotalSalesPrice") or 0),
+                    "tm":     b.get("TeamMemberId", ""),
+                    "cat":    svc.get("Categoty", "").replace("HAIR - ", ""),
+                    "svc":    svc_name,
+                    "sid":    str(b.get("Salonid") or b.get("SalonId") or b.get("salonid") or ""),
+                    "dept":   (svc.get("Department") or "").lower(),
+                    "status": bk_status,
+                    "source": bk_source,
                 })
             del chunk  # discard as soon as processed
 
-    # Aggregate service revenue by month from all past bookings
-    _svc_agg = defaultdict(lambda: {"revenue": 0.0, "visits": 0, "clients": set()})
+    # Aggregate service revenue by month; no-shows excluded from revenue/visits
+    _STATUS_LABELS = {0: "Booked", 1: "Arrived", 2: "Paid", 3: "No-show"}
+    _SOURCE_LABELS = {1: "Online", 5: "In-salon"}
+    _svc_agg      = defaultdict(lambda: {"revenue": 0.0, "visits": 0, "no_shows": 0, "online": 0, "clients": set()})
+    _status_counts = defaultdict(int)
+    _source_counts = defaultdict(int)
     for cid, bkgs in by_client.items():
         for b in bkgs:
-            mk = b["dt"].strftime("%b %Y")
-            _svc_agg[mk]["revenue"] += b["price"]
-            _svc_agg[mk]["visits"]  += 1
-            _svc_agg[mk]["clients"].add(cid)
+            mk  = b["dt"].strftime("%b %Y")
+            st  = b.get("status", 0)
+            src = b.get("source", 5)
+            _status_counts[st]  += 1
+            _source_counts[src] += 1
+            if st == 3:  # no-show: count but exclude from revenue
+                _svc_agg[mk]["no_shows"] += 1
+            else:
+                _svc_agg[mk]["revenue"] += b["price"]
+                _svc_agg[mk]["visits"]  += 1
+                _svc_agg[mk]["clients"].add(cid)
+            if src == 1:
+                _svc_agg[mk]["online"] += 1
     _service_monthly = {
-        mk: {"revenue": round(d["revenue"]), "visits": d["visits"], "clients": len(d["clients"])}
+        mk: {
+            "revenue":  round(d["revenue"]),
+            "visits":   d["visits"],
+            "no_shows": d["no_shows"],
+            "online":   d["online"],
+            "clients":  len(d["clients"]),
+        }
         for mk, d in _svc_agg.items()
+    }
+    _booking_stats = {
+        "status": {_STATUS_LABELS.get(k, f"Status{k}"): v
+                   for k, v in sorted(_status_counts.items())},
+        "source": {_SOURCE_LABELS.get(k, f"Source{k}"): v
+                   for k, v in sorted(_source_counts.items())},
     }
 
     step("Fetching gift cards")
@@ -502,33 +533,39 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         next_booking = min(fb, key=lambda x: x["dt"])["dt"].strftime("%-d %b %Y") if fb else None
 
         bkgs.sort(key=lambda x: x["dt"])
-        last_dt, first_dt = bkgs[-1]["dt"], bkgs[0]["dt"]
+        actual_visits = [b for b in bkgs if b.get("status") != 3]
+        if not actual_visits:
+            continue  # client has only no-shows — skip
+        last_dt, first_dt = actual_visits[-1]["dt"], actual_visits[0]["dt"]
         days_since = (today - last_dt.date()).days
 
-        visit_dates = sorted(set(b["dt"].date() for b in bkgs))
+        visit_dates = sorted(set(b["dt"].date() for b in actual_visits))
         n = len(visit_dates)
 
         avg_gap = (visit_dates[-1] - visit_dates[0]).days / (n - 1) if n > 1 else None
         overdue = (days_since - avg_gap) if avg_gap else None
 
-        total_spend = sum(b["price"] for b in bkgs)
+        total_spend = sum(b["price"] for b in actual_visits)
         avg_spend   = total_spend / n if n else 0
 
-        pref_day  = DAYS[Counter(b["dt"].weekday() for b in bkgs).most_common(1)[0][0]]
-        pref_time = time_label(Counter(b["dt"].hour for b in bkgs).most_common(1)[0][0])
+        pref_day  = DAYS[Counter(b["dt"].weekday() for b in actual_visits).most_common(1)[0][0]]
+        pref_time = time_label(Counter(b["dt"].hour for b in actual_visits).most_common(1)[0][0])
 
-        tm_cnt     = Counter(b["tm"] for b in bkgs if b["tm"])
+        tm_cnt     = Counter(b["tm"] for b in actual_visits if b["tm"])
         pref_tm    = team_map.get(tm_cnt.most_common(1)[0][0], "?") if tm_cnt else "?"
         n_stylists = len(tm_cnt)
 
-        salon_cnt  = Counter(b["sid"] for b in bkgs if b["sid"])
+        salon_cnt  = Counter(b["sid"] for b in actual_visits if b["sid"])
         pref_salon = salon_map.get(salon_cnt.most_common(1)[0][0], "") if salon_cnt else ""
 
-        top_cats    = [c for c, _ in Counter(b["cat"] for b in bkgs if b["cat"]).most_common(2)]
-        all_cats    = list(dict.fromkeys(b["cat"] for b in bkgs if b["cat"]))
-        departments = list(dict.fromkeys(b["dept"] for b in bkgs if b["dept"]))
-        top_svcs    = [s for s, _ in Counter(b["svc"] for b in bkgs if b["svc"]).most_common(5)]
-        no_shows  = int(cli.get("NoShows") or 0)
+        top_cats        = [c for c, _ in Counter(b["cat"] for b in actual_visits if b["cat"]).most_common(2)]
+        all_cats        = list(dict.fromkeys(b["cat"] for b in actual_visits if b["cat"]))
+        departments     = list(dict.fromkeys(b["dept"] for b in actual_visits if b["dept"]))
+        top_svcs        = [s for s, _ in Counter(b["svc"] for b in actual_visits if b["svc"]).most_common(5)]
+        no_shows        = int(cli.get("NoShows") or 0)
+        booking_noshows = sum(1 for b in bkgs if b.get("status") == 3)
+        online_bookings = sum(1 for b in bkgs if b.get("source") == 1)
+        future_online   = sum(1 for b in fb   if b.get("source") == 1)
 
         gc_list        = giftcard_by_client.get(cid, [])
         giftcard_count = len(gc_list)
@@ -621,6 +658,9 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             future_cats=future_cats,
             next_booking=next_booking,
             no_shows=no_shows,
+            booking_noshows=booking_noshows,
+            online_bookings=online_bookings,
+            future_online=future_online,
             n_stylists=n_stylists,
             giftcard_count=giftcard_count,
             giftcard_total=giftcard_total,
@@ -1229,12 +1269,25 @@ def build_analysis_context(question=""):
     for cat, cnt in Counter(all_cats).most_common(15):
         lines.append(f"  {cat}: {cnt} clients")
 
+    if _booking_stats:
+        st = _booking_stats.get("status", {})
+        src = _booking_stats.get("source", {})
+        tot = sum(st.values()) or 1
+        lines += ["", "BOOKING STATUS BREAKDOWN (all past bookings):"]
+        for label, cnt in st.items():
+            lines.append(f"  {label}: {cnt:,} ({cnt/tot*100:.1f}%)")
+        if src:
+            tot_src = sum(src.values()) or 1
+            lines += ["", "BOOKING SOURCE (how clients book):"]
+            for label, cnt in src.items():
+                lines.append(f"  {label}: {cnt:,} ({cnt/tot_src*100:.1f}%)")
+
     if _service_monthly:
         lines += ["", "MONTHLY SERVICE REVENUE & VISITS (from booking data):",
-                  "Month,ServiceRevenue£,Visits,UniqueClients"]
+                  "Month,ServiceRevenue£,Visits,NoShows,OnlineBookings,UniqueClients"]
         for mk in _sort_months(_service_monthly)[:24]:
             m = _service_monthly[mk]
-            lines.append(f"{mk},£{m['revenue']:,},{m['visits']},{m['clients']}")
+            lines.append(f"{mk},£{m['revenue']:,},{m['visits']},{m.get('no_shows',0)},{m.get('online',0)},{m['clients']}")
 
     # Retail product aggregates — use transaction-level data if available,
     # fall back to counting product names across client records
