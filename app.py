@@ -380,16 +380,17 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             src    = b.get("source", 5)
             _status_counts[st]  += 1
             _source_counts[src] += 1
-            if st == 3:  # no-show: count but exclude from revenue
+            if st == 3:  # no-show
                 _svc_agg[mk]["no_shows"] += 1
                 _wk_agg[wk]["no_shows"]  += 1
-            else:
+            elif st in (1, 2):  # arrived or paid — only these count as revenue
                 _svc_agg[mk]["revenue"] += b["price"]
                 _svc_agg[mk]["visits"]  += 1
                 _svc_agg[mk]["clients"].add(cid)
                 _wk_agg[wk]["revenue"]  += b["price"]
                 _wk_agg[wk]["visits"]   += 1
                 _wk_agg[wk]["clients"].add(cid)
+            # status 0 (booked/unactioned) excluded from all revenue and visit counts
             if src == 1:
                 _svc_agg[mk]["online"] += 1
                 _wk_agg[wk]["online"]  += 1
@@ -542,7 +543,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         next_booking = min(fb, key=lambda x: x["dt"])["dt"].strftime("%-d %b %Y") if fb else None
 
         bkgs.sort(key=lambda x: x["dt"])
-        actual_visits = [b for b in bkgs if b.get("status") != 3]
+        actual_visits = [b for b in bkgs if b.get("status") in (1, 2)]
         if not actual_visits:
             continue  # client has only no-shows — skip
         last_dt, first_dt = actual_visits[-1]["dt"], actual_visits[0]["dt"]
@@ -572,7 +573,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         departments     = list(dict.fromkeys(b["dept"] for b in actual_visits if b["dept"]))
         top_svcs        = [s for s, _ in Counter(b["svc"] for b in actual_visits if b["svc"]).most_common(5)]
         no_shows        = int(cli.get("NoShows") or 0)
-        booking_noshows = sum(1 for b in bkgs if b.get("status") == 3)
+        booking_noshows = sum(1 for b in bkgs if b.get("status") == 3)  # status 3 only
         online_bookings = sum(1 for b in bkgs if b.get("source") == 1)
         future_online   = sum(1 for b in fb   if b.get("source") == 1)
 
