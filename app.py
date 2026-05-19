@@ -368,7 +368,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     # Aggregate service revenue by month and week; no-shows excluded from revenue/visits
     _STATUS_LABELS = {0: "Booked", 1: "Arrived", 2: "Paid", 3: "No-show"}
     _SOURCE_LABELS = {1: "Online", 5: "In-salon"}
-    _zero = lambda: {"revenue": 0.0, "visits": 0, "no_shows": 0, "online": 0, "clients": set()}
+    _zero = lambda: {"revenue": 0.0, "visits": 0, "no_shows": 0, "no_show_value": 0.0, "online": 0, "clients": set()}
     _svc_agg      = defaultdict(_zero)
     _wk_agg       = defaultdict(_zero)
     _status_counts = defaultdict(int)
@@ -399,7 +399,9 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                     _seen_wk.add((bid, wk))
                     _wk_agg[wk]["visits"]  += 1
                     _wk_agg[wk]["clients"].add(cid)
-            elif st == 3:  # no-show — deduplicated by booking ID
+            elif st == 3:  # no-show — value sums all service lines; count deduplicated by booking ID
+                _svc_agg[mk]["no_show_value"] += b["price"]
+                _wk_agg[wk]["no_show_value"]  += b["price"]
                 if (bid, mk) not in _seen_mk:
                     _seen_mk.add((bid, mk))
                     _svc_agg[mk]["no_shows"] += 1
@@ -417,8 +419,8 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
 
     def _agg_to_dict(d):
         return {"revenue": round(d["revenue"]), "visits": d["visits"],
-                "no_shows": d["no_shows"], "online": d["online"],
-                "clients": len(d["clients"])}
+                "no_shows": d["no_shows"], "no_show_value": round(d["no_show_value"]),
+                "online": d["online"], "clients": len(d["clients"])}
 
     _service_monthly = {mk: _agg_to_dict(d) for mk, d in _svc_agg.items()}
     _service_weekly  = {wk: _agg_to_dict(d) for wk, d in _wk_agg.items()}
@@ -1324,18 +1326,20 @@ def build_analysis_context(question=""):
     if _service_weekly:
         recent_wks = sorted(_service_weekly.keys(), reverse=True)[:52]
         lines += ["", "WEEKLY SERVICE DATA (most recent 52 weeks — use this for 'last week', 'this week', weekly questions):",
-                  "WeekCommencing,ServiceRevenue£,Visits,NoShows,OnlineBookings,UniqueClients"]
+                  "WeekCommencing,ServiceRevenue£,Visits,NoShows,NoShowValue£,OnlineBookings,UniqueClients"]
         for wk in sorted(recent_wks):
             w = _service_weekly[wk]
             wk_label = date.fromisoformat(wk).strftime("%-d %b %Y")
-            lines.append(f"w/c {wk_label},£{w['revenue']:,},{w['visits']},{w.get('no_shows',0)},{w.get('online',0)},{w['clients']}")
+            lines.append(f"w/c {wk_label},£{w['revenue']:,},{w['visits']},"
+                         f"{w.get('no_shows',0)},£{w.get('no_show_value',0):,},{w.get('online',0)},{w['clients']}")
 
     if _service_monthly:
         lines += ["", "MONTHLY SERVICE REVENUE & VISITS:",
-                  "Month,ServiceRevenue£,Visits,NoShows,OnlineBookings,UniqueClients"]
+                  "Month,ServiceRevenue£,Visits,NoShows,NoShowValue£,OnlineBookings,UniqueClients"]
         for mk in _sort_months(_service_monthly)[:24]:
             m = _service_monthly[mk]
-            lines.append(f"{mk},£{m['revenue']:,},{m['visits']},{m.get('no_shows',0)},{m.get('online',0)},{m['clients']}")
+            lines.append(f"{mk},£{m['revenue']:,},{m['visits']},"
+                         f"{m.get('no_shows',0)},£{m.get('no_show_value',0):,},{m.get('online',0)},{m['clients']}")
 
     # Retail product aggregates — use transaction-level data if available,
     # fall back to counting product names across client records
