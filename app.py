@@ -327,9 +327,13 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     step("Fetching booking history")
     with ThreadPoolExecutor(max_workers=4) as pool:
         futures = {pool.submit(_fetch_chunk, r): r for r in booking_ranges}
+        _logged_bk_keys = False
         for future in as_completed(futures):
             chunk = future.result()
             for b in chunk:
+                if not _logged_bk_keys and b:
+                    app.logger.info("BOOKING row keys: %s", list(b.keys()))
+                    _logged_bk_keys = True
                 cid = (b.get("ClientId") or "").lower()
                 dt  = parse_dt(b.get("Start"))
                 if not cid or not dt:
@@ -338,6 +342,8 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                 svc_name = svc.get("Description", "")
                 bk_status = int(b.get("Status") or 0)   # 0=booked,1=arrived,2=paid,3=no-show
                 bk_source = int(b.get("Source") or 5)   # 1=online,5=in-salon
+                bk_id = str(b.get("BookingId") or b.get("BookingID") or b.get("bookingId")
+                             or b.get("Id") or b.get("ID") or "")
                 if dt.date() > today:
                     if not any(k in svc_name.upper() for k in SKIP_KEYWORDS):
                         future_bookings[cid].append({
@@ -345,6 +351,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                             "svc":    svc_name,
                             "cat":    svc.get("Categoty", "").replace("HAIR - ", ""),
                             "source": bk_source,
+                            "bid":    bk_id,
                         })
                     continue
                 if any(k in svc_name.upper() for k in SKIP_KEYWORDS):
@@ -359,6 +366,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                     "dept":   (svc.get("Department") or "").lower(),
                     "status": bk_status,
                     "source": bk_source,
+                    "bid":    bk_id,
                 })
             del chunk  # discard as soon as processed
 
@@ -370,30 +378,47 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     _wk_agg       = defaultdict(_zero)
     _status_counts = defaultdict(int)
     _source_counts = defaultdict(int)
+    _seen_mk  = set()   # (bid_or_fallback, mk) — dedup visits/no-shows per month
+    _seen_wk  = set()   # (bid_or_fallback, wk) — dedup visits/no-shows per week
+    _seen_omk = set()   # (bid_or_fallback, mk) — dedup online count per month
+    _seen_owk = set()   # (bid_or_fallback, wk) — dedup online count per week
     for cid, bkgs in by_client.items():
         for b in bkgs:
             mk     = b["dt"].strftime("%b %Y")
             bdate  = b["dt"].date()
             monday = bdate - timedelta(days=bdate.weekday())
-            wk     = monday.isoformat()   # "2026-05-11" — sorts naturally
+            wk     = monday.isoformat()
             st     = b.get("status", 0)
             src    = b.get("source", 5)
+            bid    = b.get("bid") or f"{cid}_{bdate.isoformat()}"  # fallback: client+date
             _status_counts[st]  += 1
             _source_counts[src] += 1
-            if st == 3:  # no-show
-                _svc_agg[mk]["no_shows"] += 1
-                _wk_agg[wk]["no_shows"]  += 1
-            elif st == 2:  # paid — only completed/paid bookings count as revenue and visits
+            if st == 2:  # paid — revenue sums all service lines; visits deduplicated by booking ID
                 _svc_agg[mk]["revenue"] += b["price"]
-                _svc_agg[mk]["visits"]  += 1
-                _svc_agg[mk]["clients"].add(cid)
                 _wk_agg[wk]["revenue"]  += b["price"]
-                _wk_agg[wk]["visits"]   += 1
-                _wk_agg[wk]["clients"].add(cid)
-            # status 0 (booked) and 1 (arrived/in-progress) excluded from revenue and visit counts
+                if (bid, mk) not in _seen_mk:
+                    _seen_mk.add((bid, mk))
+                    _svc_agg[mk]["visits"]  += 1
+                    _svc_agg[mk]["clients"].add(cid)
+                if (bid, wk) not in _seen_wk:
+                    _seen_wk.add((bid, wk))
+                    _wk_agg[wk]["visits"]  += 1
+                    _wk_agg[wk]["clients"].add(cid)
+            elif st == 3:  # no-show — deduplicated by booking ID
+                if (bid, mk) not in _seen_mk:
+                    _seen_mk.add((bid, mk))
+                    _svc_agg[mk]["no_shows"] += 1
+                if (bid, wk) not in _seen_wk:
+                    _seen_wk.add((bid, wk))
+                    _wk_agg[wk]["no_shows"]  += 1
+            # status 0 (booked) and 1 (arrived) excluded from all counts
             if src == 1:
-                _svc_agg[mk]["online"] += 1
-                _wk_agg[wk]["online"]  += 1
+                if (bid, mk) not in _seen_omk:
+                    _seen_omk.add((bid, mk))
+                    _svc_agg[mk]["online"] += 1
+                if (bid, wk) not in _seen_owk:
+                    _seen_owk.add((bid, wk))
+                    _wk_agg[wk]["online"]  += 1
 
     def _agg_to_dict(d):
         return {"revenue": round(d["revenue"]), "visits": d["visits"],
@@ -573,8 +598,10 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         departments     = list(dict.fromkeys(b["dept"] for b in actual_visits if b["dept"]))
         top_svcs        = [s for s, _ in Counter(b["svc"] for b in actual_visits if b["svc"]).most_common(5)]
         no_shows        = int(cli.get("NoShows") or 0)
-        booking_noshows = sum(1 for b in bkgs if b.get("status") == 3)  # status 3 only
-        online_bookings = sum(1 for b in bkgs if b.get("source") == 1)
+        booking_noshows = len({b.get("bid") or b["dt"].date().isoformat()
+                               for b in bkgs if b.get("status") == 3})
+        online_bookings = len({b.get("bid") or b["dt"].date().isoformat()
+                               for b in bkgs if b.get("source") == 1})
         future_online   = sum(1 for b in fb   if b.get("source") == 1)
 
         gc_list        = giftcard_by_client.get(cid, [])
