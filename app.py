@@ -83,6 +83,7 @@ _loaded_server      = "BETA"
 _loaded_salon_ids   = []   # SalonIds from the salon list, needed for utilisation API
 _loaded_salon_name  = ""   # human-readable name of the currently loaded tenant/salon
 _service_monthly    = {}   # month → {revenue, visits, no_shows, clients} aggregated from bookings
+_service_weekly     = {}   # ISO-monday → {revenue, visits, no_shows, online, clients}
 _booking_stats      = {}   # {status: {label: count}, source: {label: count}}
 _salon_map          = {}   # SalonId → salon name
 _retail_summary     = {}   # pre-aggregated retail: products, brands, lines, monthly
@@ -203,11 +204,11 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     global _loaded_tenant_id, _loaded_server, _loaded_salon_name
     global _all_scored, _all_clients, _total_clients
     global _utilisation, _retail_summary, _salon_map, _loaded_salon_ids
-    global _service_monthly, _booking_stats
+    global _service_monthly, _service_weekly, _booking_stats
 
     # Clear all globals immediately so no stale data from a previous tenant lingers
     _all_scored = []; _all_clients = []; _total_clients = 0
-    _utilisation = []; _retail_summary = {}; _service_monthly = {}; _booking_stats = {}
+    _utilisation = []; _retail_summary = {}; _service_monthly = {}; _service_weekly = {}; _booking_stats = {}
     _salon_map = {}; _loaded_salon_ids = []; _loaded_salon_name = ""
     _loaded_server    = server
     _loaded_tenant_id = tenant_id or SERVERS.get(server, SERVERS["BETA"])["default_tenant"]
@@ -361,37 +362,45 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                 })
             del chunk  # discard as soon as processed
 
-    # Aggregate service revenue by month; no-shows excluded from revenue/visits
+    # Aggregate service revenue by month and week; no-shows excluded from revenue/visits
     _STATUS_LABELS = {0: "Booked", 1: "Arrived", 2: "Paid", 3: "No-show"}
     _SOURCE_LABELS = {1: "Online", 5: "In-salon"}
-    _svc_agg      = defaultdict(lambda: {"revenue": 0.0, "visits": 0, "no_shows": 0, "online": 0, "clients": set()})
+    _zero = lambda: {"revenue": 0.0, "visits": 0, "no_shows": 0, "online": 0, "clients": set()}
+    _svc_agg      = defaultdict(_zero)
+    _wk_agg       = defaultdict(_zero)
     _status_counts = defaultdict(int)
     _source_counts = defaultdict(int)
     for cid, bkgs in by_client.items():
         for b in bkgs:
-            mk  = b["dt"].strftime("%b %Y")
-            st  = b.get("status", 0)
-            src = b.get("source", 5)
+            mk     = b["dt"].strftime("%b %Y")
+            bdate  = b["dt"].date()
+            monday = bdate - timedelta(days=bdate.weekday())
+            wk     = monday.isoformat()   # "2026-05-11" — sorts naturally
+            st     = b.get("status", 0)
+            src    = b.get("source", 5)
             _status_counts[st]  += 1
             _source_counts[src] += 1
             if st == 3:  # no-show: count but exclude from revenue
                 _svc_agg[mk]["no_shows"] += 1
+                _wk_agg[wk]["no_shows"]  += 1
             else:
                 _svc_agg[mk]["revenue"] += b["price"]
                 _svc_agg[mk]["visits"]  += 1
                 _svc_agg[mk]["clients"].add(cid)
+                _wk_agg[wk]["revenue"]  += b["price"]
+                _wk_agg[wk]["visits"]   += 1
+                _wk_agg[wk]["clients"].add(cid)
             if src == 1:
                 _svc_agg[mk]["online"] += 1
-    _service_monthly = {
-        mk: {
-            "revenue":  round(d["revenue"]),
-            "visits":   d["visits"],
-            "no_shows": d["no_shows"],
-            "online":   d["online"],
-            "clients":  len(d["clients"]),
-        }
-        for mk, d in _svc_agg.items()
-    }
+                _wk_agg[wk]["online"]  += 1
+
+    def _agg_to_dict(d):
+        return {"revenue": round(d["revenue"]), "visits": d["visits"],
+                "no_shows": d["no_shows"], "online": d["online"],
+                "clients": len(d["clients"])}
+
+    _service_monthly = {mk: _agg_to_dict(d) for mk, d in _svc_agg.items()}
+    _service_weekly  = {wk: _agg_to_dict(d) for wk, d in _wk_agg.items()}
     _booking_stats = {
         "status": {_STATUS_LABELS.get(k, f"Status{k}"): v
                    for k, v in sorted(_status_counts.items())},
@@ -1238,9 +1247,16 @@ def build_analysis_context(question=""):
             if name.lower() in q_lower or (len(first) >= 4 and first in q_words):
                 named_clients.append(c)
 
+    this_monday  = today - timedelta(days=today.weekday())
+    last_monday  = this_monday - timedelta(days=7)
+    last_sunday  = this_monday - timedelta(days=1)
+
     lines = [
         f"SALON / TENANT: {_loaded_salon_name or _loaded_tenant_id or 'Unknown'} "
         f"(server: {_loaded_server}) — data as of {today.strftime('%-d %b %Y')}",
+        f"DATE CONTEXT: Today={today.strftime('%-d %b %Y')} | "
+        f"This week=w/c {this_monday.strftime('%-d %b %Y')} | "
+        f"Last week={last_monday.strftime('%-d %b %Y')}–{last_sunday.strftime('%-d %b %Y')}",
         f"IMPORTANT: All analysis in this response must refer to this salon/tenant only. "
         f"Do not reference any other salon name.",
         f"Total clients: {len(_all_clients)} | Active scoring pool: {len(_all_scored)}",
@@ -1282,8 +1298,17 @@ def build_analysis_context(question=""):
             for label, cnt in src.items():
                 lines.append(f"  {label}: {cnt:,} ({cnt/tot_src*100:.1f}%)")
 
+    if _service_weekly:
+        recent_wks = sorted(_service_weekly.keys(), reverse=True)[:52]
+        lines += ["", "WEEKLY SERVICE DATA (most recent 52 weeks — use this for 'last week', 'this week', weekly questions):",
+                  "WeekCommencing,ServiceRevenue£,Visits,NoShows,OnlineBookings,UniqueClients"]
+        for wk in sorted(recent_wks):
+            w = _service_weekly[wk]
+            wk_label = date.fromisoformat(wk).strftime("%-d %b %Y")
+            lines.append(f"w/c {wk_label},£{w['revenue']:,},{w['visits']},{w.get('no_shows',0)},{w.get('online',0)},{w['clients']}")
+
     if _service_monthly:
-        lines += ["", "MONTHLY SERVICE REVENUE & VISITS (from booking data):",
+        lines += ["", "MONTHLY SERVICE REVENUE & VISITS:",
                   "Month,ServiceRevenue£,Visits,NoShows,OnlineBookings,UniqueClients"]
         for mk in _sort_months(_service_monthly)[:24]:
             m = _service_monthly[mk]
