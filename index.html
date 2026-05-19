@@ -703,6 +703,7 @@ async function _submitAnalysis(question, previousResult, resultBox, triggerBtn) 
   let pollTimer   = null;
   let msgTimer    = null;
   let msgIndex    = 0;
+  let finished    = false;   // guard against in-flight duplicate polls
 
   function cycleMessage() {
     const el = document.getElementById('aiThinkMsg');
@@ -746,24 +747,27 @@ async function _submitAnalysis(question, previousResult, resultBox, triggerBtn) 
     const jobId = kickData.job_id;
 
     pollTimer = setInterval(async () => {
+      if (finished) return;   // a previous in-flight poll already handled the result
       try {
         const pollRes  = await fetch(`/api/job/${jobId}`);
         const pollData = await pollRes.json();
+        if (finished) return;  // check again after the await
         if (pollData.error) { showError(pollData.error); return; }
         if (pollData.status === 'loading') {
           const stepEl = document.getElementById('analyseStep');
           if (stepEl) stepEl.textContent = pollData.step || 'Working…';
           return;
         }
+        finished = true;
         done();
-        _recordUsage(pollData);   // extract _usage and update session strip
+        _recordUsage(pollData);
         _lastAnalysis = pollData;
         try {
           renderAnalysis(pollData, resultBox);
         } catch (renderErr) {
           showError('Render error: ' + renderErr.message);
         }
-      } catch (err) { showError(err.message); }
+      } catch (err) { if (!finished) showError(err.message); }
     }, 2000);
 
   } catch (e) { showError(e.message); }

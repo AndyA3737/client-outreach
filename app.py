@@ -1544,7 +1544,14 @@ def analyse():
                         text = text[4:]
                     text = text.rsplit("```", 1)[0]
 
-                result = json.loads(text.strip())
+                text = text.strip()
+                try:
+                    result = json.loads(text)
+                except json.JSONDecodeError as je:
+                    app.logger.warning("JSON parse failed (%s) — attempting repair. Raw text[:500]=%r",
+                                       je, text[:500])
+                    from json_repair import repair_json
+                    result = json.loads(repair_json(text))
                 result["_usage"] = {
                     "input_tokens":  msg.usage.input_tokens,
                     "output_tokens": msg.usage.output_tokens,
