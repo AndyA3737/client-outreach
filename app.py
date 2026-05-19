@@ -84,6 +84,7 @@ _loaded_salon_ids   = []   # SalonIds from the salon list, needed for utilisatio
 _loaded_salon_name  = ""   # human-readable name of the currently loaded tenant/salon
 _service_monthly    = {}   # month → {revenue, visits, no_shows, clients} aggregated from bookings
 _service_weekly     = {}   # ISO-monday → {revenue, visits, no_shows, online, clients}
+_service_daily      = {}   # ISO-date  → {revenue, visits, no_shows, no_show_value, online, clients}
 _service_cat_monthly = {}  # category → {month → {revenue, visits}}
 _booking_stats      = {}   # {status: {label: count}, source: {label: count}}
 _salon_map          = {}   # SalonId → salon name
@@ -205,12 +206,13 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     global _loaded_tenant_id, _loaded_server, _loaded_salon_name
     global _all_scored, _all_clients, _total_clients
     global _utilisation, _retail_summary, _salon_map, _loaded_salon_ids
-    global _service_monthly, _service_weekly, _service_cat_monthly, _booking_stats
+    global _service_monthly, _service_weekly, _service_daily, _service_cat_monthly, _booking_stats
 
     # Clear all globals immediately so no stale data from a previous tenant lingers
     _all_scored = []; _all_clients = []; _total_clients = 0
     _utilisation = []; _retail_summary = {}
-    _service_monthly = {}; _service_weekly = {}; _service_cat_monthly = {}; _booking_stats = {}
+    _service_monthly = {}; _service_weekly = {}; _service_daily = {}
+    _service_cat_monthly = {}; _booking_stats = {}
     _salon_map = {}; _loaded_salon_ids = []; _loaded_salon_name = ""
     _loaded_server    = server
     _loaded_tenant_id = tenant_id or SERVERS.get(server, SERVERS["BETA"])["default_tenant"]
@@ -375,11 +377,14 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     _wk_agg       = defaultdict(_zero)
     _status_counts = defaultdict(int)
     _source_counts = defaultdict(int)
-    _seen_mk  = set()   # (bid, mk) — dedup visits/no-shows per month
-    _seen_wk  = set()   # (bid, wk) — dedup visits/no-shows per week
-    _seen_omk = set()   # (bid, mk) — dedup online count per month
-    _seen_owk = set()   # (bid, wk) — dedup online count per week
+    _seen_mk  = set()   # (bid, mk)  — dedup visits/no-shows per month
+    _seen_wk  = set()   # (bid, wk)  — dedup visits/no-shows per week
+    _seen_dk  = set()   # (bid, day) — dedup visits/no-shows per day
+    _seen_omk = set()   # (bid, mk)  — dedup online count per month
+    _seen_owk = set()   # (bid, wk)  — dedup online count per week
+    _seen_odk = set()   # (bid, day) — dedup online count per day
     _seen_cmk = set()   # (bid, cat, mk) — dedup category visits per month
+    _day_agg  = defaultdict(_zero)
     _cat_agg  = defaultdict(lambda: defaultdict(lambda: {"revenue": 0.0, "visits": 0}))
     for cid, bkgs in by_client.items():
         for b in bkgs:
@@ -393,9 +398,11 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             bid    = b.get("bid") or f"{cid}_{bdate.isoformat()}"
             _status_counts[st]  += 1
             _source_counts[src] += 1
+            day = bdate.isoformat()
             if st == 2:  # paid — revenue sums all service lines; visits deduplicated by booking ID
-                _svc_agg[mk]["revenue"] += b["price"]
-                _wk_agg[wk]["revenue"]  += b["price"]
+                _svc_agg[mk]["revenue"]  += b["price"]
+                _wk_agg[wk]["revenue"]   += b["price"]
+                _day_agg[day]["revenue"] += b["price"]
                 if (bid, mk) not in _seen_mk:
                     _seen_mk.add((bid, mk))
                     _svc_agg[mk]["visits"]  += 1
@@ -404,20 +411,28 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                     _seen_wk.add((bid, wk))
                     _wk_agg[wk]["visits"]  += 1
                     _wk_agg[wk]["clients"].add(cid)
+                if (bid, day) not in _seen_dk:
+                    _seen_dk.add((bid, day))
+                    _day_agg[day]["visits"] += 1
+                    _day_agg[day]["clients"].add(cid)
                 if cat:  # category × month breakdown
                     _cat_agg[cat][mk]["revenue"] += b["price"]
                     if (bid, cat, mk) not in _seen_cmk:
                         _seen_cmk.add((bid, cat, mk))
                         _cat_agg[cat][mk]["visits"] += 1
             elif st == 3:  # no-show — value sums all service lines; count deduplicated by booking ID
-                _svc_agg[mk]["no_show_value"] += b["price"]
-                _wk_agg[wk]["no_show_value"]  += b["price"]
+                _svc_agg[mk]["no_show_value"]  += b["price"]
+                _wk_agg[wk]["no_show_value"]   += b["price"]
+                _day_agg[day]["no_show_value"] += b["price"]
                 if (bid, mk) not in _seen_mk:
                     _seen_mk.add((bid, mk))
                     _svc_agg[mk]["no_shows"] += 1
                 if (bid, wk) not in _seen_wk:
                     _seen_wk.add((bid, wk))
                     _wk_agg[wk]["no_shows"]  += 1
+                if (bid, day) not in _seen_dk:
+                    _seen_dk.add((bid, day))
+                    _day_agg[day]["no_shows"] += 1
             # status 0 (booked) and 1 (arrived) excluded from all counts
             if src == 1:
                 if (bid, mk) not in _seen_omk:
@@ -426,6 +441,9 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                 if (bid, wk) not in _seen_owk:
                     _seen_owk.add((bid, wk))
                     _wk_agg[wk]["online"]  += 1
+                if (bid, day) not in _seen_odk:
+                    _seen_odk.add((bid, day))
+                    _day_agg[day]["online"] += 1
 
     def _agg_to_dict(d):
         return {"revenue": round(d["revenue"]), "visits": d["visits"],
@@ -439,6 +457,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         for cat, months in _cat_agg.items()
     }
     _service_weekly  = {wk: _agg_to_dict(d) for wk, d in _wk_agg.items()}
+    _service_daily   = {day: _agg_to_dict(d) for day, d in _day_agg.items()}
     _booking_stats = {
         "status": {_STATUS_LABELS.get(k, f"Status{k}"): v
                    for k, v in sorted(_status_counts.items())},
@@ -1337,6 +1356,17 @@ def build_analysis_context(question=""):
             lines += ["", "BOOKING SOURCE (how clients book):"]
             for label, cnt in src.items():
                 lines.append(f"  {label}: {cnt:,} ({cnt/tot_src*100:.1f}%)")
+
+    if _service_daily:
+        cutoff = (today - timedelta(days=90)).isoformat()
+        recent_days = sorted(d for d in _service_daily if d >= cutoff)
+        lines += ["", "DAILY SERVICE DATA (last 90 days — use for specific dates, 'yesterday', 'today', daily questions):",
+                  "Date,ServiceRevenue£,Visits,NoShows,NoShowValue£,OnlineBookings,UniqueClients"]
+        for day in recent_days:
+            d = _service_daily[day]
+            day_label = date.fromisoformat(day).strftime("%a %-d %b %Y")
+            lines.append(f"{day_label},£{d['revenue']:,},{d['visits']},"
+                         f"{d.get('no_shows',0)},£{d.get('no_show_value',0):,},{d.get('online',0)},{d['clients']}")
 
     if _service_weekly:
         recent_wks = sorted(_service_weekly.keys(), reverse=True)[:52]
