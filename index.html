@@ -489,8 +489,11 @@
   <!-- Results -->
   <div id="analysisResults"></div>
 
-  <!-- Follow-up bar — hidden until first result renders -->
-  <div id="followupBar" style="display:none;margin-top:20px;padding:16px 20px;background:#F8FAFC;border:1px solid var(--border);border-radius:16px;display:none;gap:10px;align-items:center">
+  <!-- Follow-up result area -->
+  <div id="followupResult"></div>
+
+  <!-- Follow-up bar — hidden until first result renders, always below results -->
+  <div id="followupBar" style="display:none;margin-top:20px;padding:16px 20px;background:#F8FAFC;border:1px solid var(--border);border-radius:16px;gap:10px;align-items:center">
     <span style="font-size:18px">💬</span>
     <input id="followupInput" type="text" placeholder="Ask a follow-up question…"
            style="flex:1;border-radius:8px;padding:8px 12px;font-size:14px;border:1px solid var(--border)"
@@ -498,9 +501,6 @@
     <button id="followupBtn" data-label="Ask →" class="btn-teal" style="height:38px;font-size:13px;padding:0 16px"
             onclick="submitFollowup()">Ask →</button>
   </div>
-
-  <!-- Follow-up result area -->
-  <div id="followupResult"></div>
 
 </div>
 </div><!-- end #pageAnalysis -->
