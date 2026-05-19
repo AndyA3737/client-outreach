@@ -82,6 +82,7 @@ _loaded_tenant_id   = None
 _loaded_server      = "BETA"
 _loaded_salon_ids   = []   # SalonIds from the salon list, needed for utilisation API
 _loaded_salon_name  = ""   # human-readable name of the currently loaded tenant/salon
+_service_monthly    = {}   # month → {revenue, visits, clients} aggregated from bookings
 _salon_map          = {}   # SalonId → salon name
 _retail_summary     = {}   # pre-aggregated retail: products, brands, lines, monthly
 
@@ -201,10 +202,11 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     global _loaded_tenant_id, _loaded_server, _loaded_salon_name
     global _all_scored, _all_clients, _total_clients
     global _utilisation, _retail_summary, _salon_map, _loaded_salon_ids
+    global _service_monthly
 
     # Clear all globals immediately so no stale data from a previous tenant lingers
     _all_scored = []; _all_clients = []; _total_clients = 0
-    _utilisation = []; _retail_summary = {}
+    _utilisation = []; _retail_summary = {}; _service_monthly = {}
     _salon_map = {}; _loaded_salon_ids = []; _loaded_salon_name = ""
     _loaded_server    = server
     _loaded_tenant_id = tenant_id or SERVERS.get(server, SERVERS["BETA"])["default_tenant"]
@@ -352,6 +354,19 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                     "dept":  (svc.get("Department") or "").lower(),
                 })
             del chunk  # discard as soon as processed
+
+    # Aggregate service revenue by month from all past bookings
+    _svc_agg = defaultdict(lambda: {"revenue": 0.0, "visits": 0, "clients": set()})
+    for cid, bkgs in by_client.items():
+        for b in bkgs:
+            mk = b["dt"].strftime("%b %Y")
+            _svc_agg[mk]["revenue"] += b["price"]
+            _svc_agg[mk]["visits"]  += 1
+            _svc_agg[mk]["clients"].add(cid)
+    _service_monthly = {
+        mk: {"revenue": round(d["revenue"]), "visits": d["visits"], "clients": len(d["clients"])}
+        for mk, d in _svc_agg.items()
+    }
 
     step("Fetching gift cards")
     giftcard_by_client = defaultdict(list)
@@ -1213,6 +1228,13 @@ def build_analysis_context(question=""):
     lines += ["", "TOP SERVICE CATEGORIES:"]
     for cat, cnt in Counter(all_cats).most_common(15):
         lines.append(f"  {cat}: {cnt} clients")
+
+    if _service_monthly:
+        lines += ["", "MONTHLY SERVICE REVENUE & VISITS (from booking data):",
+                  "Month,ServiceRevenue£,Visits,UniqueClients"]
+        for mk in _sort_months(_service_monthly)[:24]:
+            m = _service_monthly[mk]
+            lines.append(f"{mk},£{m['revenue']:,},{m['visits']},{m['clients']}")
 
     # Retail product aggregates — use transaction-level data if available,
     # fall back to counting product names across client records
