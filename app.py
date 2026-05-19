@@ -84,8 +84,9 @@ _loaded_salon_ids   = []   # SalonIds from the salon list, needed for utilisatio
 _loaded_salon_name  = ""   # human-readable name of the currently loaded tenant/salon
 _service_monthly    = {}   # month → {revenue, visits, no_shows, clients} aggregated from bookings
 _service_weekly     = {}   # ISO-monday → {revenue, visits, no_shows, online, clients}
-_service_daily      = {}   # ISO-date  → {revenue, visits, no_shows, no_show_value, online, clients}
-_service_cat_monthly = {}  # category → {month → {revenue, visits}}
+_service_daily        = {}   # ISO-date  → {revenue, visits, no_shows, no_show_value, online, clients}
+_service_cat_monthly  = {}  # category → {month → {revenue, visits}}
+_service_salon_monthly = {} # salon_name → {month → {revenue, visits, no_shows, no_show_value}}
 _booking_stats      = {}   # {status: {label: count}, source: {label: count}}
 _salon_map          = {}   # SalonId → salon name
 _retail_summary     = {}   # pre-aggregated retail: products, brands, lines, monthly
@@ -206,13 +207,14 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     global _loaded_tenant_id, _loaded_server, _loaded_salon_name
     global _all_scored, _all_clients, _total_clients
     global _utilisation, _retail_summary, _salon_map, _loaded_salon_ids
-    global _service_monthly, _service_weekly, _service_daily, _service_cat_monthly, _booking_stats
+    global _service_monthly, _service_weekly, _service_daily
+    global _service_cat_monthly, _service_salon_monthly, _booking_stats
 
     # Clear all globals immediately so no stale data from a previous tenant lingers
     _all_scored = []; _all_clients = []; _total_clients = 0
     _utilisation = []; _retail_summary = {}
     _service_monthly = {}; _service_weekly = {}; _service_daily = {}
-    _service_cat_monthly = {}; _booking_stats = {}
+    _service_cat_monthly = {}; _service_salon_monthly = {}; _booking_stats = {}
     _salon_map = {}; _loaded_salon_ids = []; _loaded_salon_name = ""
     _loaded_server    = server
     _loaded_tenant_id = tenant_id or SERVERS.get(server, SERVERS["BETA"])["default_tenant"]
@@ -383,9 +385,12 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     _seen_omk = set()   # (bid, mk)  — dedup online count per month
     _seen_owk = set()   # (bid, wk)  — dedup online count per week
     _seen_odk = set()   # (bid, day) — dedup online count per day
-    _seen_cmk = set()   # (bid, cat, mk) — dedup category visits per month
-    _day_agg  = defaultdict(_zero)
-    _cat_agg  = defaultdict(lambda: defaultdict(lambda: {"revenue": 0.0, "visits": 0}))
+    _seen_cmk  = set()   # (bid, cat, mk)    — dedup category visits per month
+    _seen_smk  = set()   # (bid, salon, mk)  — dedup salon visits per month
+    _day_agg   = defaultdict(_zero)
+    _cat_agg   = defaultdict(lambda: defaultdict(lambda: {"revenue": 0.0, "visits": 0}))
+    _salon_agg = defaultdict(lambda: defaultdict(lambda: {"revenue": 0.0, "visits": 0,
+                                                           "no_shows": 0, "no_show_value": 0.0}))
     for cid, bkgs in by_client.items():
         for b in bkgs:
             mk     = b["dt"].strftime("%b %Y")
@@ -395,6 +400,8 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             st     = b.get("status", 0)
             src    = b.get("source", 5)
             cat    = b.get("cat", "")
+            sid    = b.get("sid", "")
+            salon  = _salon_map.get(sid, sid) or sid   # resolve to name; fall back to raw ID
             bid    = b.get("bid") or f"{cid}_{bdate.isoformat()}"
             _status_counts[st]  += 1
             _source_counts[src] += 1
@@ -420,6 +427,11 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                     if (bid, cat, mk) not in _seen_cmk:
                         _seen_cmk.add((bid, cat, mk))
                         _cat_agg[cat][mk]["visits"] += 1
+                if salon:  # salon × month breakdown
+                    _salon_agg[salon][mk]["revenue"] += b["price"]
+                    if (bid, salon, mk) not in _seen_smk:
+                        _seen_smk.add((bid, salon, mk))
+                        _salon_agg[salon][mk]["visits"] += 1
             elif st == 3:  # no-show — value sums all service lines; count deduplicated by booking ID
                 _svc_agg[mk]["no_show_value"]  += b["price"]
                 _wk_agg[wk]["no_show_value"]   += b["price"]
@@ -433,6 +445,11 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                 if (bid, day) not in _seen_dk:
                     _seen_dk.add((bid, day))
                     _day_agg[day]["no_shows"] += 1
+                if salon:  # salon no-show tracking
+                    _salon_agg[salon][mk]["no_show_value"] += b["price"]
+                    if (bid, salon, mk) not in _seen_smk:
+                        _seen_smk.add((bid, salon, mk))
+                        _salon_agg[salon][mk]["no_shows"] += 1
             # status 0 (booked) and 1 (arrived) excluded from all counts
             if src == 1:
                 if (bid, mk) not in _seen_omk:
@@ -458,6 +475,12 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     }
     _service_weekly  = {wk: _agg_to_dict(d) for wk, d in _wk_agg.items()}
     _service_daily   = {day: _agg_to_dict(d) for day, d in _day_agg.items()}
+    _service_salon_monthly = {
+        salon: {mk: {"revenue": round(d["revenue"]), "visits": d["visits"],
+                     "no_shows": d["no_shows"], "no_show_value": round(d["no_show_value"])}
+                for mk, d in months.items()}
+        for salon, months in _salon_agg.items()
+    }
     _booking_stats = {
         "status": {_STATUS_LABELS.get(k, f"Status{k}"): v
                    for k, v in sorted(_status_counts.items())},
@@ -1385,6 +1408,18 @@ def build_analysis_context(question=""):
             m = _service_monthly[mk]
             lines.append(f"{mk},£{m['revenue']:,},{m['visits']},"
                          f"{m.get('no_shows',0)},£{m.get('no_show_value',0):,},{m.get('online',0)},{m['clients']}")
+
+    if _service_salon_monthly:
+        salon_totals = {s: sum(d["revenue"] for d in months.values())
+                        for s, months in _service_salon_monthly.items()}
+        lines += ["", "MONTHLY REVENUE & VISITS BY SALON:",
+                  "Month,Salon,Revenue£,Visits,NoShows,NoShowValue£"]
+        for mk in _sort_months(_service_monthly)[:24]:
+            for salon in sorted(salon_totals, key=lambda s: -salon_totals[s]):
+                d = _service_salon_monthly.get(salon, {}).get(mk)
+                if d and d["revenue"] > 0:
+                    lines.append(f"{mk},{salon},£{d['revenue']:,},{d['visits']},"
+                                 f"{d['no_shows']},£{d['no_show_value']:,}")
 
     if _service_cat_monthly:
         # Rank categories by total 2yr revenue; include top 15
