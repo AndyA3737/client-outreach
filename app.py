@@ -327,13 +327,9 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     step("Fetching booking history")
     with ThreadPoolExecutor(max_workers=4) as pool:
         futures = {pool.submit(_fetch_chunk, r): r for r in booking_ranges}
-        _logged_bk_keys = False
         for future in as_completed(futures):
             chunk = future.result()
             for b in chunk:
-                if not _logged_bk_keys and b:
-                    app.logger.info("BOOKING row keys: %s", list(b.keys()))
-                    _logged_bk_keys = True
                 cid = (b.get("ClientId") or "").lower()
                 dt  = parse_dt(b.get("Start"))
                 if not cid or not dt:
@@ -342,8 +338,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                 svc_name = svc.get("Description", "")
                 bk_status = int(b.get("Status") or 0)   # 0=booked,1=arrived,2=paid,3=no-show
                 bk_source = int(b.get("Source") or 5)   # 1=online,5=in-salon
-                bk_id = str(b.get("BookingId") or b.get("BookingID") or b.get("bookingId")
-                             or b.get("Id") or b.get("ID") or "")
+                bk_id = str(b.get("BookingId") or "")
                 if dt.date() > today:
                     if not any(k in svc_name.upper() for k in SKIP_KEYWORDS):
                         future_bookings[cid].append({
