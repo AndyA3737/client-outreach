@@ -401,7 +401,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                 "name":  product.get("Description", ""),
                 "brand": product.get("Supplier", ""),
                 "line":  product.get("SupplierLine", ""),
-                "price": float(r.get("UnitSalesPrice") or 0),
+                "price": float(r.get("TotalSalesPrice") or 0),
                 "qty":   int(float(r.get("Qty") or 1)),
                 "dt":    parse_dt(r.get("TransactionDate") or ""),
             })
