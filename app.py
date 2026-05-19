@@ -383,14 +383,14 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             if st == 3:  # no-show
                 _svc_agg[mk]["no_shows"] += 1
                 _wk_agg[wk]["no_shows"]  += 1
-            elif st in (1, 2):  # arrived or paid — only these count as revenue
+            elif st == 2:  # paid — only completed/paid bookings count as revenue and visits
                 _svc_agg[mk]["revenue"] += b["price"]
                 _svc_agg[mk]["visits"]  += 1
                 _svc_agg[mk]["clients"].add(cid)
                 _wk_agg[wk]["revenue"]  += b["price"]
                 _wk_agg[wk]["visits"]   += 1
                 _wk_agg[wk]["clients"].add(cid)
-            # status 0 (booked/unactioned) excluded from all revenue and visit counts
+            # status 0 (booked) and 1 (arrived/in-progress) excluded from revenue and visit counts
             if src == 1:
                 _svc_agg[mk]["online"] += 1
                 _wk_agg[wk]["online"]  += 1
@@ -543,7 +543,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         next_booking = min(fb, key=lambda x: x["dt"])["dt"].strftime("%-d %b %Y") if fb else None
 
         bkgs.sort(key=lambda x: x["dt"])
-        actual_visits = [b for b in bkgs if b.get("status") in (1, 2)]
+        actual_visits = [b for b in bkgs if b.get("status") == 2]
         if not actual_visits:
             continue  # client has only no-shows — skip
         last_dt, first_dt = actual_visits[-1]["dt"], actual_visits[0]["dt"]
