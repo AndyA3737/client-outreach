@@ -1064,8 +1064,9 @@ function exportCSV() {
 
 // ── Server + Tenant selection ─────────────────────────────────
 let selectedServer     = 'BETA';
-let selectedTenantId   = null;
-let selectedTenantName = null;
+let selectedTenantId    = null;
+let selectedTenantName  = null;
+let selectedAccountCode = '';
 
 function setServer(s) {
   selectedServer = s;
@@ -1090,9 +1091,11 @@ async function initTenants() {
     if (!tenants.length) throw new Error('No salons returned from API');
     sel.innerHTML = '<option value="">— Select a tenant —</option>';
     tenants.forEach(t => {
-      const opt       = document.createElement('option');
-      opt.value       = t.id;
-      opt.textContent = t.code ? `${t.code} – ${t.name}` : t.name;
+      const opt        = document.createElement('option');
+      opt.value        = t.id;
+      opt.dataset.code = t.code || '';
+      opt.dataset.name = t.name || '';
+      opt.textContent  = t.code ? `${t.code} – ${t.name}` : t.name;
       sel.appendChild(opt);
     });
   } catch (err) {
@@ -1123,7 +1126,7 @@ function getStepIndex(msg) {
 
 function initLoadingCard() {
   const nameEl = document.getElementById('loadingSalonName');
-  if (nameEl) nameEl.textContent = selectedTenantName || '';
+  if (nameEl) nameEl.textContent = selectedAccountCode ? `${selectedAccountCode} – ${selectedTenantName}` : (selectedTenantName || '');
   renderLoadingSteps(-1);
   const timer = document.getElementById('loadingTimer');
   if (timer) timer.textContent = 'Starting…';
@@ -1155,13 +1158,16 @@ function renderLoadingSteps(activeIdx) {
 function loadTenant() {
   const sel = document.getElementById('tenantSelect');
   if (!sel.value) return;
-  selectedTenantId   = sel.value;
-  selectedTenantName = sel.options[sel.selectedIndex].textContent;
+  const selectedOpt   = sel.options[sel.selectedIndex];
+  selectedTenantId    = sel.value;
+  selectedTenantName  = selectedOpt.dataset.name || selectedOpt.textContent;
+  selectedAccountCode = selectedOpt.dataset.code || '';
+  const displayLabel  = selectedAccountCode ? `${selectedAccountCode} – ${selectedTenantName}` : selectedTenantName;
   fetch('/api/log', { method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ event_type:'salon_selected', detail: selectedTenantName }) }).catch(()=>{});
+    body: JSON.stringify({ event_type:'salon_selected', detail: selectedTenantName, account_code: selectedAccountCode }) }).catch(()=>{});
   document.getElementById('tenantSelector').style.display   = 'none';
   document.getElementById('loadingOverlay').style.display   = 'flex';
-  document.getElementById('selectedSalonLabel').textContent = selectedTenantName;
+  document.getElementById('selectedSalonLabel').textContent = displayLabel;
   const badge = document.getElementById('serverBadge');
   badge.textContent   = selectedServer;
   badge.style.background = selectedServer === 'LIVE' ? '#059669' : '#374151';
@@ -1181,8 +1187,9 @@ function changeSalon() {
 async function fetchData() {
   try {
     const params = new URLSearchParams({ server: selectedServer });
-    if (selectedTenantId)   params.set('tenant_id',   selectedTenantId);
-    if (selectedTenantName) params.set('tenant_name', selectedTenantName);
+    if (selectedTenantId)    params.set('tenant_id',    selectedTenantId);
+    if (selectedTenantName)  params.set('tenant_name',  selectedTenantName);
+    if (selectedAccountCode) params.set('account_code', selectedAccountCode);
 
     // Start background job — returns immediately with a job_id
     const startRes = await fetch('/api/data?' + params);

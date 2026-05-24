@@ -55,6 +55,13 @@ def _db_setup():
 
 _db_setup()
 
+def _salon_label():
+    if _loaded_account_code or _loaded_tenant_name:
+        parts = [p for p in [_loaded_account_code, _loaded_tenant_name] if p]
+        return (' – '.join(parts))[:100]
+    return (_loaded_salon_name or _loaded_tenant_id or '')[:100]
+
+
 def _log(event_type, **kwargs):
     try:
         with sqlite3.connect(DB_PATH) as con:
@@ -124,6 +131,8 @@ _loaded_tenant_id   = None
 _loaded_server      = "BETA"
 _loaded_salon_ids   = []   # SalonIds from the salon list, needed for utilisation API
 _loaded_salon_name  = ""   # human-readable name of the currently loaded tenant/salon
+_loaded_tenant_name = ""   # tenant name only (no account code prefix)
+_loaded_account_code = ""  # account code for the loaded tenant
 _service_monthly    = {}   # month → {revenue, visits, no_shows, clients} aggregated from bookings
 _service_weekly     = {}   # ISO-monday → {revenue, visits, no_shows, online, clients}
 _service_daily        = {}   # ISO-date  → {revenue, visits, no_shows, no_show_value, online, clients}
@@ -253,11 +262,12 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     global _utilisation, _retail_summary, _salon_map, _loaded_salon_ids
     global _service_monthly, _service_weekly, _service_daily
     global _service_cat_monthly, _service_salon_monthly, _booking_stats
-    global _team_kpis, _load_timings
+    global _team_kpis, _load_timings, _loaded_tenant_name, _loaded_account_code
 
     # Clear all globals immediately so no stale data from a previous tenant lingers
     _all_scored = []; _all_clients = []; _total_clients = 0
     _utilisation = []; _retail_summary = {}; _team_kpis = {}; _load_timings = {}
+    _loaded_tenant_name = ""; _loaded_account_code = ""
     _load_timings['t_start'] = time.time()
     _service_monthly = {}; _service_weekly = {}; _service_daily = {}
     _service_cat_monthly = {}; _service_salon_monthly = {}; _booking_stats = {}
@@ -968,14 +978,15 @@ def _build_response(tenant_id, server, set_step=None):
 @require_auth
 def data():
     """Start a background job and return its ID immediately."""
-    tenant_id   = request.args.get("tenant_id") or None
-    server      = request.args.get("server", "BETA")
-    tenant_name = request.args.get("tenant_name", "").strip()
+    tenant_id    = request.args.get("tenant_id") or None
+    server       = request.args.get("server", "BETA")
+    tenant_name  = request.args.get("tenant_name", "").strip()
+    account_code = request.args.get("account_code", "").strip()
     job_id      = str(uuid.uuid4())
     _jobs[job_id] = {"status": "loading", "step": ""}
 
     def worker():
-        global _loaded_salon_name
+        global _loaded_salon_name, _loaded_tenant_name, _loaded_account_code
         def set_step(msg):
             if isinstance(_jobs.get(job_id), dict) and _jobs[job_id].get("status") == "loading":
                 _jobs[job_id]["step"] = msg
@@ -983,12 +994,16 @@ def data():
         # Use the UI tenant name if the salon map didn't yield one
         if tenant_name and not _loaded_salon_name:
             _loaded_salon_name = tenant_name
+        if tenant_name:
+            _loaded_tenant_name = tenant_name
+        if account_code:
+            _loaded_account_code = account_code
         if result.get("status") == "done" and _load_timings.get('t_start'):
             fetch_ms = round((_load_timings['t_fetch_done'] - _load_timings['t_start'])    * 1000)
             build_ms = round((_load_timings['t_build_done'] - _load_timings['t_fetch_done']) * 1000)
             total_ms = round((_load_timings['t_build_done'] - _load_timings['t_start'])    * 1000)
             _log('data_loaded',
-                 salon=(_loaded_salon_name or _loaded_tenant_id or '')[:100],
+                 salon=_salon_label(),
                  result_count=_total_clients,
                  result_title=f"API fetch: {fetch_ms/1000:.1f}s | Profile build: {build_ms/1000:.1f}s",
                  response_ms=total_ms,
@@ -1271,7 +1286,7 @@ IMPORTANT: always use contains_exact (not contains) for promo_codes — these ar
 
     except Exception as e:
         _log('query',
-             salon=(_loaded_salon_name or _loaded_tenant_id or '')[:100],
+             salon=_salon_label(),
              question=q[:500],
              response_ms=round((time.time() - t0) * 1000),
              error=str(e)[:500],
@@ -1328,7 +1343,7 @@ IMPORTANT: always use contains_exact (not contains) for promo_codes — these ar
     ] if filters else []
 
     _log('query',
-         salon=(_loaded_salon_name or _loaded_tenant_id or '')[:100],
+         salon=_salon_label(),
          question=q[:500],
          result_count=len(results),
          result_title=description[:200],
@@ -1856,7 +1871,7 @@ def analyse():
                     "output_tokens": msg.usage.output_tokens,
                 }
                 _log('analyse',
-                     salon=(_loaded_salon_name or _loaded_tenant_id or '')[:100],
+                     salon=_salon_label(),
                      question=question[:500],
                      format=fmt,
                      is_followup=1 if previous_result else 0,
@@ -1870,7 +1885,7 @@ def analyse():
             except Exception as e:
                 app.logger.exception("ANALYSE worker error: %s", e)
                 _log('analyse',
-                     salon=(_loaded_salon_name or _loaded_tenant_id or '')[:100],
+                     salon=_salon_label(),
                      question=question[:500],
                      format=fmt,
                      is_followup=1 if previous_result else 0,
@@ -1891,11 +1906,14 @@ def analyse():
 @require_auth
 def client_log():
     """Receives lightweight frontend events (page loads, UI interactions)."""
-    body = request.get_json(silent=True) or {}
+    body       = request.get_json(silent=True) or {}
     event_type = (body.get("event_type") or "client_event")[:50]
+    code       = (body.get("account_code") or "").strip()
+    detail     = (body.get("detail") or "").strip()
+    salon      = (f"{code} – {detail}" if (code and detail) else code or detail or _salon_label())[:100]
     _log(event_type,
-         salon=(_loaded_salon_name or _loaded_tenant_id or '')[:100],
-         question=(body.get("detail") or '')[:500],
+         salon=salon,
+         question=detail[:500],
     )
     return jsonify(ok=True)
 
