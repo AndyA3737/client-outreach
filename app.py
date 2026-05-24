@@ -42,6 +42,7 @@ def _get_db():
     return psycopg2.connect(url)
 
 def _db_setup():
+    import sys
     try:
         con = _get_db()
         cur = con.cursor()
@@ -64,9 +65,13 @@ def _db_setup():
             )
         """)
         con.commit()
+        cur.execute("SELECT COUNT(*) FROM activity_log")
+        count = cur.fetchone()[0]
         cur.close()
         con.close()
+        print(f"[startup] activity_log ready — {count} rows persisted in DB", flush=True)
     except Exception as e:
+        print(f"[startup] DB setup FAILED: {e}", file=sys.stderr, flush=True)
         app.logger.warning("DB setup failed: %s", e)
 
 _db_setup()
@@ -86,6 +91,7 @@ def _get_ctx(tenant_id, server="BETA"):
 
 
 def _log(event_type, **kwargs):
+    import sys
     try:
         from datetime import timezone
         con = _get_db()
@@ -100,6 +106,7 @@ def _log(event_type, **kwargs):
         cur.close()
         con.close()
     except Exception as e:
+        print(f"[_log] WRITE FAILED ({event_type}): {e}", file=sys.stderr, flush=True)
         app.logger.warning("Activity log write failed: %s", e)
 
 
