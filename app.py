@@ -2049,6 +2049,11 @@ def client_log():
     return jsonify(ok=True)
 
 
+@app.route("/logout")
+def logout():
+    return Response('Logged out.', 401, {'WWW-Authenticate': 'Basic realm="SalonIQ Aria"'})
+
+
 @app.route("/api/mode")
 @require_auth
 def api_mode():

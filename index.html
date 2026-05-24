@@ -176,7 +176,7 @@
   <div class="flex items-center gap-3">
     <button id="changeTenantBtn" onclick="changeSalon()" class="text-sm transition-colors" style="color:rgba(255,255,255,0.5)" onmouseover="this.style.color='rgba(255,255,255,0.9)'" onmouseout="this.style.color='rgba(255,255,255,0.5)'">⇄ Change Tenant</button>
     <a id="logsBtnHeader" href="/admin/logs" class="text-sm transition-colors" style="color:rgba(255,255,255,0.5);text-decoration:none" onmouseover="this.style.color='rgba(255,255,255,0.9)'" onmouseout="this.style.color='rgba(255,255,255,0.5)'">📋 Logs</a>
-    <button onclick="refreshData()" id="refreshBtn" class="btn-teal text-sm">↻ Refresh</button>
+    <button onclick="logOut()" class="btn-teal text-sm">⏻ Log out</button>
   </div>
 </header>
 
@@ -1296,6 +1296,14 @@ function sortBy(col) {
   });
   rows.forEach(r => tbody.appendChild(r));
   applyFilters();
+}
+
+// ── Log out ───────────────────────────────────────────────────
+function logOut() {
+  // Send bogus credentials to /logout — server returns 401, which clears the
+  // browser's cached Basic Auth credentials for this realm, forcing a new login.
+  fetch('/logout', { headers: { 'Authorization': 'Basic ' + btoa('logout:logout') } })
+    .finally(() => { window.location.href = '/'; });
 }
 
 // ── Refresh ───────────────────────────────────────────────────
