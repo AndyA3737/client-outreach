@@ -1480,6 +1480,7 @@ def build_analysis_context(question="", ctx=None):
     _loaded_account_code  = (ctx or {}).get('loaded_account_code',  globals().get('_loaded_account_code', ''))
     _loaded_tenant_id     = (ctx or {}).get('loaded_tenant_id',     globals().get('_loaded_tenant_id', ''))
     _loaded_server        = (ctx or {}).get('loaded_server',        globals().get('_loaded_server', ''))
+    _salon_map            = (ctx or {}).get('salon_map',            globals().get('_salon_map', {}))
 
     if not _all_clients:
         return "No data loaded."
@@ -1550,14 +1551,22 @@ def build_analysis_context(question="", ctx=None):
     last_monday  = this_monday - timedelta(days=7)
     last_sunday  = this_monday - timedelta(days=1)
 
+    all_salon_names = sorted(set(_salon_map.values())) if _salon_map else []
+    tenant_label = (' – '.join(p for p in [_loaded_account_code, _loaded_tenant_name] if p)) or _loaded_salon_name or _loaded_tenant_id or 'Unknown'
+    if len(all_salon_names) > 1:
+        salons_str = ', '.join(all_salon_names)
+        scope_note = f"DATA SCOPE: This data covers ALL {len(all_salon_names)} salons in this tenant: {salons_str}. Client totals and revenue figures are combined across all locations."
+    else:
+        scope_note = f"DATA SCOPE: Single salon — {all_salon_names[0] if all_salon_names else tenant_label}."
+
     lines = [
-        f"SALON / TENANT: {(' – '.join(p for p in [_loaded_account_code, _loaded_tenant_name] if p)) or _loaded_salon_name or _loaded_tenant_id or 'Unknown'} "
-        f"(server: {_loaded_server}) — data as of {today.strftime('%-d %b %Y')}",
+        f"SALON / TENANT: {tenant_label} (server: {_loaded_server}) — data as of {today.strftime('%-d %b %Y')}",
+        scope_note,
         f"DATE CONTEXT: Today={today.strftime('%-d %b %Y')} | "
         f"This week=w/c {this_monday.strftime('%-d %b %Y')} | "
         f"Last week={last_monday.strftime('%-d %b %Y')}–{last_sunday.strftime('%-d %b %Y')}",
-        f"IMPORTANT: All analysis in this response must refer to this salon/tenant only. "
-        f"Do not reference any other salon name.",
+        f"IMPORTANT: When answering questions, make clear whether figures are for a specific salon or the whole group. "
+        f"Use the PrefSalon field on client records to attribute clients to their home salon.",
         f"Total clients: {len(_all_clients)} | Active scoring pool: {len(_all_scored)}",
         f"Total 2yr service revenue: £{sum(c.get('total_spend',0) for c in _all_clients):,.0f}",
         f"Total 2yr retail spend:    £{sum(c.get('retail_total',0) for c in _all_clients):,.0f}",
@@ -1760,14 +1769,14 @@ def build_analysis_context(question="", ctx=None):
     # Top 100 clients by total spend (compact rows, no arrays)
     top100 = sorted(_all_clients, key=lambda x: x.get("total_spend", 0), reverse=True)[:100]
     lines += ["", "TOP 100 CLIENTS BY TOTAL SPEND:",
-              "Name,Status,DaysSince,Visits,ServiceRevenue,AvgSpend,RetailTotal,GiftcardTotal,Stylist,Services"]
+              "Name,Status,DaysSince,Visits,ServiceRevenue,AvgSpend,RetailTotal,GiftcardTotal,Stylist,PrefSalon,Services"]
     for c in top100:
         cats = "|".join(c.get("top_cats", []))
         lines.append(
             f"{c['name']},{c.get('scls','')},{c.get('days_since','')},{c.get('n_visits',0)},"
             f"£{c.get('total_spend',0)},£{c.get('avg_spend',0)},"
             f"£{c.get('retail_total',0)},£{c.get('giftcard_total',0)},"
-            f"{c.get('pref_tm','')},{cats}"
+            f"{c.get('pref_tm','')},{c.get('pref_salon','')},{cats}"
         )
 
     # Named client spotlight
