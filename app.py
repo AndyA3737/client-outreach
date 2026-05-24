@@ -2098,7 +2098,7 @@ def admin_logs():
     <h1>Activity Log</h1>
     <span>SalonIQ Aria &nbsp;·&nbsp; last 500 events &nbsp;·&nbsp; auto-refreshes every 30s</span>
   </div>
-  <a href="/" class="btn-back">← Back to Aria</a>
+  <a href="javascript:history.back()" class="btn-back">← Back to Aria</a>
 </div>
 <div class="stat-row">
   <div class="stat"><div class="val">{totals['total']}</div><div class="lbl">Total events</div></div>
