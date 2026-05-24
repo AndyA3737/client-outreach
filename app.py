@@ -90,6 +90,7 @@ _service_salon_monthly = {} # salon_name → {month → {revenue, visits, no_sho
 _booking_stats      = {}   # {status: {label: count}, source: {label: count}}
 _salon_map          = {}   # SalonId → salon name
 _retail_summary     = {}   # pre-aggregated retail: products, brands, lines, monthly
+_team_kpis          = {}   # team member name → KPI targets (from TeamMembers API)
 
 
 NOCACHE_REPORTS = {"XXX_Export_Admin_TUBR_Bookings"}
@@ -209,10 +210,11 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     global _utilisation, _retail_summary, _salon_map, _loaded_salon_ids
     global _service_monthly, _service_weekly, _service_daily
     global _service_cat_monthly, _service_salon_monthly, _booking_stats
+    global _team_kpis
 
     # Clear all globals immediately so no stale data from a previous tenant lingers
     _all_scored = []; _all_clients = []; _total_clients = 0
-    _utilisation = []; _retail_summary = {}
+    _utilisation = []; _retail_summary = {}; _team_kpis = {}
     _service_monthly = {}; _service_weekly = {}; _service_daily = {}
     _service_cat_monthly = {}; _service_salon_monthly = {}; _booking_stats = {}
     _salon_map = {}; _loaded_salon_ids = []; _loaded_salon_name = ""
@@ -261,6 +263,23 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     # the tenant name from the UI dropdown if this remains blank
     if _salon_map and not _loaded_salon_name:
         _loaded_salon_name = next(iter(_salon_map.values()), "")
+
+    _PERIOD_LABELS = {0: "Weekly", 1: "4-Weekly", 2: "Monthly", 3: "Daily"}
+    for t in team_raw:
+        tid = t.get("TeamMemberId")
+        if not tid:
+            continue
+        name = team_map.get(tid, "Unknown")
+        _team_kpis[name] = {
+            "period":           _PERIOD_LABELS.get(int(t.get("PeriodRange") or 0), "Unknown"),
+            "kpi_retail":       float(t.get("KPIRetail")         or 0),
+            "kpi_care_factor":  float(t.get("KPICareFactor")      or 0),
+            "kpi_rebookings":   float(t.get("KPIReBookings")      or 0),
+            "kpi_client_count": float(t.get("KPIClientCount")     or 0),
+            "kpi_req_count":    float(t.get("KPIRequestCount")    or 0),
+            "kpi_avg_services": float(t.get("KPIAverageServices") or 0),
+            "kpi_utilization":  float(t.get("KPIUtilization")     or 0),
+        }
     del svcs_raw, team_raw, clients_raw, salons_raw  # free raw API data now maps are built
 
     step("Fetching utilisation data")
@@ -1362,6 +1381,17 @@ def build_analysis_context(question=""):
         avg = d["revenue"] / d["clients"] if d["clients"] else 0
         lines.append(f"  {nm}: {d['clients']} clients, {d['visits']} visits, "
                      f"£{d['revenue']:,.0f} revenue, £{avg:.0f} avg/client")
+
+    if _team_kpis:
+        lines += ["", "TEAM MEMBER KPI TARGETS:",
+                  "Name,Period,RetailTarget£,CareFactorTarget%,ReBookingsTarget%,"
+                  "ClientCountTarget,RequestCountTarget,AvgServicesTarget,UtilizationTarget%"]
+        for name, k in sorted(_team_kpis.items()):
+            lines.append(
+                f"{name},{k['period']},£{k['kpi_retail']:.0f},{k['kpi_care_factor']:.1f}%,"
+                f"{k['kpi_rebookings']:.1f}%,{k['kpi_client_count']:.0f},"
+                f"{k['kpi_req_count']:.0f},{k['kpi_avg_services']:.1f},{k['kpi_utilization']:.1f}%"
+            )
 
     lines += ["", "TOP SERVICE CATEGORIES:"]
     for cat, cnt in Counter(all_cats).most_common(15):
