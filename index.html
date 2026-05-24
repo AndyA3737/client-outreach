@@ -1157,6 +1157,8 @@ function loadTenant() {
   if (!sel.value) return;
   selectedTenantId   = sel.value;
   selectedTenantName = sel.options[sel.selectedIndex].textContent;
+  fetch('/api/log', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ event_type:'salon_selected', detail: selectedTenantName }) }).catch(()=>{});
   document.getElementById('tenantSelector').style.display   = 'none';
   document.getElementById('loadingOverlay').style.display   = 'flex';
   document.getElementById('selectedSalonLabel').textContent = selectedTenantName;
