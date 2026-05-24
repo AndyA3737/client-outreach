@@ -2078,9 +2078,10 @@ def admin_logs():
 <meta http-equiv="refresh" content="30">
 <style>
   body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0;background:#F8FAFC;color:#1E293B}}
-  .hdr{{background:#1C2B3A;color:#fff;padding:18px 32px;display:flex;align-items:center;gap:24px}}
+  .hdr{{background:#0F1923;color:#fff;padding:18px 32px;display:flex;align-items:center;gap:24px;justify-content:space-between}}
   .hdr h1{{margin:0;font-size:20px;font-weight:700}}
   .hdr span{{font-size:13px;opacity:.7}}
+  .btn-back{{background:#C9A84C;color:#0F1923;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-block}}
   .stat-row{{display:flex;gap:16px;padding:20px 32px;flex-wrap:wrap}}
   .stat{{background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:14px 22px;min-width:120px}}
   .stat .val{{font-size:28px;font-weight:700;color:#1C2B3A}}
@@ -2093,8 +2094,11 @@ def admin_logs():
   .refresh{{font-size:12px;opacity:.6}}
 </style></head><body>
 <div class="hdr">
-  <h1>Activity Log</h1>
-  <span>SalonIQ AI User Testing &nbsp;·&nbsp; last 500 events &nbsp;·&nbsp; auto-refreshes every 30s</span>
+  <div style="display:flex;align-items:center;gap:24px">
+    <h1>Activity Log</h1>
+    <span>SalonIQ Aria &nbsp;·&nbsp; last 500 events &nbsp;·&nbsp; auto-refreshes every 30s</span>
+  </div>
+  <a href="/" class="btn-back">← Back to Aria</a>
 </div>
 <div class="stat-row">
   <div class="stat"><div class="val">{totals['total']}</div><div class="lbl">Total events</div></div>
