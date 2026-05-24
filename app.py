@@ -133,6 +133,7 @@ _booking_stats      = {}   # {status: {label: count}, source: {label: count}}
 _salon_map          = {}   # SalonId → salon name
 _retail_summary     = {}   # pre-aggregated retail: products, brands, lines, monthly
 _team_kpis          = {}   # team member name → KPI targets (from TeamMembers API)
+_load_timings       = {}   # timing checkpoints from last build_data call
 
 
 NOCACHE_REPORTS = {"XXX_Export_Admin_TUBR_Bookings"}
@@ -252,11 +253,12 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     global _utilisation, _retail_summary, _salon_map, _loaded_salon_ids
     global _service_monthly, _service_weekly, _service_daily
     global _service_cat_monthly, _service_salon_monthly, _booking_stats
-    global _team_kpis
+    global _team_kpis, _load_timings
 
     # Clear all globals immediately so no stale data from a previous tenant lingers
     _all_scored = []; _all_clients = []; _total_clients = 0
-    _utilisation = []; _retail_summary = {}; _team_kpis = {}
+    _utilisation = []; _retail_summary = {}; _team_kpis = {}; _load_timings = {}
+    _load_timings['t_start'] = time.time()
     _service_monthly = {}; _service_weekly = {}; _service_daily = {}
     _service_cat_monthly = {}; _service_salon_monthly = {}; _booking_stats = {}
     _salon_map = {}; _loaded_salon_ids = []; _loaded_salon_name = ""
@@ -670,6 +672,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         },
     }
 
+    _load_timings['t_fetch_done'] = time.time()
     step("Building client profiles")
     rows = []
     for cid, bkgs in by_client.items():
@@ -907,6 +910,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         ))
     _all_clients = rows + no_history
 
+    _load_timings['t_build_done'] = time.time()
     top = rows[:500]
     for i, c in enumerate(top, 1):
         c["rank"] = i
@@ -979,6 +983,16 @@ def data():
         # Use the UI tenant name if the salon map didn't yield one
         if tenant_name and not _loaded_salon_name:
             _loaded_salon_name = tenant_name
+        if result.get("status") == "done" and _load_timings.get('t_start'):
+            fetch_ms = round((_load_timings['t_fetch_done'] - _load_timings['t_start'])    * 1000)
+            build_ms = round((_load_timings['t_build_done'] - _load_timings['t_fetch_done']) * 1000)
+            total_ms = round((_load_timings['t_build_done'] - _load_timings['t_start'])    * 1000)
+            _log('data_loaded',
+                 salon=(_loaded_salon_name or _loaded_tenant_id or '')[:100],
+                 result_count=_total_clients,
+                 result_title=f"API fetch: {fetch_ms/1000:.1f}s | Profile build: {build_ms/1000:.1f}s",
+                 response_ms=total_ms,
+            )
         _jobs[job_id] = result
 
     threading.Thread(target=worker, daemon=True).start()
