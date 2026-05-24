@@ -1429,6 +1429,8 @@ def build_analysis_context(question="", ctx=None):
     _utilisation          = (ctx or {}).get('utilisation',          globals().get('_utilisation', []))
     _team_kpis            = (ctx or {}).get('team_kpis',            globals().get('_team_kpis', {}))
     _loaded_salon_name    = (ctx or {}).get('loaded_salon_name',    globals().get('_loaded_salon_name', ''))
+    _loaded_tenant_name   = (ctx or {}).get('loaded_tenant_name',   globals().get('_loaded_tenant_name', ''))
+    _loaded_account_code  = (ctx or {}).get('loaded_account_code',  globals().get('_loaded_account_code', ''))
     _loaded_tenant_id     = (ctx or {}).get('loaded_tenant_id',     globals().get('_loaded_tenant_id', ''))
     _loaded_server        = (ctx or {}).get('loaded_server',        globals().get('_loaded_server', ''))
 
@@ -1502,7 +1504,7 @@ def build_analysis_context(question="", ctx=None):
     last_sunday  = this_monday - timedelta(days=1)
 
     lines = [
-        f"SALON / TENANT: {_loaded_salon_name or _loaded_tenant_id or 'Unknown'} "
+        f"SALON / TENANT: {(' – '.join(p for p in [_loaded_account_code, _loaded_tenant_name] if p)) or _loaded_salon_name or _loaded_tenant_id or 'Unknown'} "
         f"(server: {_loaded_server}) — data as of {today.strftime('%-d %b %Y')}",
         f"DATE CONTEXT: Today={today.strftime('%-d %b %Y')} | "
         f"This week=w/c {this_monday.strftime('%-d %b %Y')} | "
