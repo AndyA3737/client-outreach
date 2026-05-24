@@ -1200,6 +1200,8 @@ def search_clients():
     if len(q) < 2:
         return jsonify([])
     ctx    = _get_ctx(tenant_id, server)
+    if tenant_id and not ctx:
+        return jsonify([])
     scored = ctx['all_scored'] if ctx else _all_scored
     results = [c for c in scored if q in c["name"].lower()]
     return jsonify(results[:20])
@@ -1212,6 +1214,8 @@ def query_clients():
     tenant_id = request.args.get("tenant_id") or None
     server    = request.args.get("server", "BETA")
     ctx       = _get_ctx(tenant_id, server)
+    if tenant_id and not ctx:
+        return jsonify({"error": "Salon data not found — please reload the salon data."}), 400
     clients   = ctx['all_clients'] if ctx else _all_clients
     if not q:
         return jsonify({"error": "No query provided"}), 400
@@ -1912,6 +1916,8 @@ def analyse():
         ctx             = _get_ctx(tenant_id, server)
         if not question:
             return jsonify(error="No question provided"), 400
+        if tenant_id and not ctx:
+            return jsonify(error="Salon data not found — please reload the salon data."), 400
         if not (ctx or _all_clients):
             return jsonify(error="No data loaded — load a salon first."), 400
 
