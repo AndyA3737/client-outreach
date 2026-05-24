@@ -2,21 +2,23 @@
 """Salon SMS Marketing Dashboard — scores clients for SMS targeting."""
 
 import os
-import base64
 import json
+import secrets
 import psycopg2
 import psycopg2.extras
 import threading
 import uuid
 from functools import wraps
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from flask import Flask, jsonify, request, Response, send_from_directory
+from flask import (Flask, jsonify, request, send_from_directory,
+                   session as flask_session, redirect, make_response)
 import requests
 from datetime import datetime, date, timedelta
 from collections import defaultdict, Counter
 import time
 
 app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(32))
 
 @app.errorhandler(Exception)
 def json_error(e):
@@ -110,61 +112,48 @@ def _log(event_type, **kwargs):
         app.logger.warning("Activity log write failed: %s", e)
 
 
-def _check_credentials():
-    """Return 'admin', 'user', or None based on the request's Basic Auth credentials."""
-    def _match(user, pwd):
-        if user == ADMIN_USER and pwd == ADMIN_PASS:
-            return 'admin'
-        if USER_USER and user == USER_USER and pwd == USER_PASS:
-            return 'user'
-        return None
-
-    auth = request.authorization
-    if auth:
-        result = _match(auth.username, auth.password)
-        if result:
-            return result
-    raw = request.headers.get('Authorization') or request.environ.get('HTTP_AUTHORIZATION', '')
-    if raw.startswith('Basic '):
-        try:
-            creds = base64.b64decode(raw[6:]).decode('utf-8')
-            user, pwd = creds.split(':', 1)
-            return _match(user, pwd)
-        except Exception:
-            pass
+def _verify_login(username, password):
+    """Return 'admin', 'user', or None for the given username/password."""
+    if username == ADMIN_USER and password == ADMIN_PASS:
+        return 'admin'
+    if USER_USER and username == USER_USER and password == USER_PASS:
+        return 'user'
     return None
 
+def _session_role():
+    """Return the role stored in the Flask session, or None."""
+    return flask_session.get('role')
+
+def _login_redirect():
+    """Redirect to /login, preserving the current URL as the 'next' param."""
+    next_url = request.full_path if request.query_string else request.path
+    return redirect(f'/login?next={next_url}')
+
 def require_auth(f):
-    """Protect a route — accepts both admin and user credentials."""
+    """Protect a route — accepts both admin and user sessions."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        if _check_credentials():
+        if _session_role():
             return f(*args, **kwargs)
-        return Response(
-            'Authentication required.',
-            401,
-            {'WWW-Authenticate': 'Basic realm="SalonIQ Aria"'},
-        )
+        return _login_redirect()
     return decorated
 
 def require_admin(f):
-    """Restrict a route to admin credentials only — redirects users to /."""
+    """Restrict a route to admin sessions only — redirects others to /."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        if _check_credentials() == 'admin':
+        if _session_role() == 'admin':
             return f(*args, **kwargs)
-        from flask import redirect
         return redirect('/')
     return decorated
 
 def require_auth_or_redirect(f):
-    """Protect a route but redirect to / instead of issuing a Basic Auth challenge."""
+    """Protect a route — redirects to /login when unauthenticated."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        if _check_credentials():
+        if _session_role():
             return f(*args, **kwargs)
-        from flask import redirect
-        return redirect('/')
+        return _login_redirect()
     return decorated
 
 
@@ -2056,15 +2045,77 @@ def client_log():
     return jsonify(ok=True)
 
 
+_LOGIN_PAGE = """<!DOCTYPE html>
+<html>
+<head>
+<title>SalonIQ Aria — Sign in</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{{box-sizing:border-box;margin:0;padding:0}}
+body{{background:#F0F4F8;font-family:system-ui,-apple-system,sans-serif;
+      display:flex;align-items:center;justify-content:center;min-height:100vh}}
+.card{{background:#fff;border-radius:16px;padding:40px;width:360px;
+       box-shadow:0 4px 32px rgba(0,0,0,0.10);border:1px solid #D8E2EC}}
+h1{{color:#1C2B3A;font-size:1.5rem;margin-bottom:4px}}
+.sub{{color:#64748B;font-size:.875rem;margin-bottom:28px}}
+label{{display:block;font-size:.75rem;font-weight:600;color:#64748B;
+       text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}}
+input{{width:100%;padding:10px 14px;border:1.5px solid #D8E2EC;border-radius:8px;
+       font-size:.95rem;color:#1C2B3A;background:#fff;outline:none}}
+input:focus{{border-color:#C9A84C}}
+.field{{margin-bottom:18px}}
+.btn{{width:100%;padding:12px;background:#C9A84C;color:#fff;border:none;
+      border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;margin-top:4px}}
+.btn:hover{{background:#A8883A}}
+.err{{background:#FEF2F2;border:1px solid #FECACA;color:#DC2626;
+      padding:10px 14px;border-radius:8px;font-size:.875rem;margin-bottom:20px}}
+</style>
+</head>
+<body><div class="card">
+  <h1>SalonIQ <span style="color:#C9A84C">Aria</span></h1>
+  <p class="sub">Sign in to continue</p>
+  {error_html}
+  <form method="POST" action="/login">
+    <input type="hidden" name="next" value="{next_url}">
+    <div class="field"><label>Username</label>
+      <input type="text" name="username" autofocus autocomplete="username"></div>
+    <div class="field"><label>Password</label>
+      <input type="password" name="password" autocomplete="current-password"></div>
+    <button type="submit" class="btn">Sign in →</button>
+  </form>
+</div></body></html>"""
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    next_url = request.args.get('next') or request.form.get('next') or '/'
+    if request.method == "POST":
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '').strip()
+        role = _verify_login(username, password)
+        if role:
+            flask_session['role'] = role
+            flask_session.permanent = True
+            return redirect(next_url)
+        error_html = '<div class="err">Incorrect username or password.</div>'
+        return _login_page(next_url, error_html), 401
+    return _login_page(next_url, '')
+
+
+def _login_page(next_url, error_html):
+    return _LOGIN_PAGE.format(next_url=next_url, error_html=error_html)
+
+
 @app.route("/logout")
 def logout():
-    return Response('Logged out.', 401, {'WWW-Authenticate': 'Basic realm="SalonIQ Aria"'})
+    flask_session.clear()
+    return redirect('/login')
 
 
 @app.route("/api/mode")
 @require_auth
 def api_mode():
-    mode = _check_credentials()
+    mode = _session_role()
     if mode == 'user':
         tenant_id = request.args.get('tenantId', '')
         server = 'BETA' if tenant_id.upper() == BETA_TENANT_ID.upper() else 'LIVE'
