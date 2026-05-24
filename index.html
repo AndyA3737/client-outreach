@@ -73,7 +73,7 @@
   .btn-teal { background:var(--teal); color:#fff; border:none; border-radius:8px;
               padding:8px 18px; font-size:14px; font-weight:700; cursor:pointer; transition:background 0.15s; }
   .btn-teal:hover { background:var(--teal-d); }
-  .btn-teal:disabled { opacity:0.5; cursor:not-allowed; }
+  .btn-teal:disabled { opacity:0.35; cursor:not-allowed; }
 
   .nav-tab { padding:12px 20px; font-size:14px; font-weight:600; cursor:pointer;
              border:none; background:transparent; color:var(--muted); border-bottom:3px solid transparent;
@@ -122,29 +122,30 @@
 
 <!-- Tenant selector (shown first) -->
 <div id="tenantSelector" style="position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:110;">
-  <img src="https://www.saloniq.com/img/logo.svg" alt="SalonIQ" class="h-10 mb-6">
+  <img src="https://www.saloniq.com/img/logo.svg" alt="SalonIQ" class="h-9 mb-5">
   <div class="text-3xl font-extrabold mb-1" style="color:var(--navy);letter-spacing:-0.02em">SalonIQ <span style="color:var(--teal)">Aria</span></div>
-  <div class="text-sm mb-7" style="color:var(--muted)">Select a server and tenant to load your data</div>
+  <div class="text-sm mb-8" style="color:var(--muted)">Select a server and tenant to load your data</div>
 
   <!-- Server toggle -->
-  <div class="flex rounded-xl overflow-hidden border mb-6" style="border-color:var(--border);width:260px">
+  <div class="flex rounded-xl overflow-hidden mb-5" style="border:2px solid var(--border);width:240px">
     <button id="btnBeta" onclick="setServer('BETA')"
-      style="flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;background:var(--navy);color:var(--text);transition:all 0.15s">
+      style="flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;background:var(--navy);color:#fff;transition:all 0.15s">
       BETA
     </button>
     <button id="btnLive" onclick="setServer('LIVE')"
-      style="flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;background:var(--bg);color:var(--muted);transition:all 0.15s">
+      style="flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;background:transparent;color:var(--muted);transition:all 0.15s">
       LIVE
     </button>
   </div>
 
-  <div class="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
-    <select id="tenantSelect" class="w-80" onchange="document.getElementById('loadTenantBtn').disabled=!this.value">
-      <option value="">Loading salons…</option>
+  <div style="width:380px;max-width:90vw">
+    <label class="block text-xs font-semibold mb-2 uppercase tracking-widest" style="color:var(--muted)">Tenant</label>
+    <select id="tenantSelect" class="w-full mb-4" style="width:100%" onchange="document.getElementById('loadTenantBtn').disabled=!this.value">
+      <option value="">— Select a tenant —</option>
     </select>
-    <button id="loadTenantBtn" onclick="loadTenant()" class="btn-teal" disabled>Load Data →</button>
+    <button id="loadTenantBtn" onclick="loadTenant()" class="btn-teal w-full" style="width:100%;padding:12px;font-size:15px" disabled>Load Data →</button>
   </div>
-  <div id="tenantError" class="text-red-500 text-sm mt-5" style="display:none"></div>
+  <div id="tenantError" class="text-red-500 text-sm mt-4" style="display:none"></div>
 </div>
 
 <!-- Loading overlay (shown during data fetch) -->
@@ -1067,9 +1068,9 @@ function setServer(s) {
   selectedServer = s;
   const isLive = s === 'LIVE';
   document.getElementById('btnBeta').style.cssText =
-    `flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;transition:all 0.15s;background:${isLive ? 'var(--bg)' : 'var(--navy)'};color:${isLive ? 'var(--muted)' : 'var(--text)'}`;
+    `flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;transition:all 0.15s;background:${isLive ? 'transparent' : 'var(--navy)'};color:${isLive ? 'var(--muted)' : '#fff'}`;
   document.getElementById('btnLive').style.cssText =
-    `flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;transition:all 0.15s;background:${isLive ? '#059669' : 'var(--bg)'};color:${isLive ? 'var(--text)' : 'var(--muted)'}`;
+    `flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;transition:all 0.15s;background:${isLive ? '#059669' : 'transparent'};color:${isLive ? '#fff' : 'var(--muted)'}`;
   initTenants();
 }
 
