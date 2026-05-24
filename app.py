@@ -1941,7 +1941,10 @@ def admin_logs():
         """).fetchone()
 
     # Cost estimate: Sonnet 4.6 — $3/MTok in, $15/MTok out
-    cost_usd = (totals['total_in'] * 3 + totals['total_out'] * 15) / 1_000_000
+    total_in  = totals['total_in']  or 0
+    total_out = totals['total_out'] or 0
+    avg_ms    = totals['avg_ms']    or 0
+    cost_usd  = (total_in * 3 + total_out * 15) / 1_000_000
 
     def badge(event_type):
         colours = {'analyse': '#0EA5E9', 'query': '#8B5CF6', 'session': '#10B981'}
@@ -2003,7 +2006,7 @@ def admin_logs():
   <div class="stat"><div class="val">{totals['sessions']}</div><div class="lbl">Sessions</div></div>
   <div class="stat"><div class="val">{totals['analyses']}</div><div class="lbl">AI analyses</div></div>
   <div class="stat"><div class="val">{totals['queries']}</div><div class="lbl">Client queries</div></div>
-  <div class="stat"><div class="val">{int(totals['avg_ms'] or 0) // 1000}.{(int(totals['avg_ms'] or 0) % 1000) // 100}s</div><div class="lbl">Avg response</div></div>
+  <div class="stat"><div class="val">{int(avg_ms) // 1000}.{(int(avg_ms) % 1000) // 100}s</div><div class="lbl">Avg response</div></div>
   <div class="stat"><div class="val">${cost_usd:.2f}</div><div class="lbl">Est. API cost (USD)</div></div>
   <div class="stat"><div class="val" style="color:{'#EF4444' if totals['errors'] else '#10B981'}">{totals['errors']}</div><div class="lbl">Errors</div></div>
 </div>
