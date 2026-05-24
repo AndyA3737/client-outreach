@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Client Dashboard · SalonIQ</title>
+<title>Salon IQ Aria</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
@@ -11,58 +11,56 @@
 <style>
   :root {
     --navy:   #1C2B3A;
-    --teal:   #00B5A4;
-    --teal-d: #008F81;
-    --bg:     #F2F5F8;
-    --card:   #FFFFFF;
-    --border: #E2E8EF;
-    --text:   #1C2B3A;
-    --muted:  #64748B;
+    --teal:   #C9A84C;
+    --teal-d: #A8883A;
+    --bg:     #0F1923;
+    --card:   #162230;
+    --border: #243447;
+    --text:   #E2E8F0;
+    --muted:  #7A93A8;
   }
   * { box-sizing: border-box; }
   body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; }
 
-  .badge-active  { background:#D1FAF5; color:#007A6D; }
-  .badge-due     { background:#FEF9C3; color:#854D0E; }
-  .badge-lapsing { background:#FFEDD5; color:#9A3412; }
-  .badge-lapsed  { background:#FEE2E2; color:#991B1B; }
+  .badge-active  { background:rgba(74,222,128,0.12); color:#4ADE80; }
+  .badge-due     { background:rgba(251,191,36,0.12); color:#FBBF24; }
+  .badge-lapsing { background:rgba(251,146,60,0.12); color:#FB923C; }
+  .badge-lapsed  { background:rgba(248,113,113,0.12); color:#F87171; }
 
   table { border-collapse:collapse; width:100%; }
-  thead th { position:sticky; top:0; z-index:10; background:#F8FAFC;
+  thead th { position:sticky; top:0; z-index:10; background:var(--card);
              border-bottom:2px solid var(--border);
              cursor:pointer; user-select:none; white-space:nowrap; color:var(--muted); font-weight:600; }
-  thead th:hover { background:#EEF2F7; }
+  thead th:hover { background:var(--navy); }
   tbody tr { border-bottom:1px solid var(--border); }
-  tbody tr:hover td { background:#F0FAF9; }
+  tbody tr:hover td { background:rgba(201,168,76,0.06); }
 
-  .score-bar  { width:56px; height:5px; background:#E2E8EF; border-radius:3px; overflow:hidden; display:inline-block; vertical-align:middle; }
-  .score-fill { height:100%; border-radius:3px; background:linear-gradient(90deg, var(--teal), #00D4C2); }
+  .score-bar  { width:56px; height:5px; background:var(--border); border-radius:3px; overflow:hidden; display:inline-block; vertical-align:middle; }
+  .score-fill { height:100%; border-radius:3px; background:linear-gradient(90deg, var(--teal), #F0C060); }
 
   .tip-wrap { position:relative; display:inline-block; }
   .tip-box  { display:none; position:absolute; bottom:calc(100% + 8px); left:50%;
-              transform:translateX(-50%); background:var(--navy); color:#E2E8F0;
+              transform:translateX(-50%); background:#0A1520; color:#E2E8F0;
               padding:10px 14px; border-radius:10px; white-space:nowrap; z-index:200;
-              font-size:12px; box-shadow:0 8px 30px rgba(0,0,0,0.2); }
+              font-size:12px; box-shadow:0 8px 30px rgba(0,0,0,0.5); border:1px solid var(--border); }
   .tip-box::after { content:''; position:absolute; top:100%; left:50%; transform:translateX(-50%);
-                    border:6px solid transparent; border-top-color:var(--navy); }
+                    border:6px solid transparent; border-top-color:#0A1520; }
   .tip-wrap:hover .tip-box { display:block; }
-  /* Tooltip pointing downward — use inside sticky headers where upward is clipped */
   .tip-box-down { bottom:auto; top:calc(100% + 6px); }
-  .tip-box-down::after { top:auto; bottom:100%; border-top-color:transparent; border-bottom-color:var(--navy); }
+  .tip-box-down::after { top:auto; bottom:100%; border-top-color:transparent; border-bottom-color:#0A1520; }
 
-  input, select { background:#fff; border:1px solid var(--border); color:var(--text);
+  input, select { background:var(--card); border:1px solid var(--border); color:var(--text);
                   border-radius:8px; padding:7px 12px; font-size:14px; font-family:inherit; }
   input:focus, select:focus { outline:2px solid var(--teal); outline-offset:0; border-color:var(--teal); }
-  input::placeholder { color:#94A3B8; }
+  input::placeholder { color:var(--muted); }
 
   ::-webkit-scrollbar { width:6px; height:6px; }
-  ::-webkit-scrollbar-track { background:#F2F5F8; }
-  ::-webkit-scrollbar-thumb { background:#CBD5E1; border-radius:3px; }
+  ::-webkit-scrollbar-track { background:var(--bg); }
+  ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
 
   .sort-asc::after  { content:" ▲"; font-size:9px; color:var(--teal); }
   .sort-desc::after { content:" ▼"; font-size:9px; color:var(--teal); }
 
-  /* AI thinking loader */
   @keyframes ai-pulse { 0%,100%{opacity:.35;transform:scale(.92)} 50%{opacity:1;transform:scale(1)} }
   @keyframes ai-fade  { 0%{opacity:0;transform:translateY(6px)} 100%{opacity:1;transform:translateY(0)} }
   @keyframes dot-bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-6px)} }
@@ -72,50 +70,46 @@
   .ai-dot:nth-child(2){ animation-delay:.15s; }
   .ai-dot:nth-child(3){ animation-delay:.30s; }
 
-  .btn-teal { background:var(--teal); color:#fff; border:none; border-radius:8px;
-              padding:8px 18px; font-size:14px; font-weight:600; cursor:pointer; transition:background 0.15s; }
+  .btn-teal { background:var(--teal); color:#0F1923; border:none; border-radius:8px;
+              padding:8px 18px; font-size:14px; font-weight:700; cursor:pointer; transition:background 0.15s; }
   .btn-teal:hover { background:var(--teal-d); }
-  .btn-teal:disabled { opacity:0.6; cursor:not-allowed; }
+  .btn-teal:disabled { opacity:0.5; cursor:not-allowed; }
 
-  /* Nav tabs */
   .nav-tab { padding:12px 20px; font-size:14px; font-weight:600; cursor:pointer;
              border:none; background:transparent; color:var(--muted); border-bottom:3px solid transparent;
              transition:all 0.15s; white-space:nowrap; }
-  .nav-tab:hover { color:var(--navy); }
+  .nav-tab:hover { color:var(--text); }
   .nav-tab.active { color:var(--teal); border-bottom-color:var(--teal); }
 
-  /* Query page */
-  .query-chip { background:#EEF9F8; color:var(--teal-d); border:1px solid #C8EEEB;
+  .query-chip { background:rgba(201,168,76,0.10); color:var(--teal); border:1px solid rgba(201,168,76,0.25);
                 border-radius:20px; padding:5px 14px; font-size:12px; font-weight:500;
                 cursor:pointer; transition:all 0.15s; white-space:nowrap; }
-  .query-chip:hover { background:var(--teal); color:#fff; border-color:var(--teal); }
+  .query-chip:hover { background:var(--teal); color:#0F1923; border-color:var(--teal); }
 
-  /* Data Analysis page */
   .fmt-btn { padding:8px 18px; font-size:13px; font-weight:600; border:none; cursor:pointer;
-             background:#F1F5F9; color:var(--muted); transition:all 0.15s; font-family:inherit; }
+             background:var(--card); color:var(--muted); transition:all 0.15s; font-family:inherit; }
   .fmt-btn:first-child { border-radius:10px 0 0 10px; }
   .fmt-btn:last-child  { border-radius:0 10px 10px 0; }
-  .fmt-btn:hover  { background:#E2E8EF; }
-  .fmt-btn.active { background:var(--teal); color:#fff; }
-  .eg-chip { background:#F1F5F9; color:var(--navy); border:1px solid var(--border);
+  .fmt-btn:hover  { background:var(--navy); color:var(--text); }
+  .fmt-btn.active { background:var(--teal); color:#0F1923; }
+  .eg-chip { background:var(--card); color:var(--text); border:1px solid var(--border);
              border-radius:20px; padding:5px 14px; font-size:12px; cursor:pointer;
              font-family:inherit; transition:all 0.15s; }
-  .eg-chip:hover { background:var(--teal); color:#fff; border-color:var(--teal); }
+  .eg-chip:hover { background:var(--teal); color:#0F1923; border-color:var(--teal); }
 
-  .btn-copy { background:#F1F5F9; color:var(--muted); border:1px solid var(--border);
+  .btn-copy { background:var(--card); color:var(--muted); border:1px solid var(--border);
               border-radius:6px; padding:4px 10px; font-size:12px; cursor:pointer; transition:all 0.15s; white-space:nowrap; }
-  .btn-copy:hover { background:var(--teal); color:#fff; border-color:var(--teal); }
-  .btn-copy.copied { background:#10B981; color:#fff; border-color:#10B981; }
+  .btn-copy:hover { background:var(--teal); color:#0F1923; border-color:var(--teal); }
+  .btn-copy.copied { background:#10B981; color:#0F1923; border-color:#10B981; }
 
-  .stat-card { background:#fff; border-radius:16px; padding:20px 24px;
-               box-shadow:0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04); border:1px solid var(--border); }
+  .stat-card { background:var(--card); border-radius:16px; padding:20px 24px;
+               box-shadow:0 2px 12px rgba(0,0,0,0.3); border:1px solid var(--border); }
 
-  .lookup-card { background:#fff; border:1px solid var(--border); border-radius:16px; padding:24px;
-                 margin-bottom:16px; box-shadow:0 1px 4px rgba(0,0,0,0.06); }
-  .mini-stat { background:#F8FAFC; border:1px solid var(--border); border-radius:10px; padding:12px; }
+  .lookup-card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:24px;
+                 margin-bottom:16px; box-shadow:0 2px 12px rgba(0,0,0,0.3); }
+  .mini-stat { background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:12px; }
 
-  /* Loading */
-  #loadingOverlay { position:fixed; inset:0; background:rgba(242,245,248,0.95); display:flex; flex-direction:column;
+  #loadingOverlay { position:fixed; inset:0; background:rgba(10,18,26,0.97); display:flex; flex-direction:column;
                     align-items:center; justify-content:center; z-index:100; }
   .spinner { width:48px; height:48px; border:4px solid var(--border); border-top-color:var(--teal);
              border-radius:50%; animation:spin 0.8s linear infinite; }
@@ -128,18 +122,18 @@
 
 <!-- Tenant selector (shown first) -->
 <div id="tenantSelector" style="position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:110;">
-  <img src="https://www.saloniq.com/img/logo.svg" alt="SalonIQ" class="h-10 mb-8">
-  <div class="text-2xl font-bold mb-1" style="color:var(--navy)">Client Dashboard</div>
-  <div class="text-sm mb-6" style="color:var(--muted)">Select a server and tenant to load client data</div>
+  <img src="https://www.saloniq.com/img/logo.svg" alt="SalonIQ" class="h-10 mb-6" style="filter:brightness(0) invert(1);opacity:0.7">
+  <div class="text-3xl font-extrabold mb-1" style="color:var(--text);letter-spacing:-0.02em">SalonIQ <span style="color:var(--teal)">Aria</span></div>
+  <div class="text-sm mb-7" style="color:var(--muted)">Select a server and tenant to load your data</div>
 
   <!-- Server toggle -->
   <div class="flex rounded-xl overflow-hidden border mb-6" style="border-color:var(--border);width:260px">
     <button id="btnBeta" onclick="setServer('BETA')"
-      style="flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;background:var(--navy);color:#fff;transition:all 0.15s">
+      style="flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;background:var(--navy);color:var(--text);transition:all 0.15s">
       BETA
     </button>
     <button id="btnLive" onclick="setServer('LIVE')"
-      style="flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;background:#fff;color:var(--muted);transition:all 0.15s">
+      style="flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;background:var(--bg);color:var(--muted);transition:all 0.15s">
       LIVE
     </button>
   </div>
@@ -154,10 +148,10 @@
 </div>
 
 <!-- Loading overlay (shown during data fetch) -->
-<div id="loadingOverlay" style="position:fixed;inset:0;background:rgba(242,245,248,0.95);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:100;">
-  <div id="loadingCard" style="background:#fff;border-radius:16px;padding:32px 40px;min-width:360px;max-width:440px;box-shadow:0 4px 32px rgba(0,0,0,0.12);border:1px solid var(--border)">
-    <div style="font-size:1rem;font-weight:700;color:var(--navy);margin-bottom:2px">Loading salon data</div>
-    <div id="loadingSalonName" style="font-size:0.82rem;color:var(--muted);margin-bottom:22px"></div>
+<div id="loadingOverlay" style="position:fixed;inset:0;background:rgba(10,18,26,0.97);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:100;">
+  <div id="loadingCard" style="background:var(--card);border-radius:16px;padding:32px 40px;min-width:360px;max-width:440px;box-shadow:0 4px 40px rgba(0,0,0,0.5);border:1px solid var(--border)">
+    <div style="font-size:1rem;font-weight:700;color:var(--text);margin-bottom:2px">Loading salon data</div>
+    <div id="loadingSalonName" style="font-size:0.82rem;color:var(--teal);margin-bottom:22px"></div>
     <div id="loadingStepsList"></div>
     <div id="loadingTimer" style="color:var(--muted);font-size:0.78rem;margin-top:18px;text-align:center">Starting…</div>
   </div>
@@ -167,25 +161,25 @@
 <div id="mainContent" style="display:none">
 
 <!-- Header -->
-<header style="background:var(--navy);" class="px-6 py-4 flex items-center justify-between shadow-lg">
+<header style="background:#0F1923;border-bottom:1px solid var(--border);" class="px-6 py-4 flex items-center justify-between">
   <div class="flex items-center gap-4">
-    <img src="https://www.saloniq.com/img/logo.svg" alt="SalonIQ" class="h-8">
-    <div class="w-px h-8 bg-white/20"></div>
+    <img src="https://www.saloniq.com/img/logo.svg" alt="SalonIQ" class="h-7" style="filter:brightness(0) invert(1);opacity:0.5">
+    <div class="w-px h-7" style="background:var(--border)"></div>
     <div>
-      <div class="text-white font-semibold text-base leading-tight">Client Dashboard</div>
-      <div class="text-white/50 text-xs">
-        <span id="serverBadge" style="font-size:10px;font-weight:800;padding:1px 6px;border-radius:4px;margin-right:6px;background:#374151;color:#fff;letter-spacing:0.05em">BETA</span><span id="selectedSalonLabel"></span> · Top 500 clients · Generated <span id="generatedTs"></span>
+      <div class="font-bold text-base leading-tight" style="color:var(--text);letter-spacing:-0.01em">SalonIQ <span style="color:var(--teal)">Aria</span></div>
+      <div class="text-xs" style="color:var(--muted)">
+        <span id="serverBadge" style="font-size:10px;font-weight:800;padding:1px 6px;border-radius:4px;margin-right:6px;background:var(--navy);color:var(--text);letter-spacing:0.05em">BETA</span><span id="selectedSalonLabel"></span> · Generated <span id="generatedTs"></span>
       </div>
     </div>
   </div>
   <div class="flex items-center gap-3">
-    <button onclick="changeSalon()" class="text-white/70 text-sm hover:text-white transition-colors">⇄ Change Tenant</button>
-    <button onclick="refreshData()" id="refreshBtn" class="btn-teal text-sm">↻ Refresh Data</button>
+    <button onclick="changeSalon()" class="text-sm transition-colors" style="color:var(--muted)" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">⇄ Change Tenant</button>
+    <button onclick="refreshData()" id="refreshBtn" class="btn-teal text-sm">↻ Refresh</button>
   </div>
 </header>
 
 <!-- Nav tabs -->
-<div style="background:#fff;border-bottom:1px solid var(--border);" class="px-6 flex gap-1">
+<div style="background:#0F1923;border-bottom:1px solid var(--border);" class="px-6 flex gap-1">
   <button class="nav-tab" id="tabDashboard" onclick="switchPage('dashboard')" style="display:none">Client Dashboard</button>
   <button class="nav-tab" id="tabSelections" onclick="switchPage('selections')" style="display:none">Client Selections</button>
   <button class="nav-tab active" id="tabAnalysis" onclick="switchPage('analysis')">Data Analysis</button>
@@ -438,13 +432,13 @@
 
   <div class="flex items-start justify-between gap-4 mb-6">
     <div>
-      <h2 class="text-2xl font-bold mb-1" style="color:var(--navy)">Data Analysis</h2>
+      <h2 class="text-2xl font-bold mb-1" style="color:var(--text)">Data Analysis</h2>
       <p class="text-sm" style="color:var(--muted)">Ask the AI anything about your salon data. Choose how you want the answer presented.</p>
     </div>
     <!-- Session usage strip -->
     <div id="usageBar" style="display:none;flex-shrink:0;text-align:right">
       <div class="text-xs font-semibold mb-0.5" style="color:var(--muted)">Session usage</div>
-      <div id="usageDetails" class="text-xs" style="color:var(--navy)"></div>
+      <div id="usageDetails" class="text-xs" style="color:var(--text)"></div>
       <div id="usageCost" class="text-xs font-semibold mt-0.5" style="color:var(--teal)"></div>
     </div>
   </div>
@@ -472,12 +466,12 @@
   </div>
 
   <!-- Question input -->
-  <div class="rounded-2xl border p-6 mb-6" style="background:#fff;border-color:var(--border);box-shadow:0 1px 4px rgba(0,0,0,0.06)">
-    <label class="block text-sm font-semibold mb-2" style="color:var(--navy)">Your question</label>
+  <div class="rounded-2xl border p-6 mb-6" style="background:var(--card);border-color:var(--border);box-shadow:0 2px 12px rgba(0,0,0,0.3)">
+    <label class="block text-sm font-semibold mb-2" style="color:var(--text)">Your question</label>
     <div class="flex gap-3">
       <textarea id="analysisInput" placeholder="Ask anything about your salon data…"
                 class="flex-1 rounded-xl p-3 text-sm resize-none"
-                style="height:80px;border:1px solid var(--border);font-family:inherit;color:var(--text);outline:none;transition:border-color 0.15s"
+                style="height:80px;border:1px solid var(--border);background:var(--bg);font-family:inherit;color:var(--text);outline:none;transition:border-color 0.15s"
                 onfocus="this.style.borderColor='var(--teal)'"
                 onblur="this.style.borderColor='var(--border)'"
                 onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey))runAnalysis()"></textarea>
@@ -493,10 +487,10 @@
   <div id="followupResult"></div>
 
   <!-- Follow-up bar — hidden until first result renders, always below results -->
-  <div id="followupBar" style="display:none;margin-top:20px;padding:16px 20px;background:#F8FAFC;border:1px solid var(--border);border-radius:16px;gap:10px;align-items:center">
-    <span style="font-size:18px">💬</span>
+  <div id="followupBar" style="display:none;margin-top:20px;padding:16px 20px;background:var(--card);border:1px solid var(--border);border-radius:16px;gap:10px;align-items:center">
+    <span style="font-size:18px;opacity:0.7">💬</span>
     <input id="followupInput" type="text" placeholder="Ask a follow-up question…"
-           style="flex:1;border-radius:8px;padding:8px 12px;font-size:14px;border:1px solid var(--border)"
+           style="flex:1;border-radius:8px;padding:8px 12px;font-size:14px;border:1px solid var(--border);background:var(--bg)"
            onkeydown="if(event.key==='Enter')submitFollowup()">
     <button id="followupBtn" data-label="Ask →" class="btn-teal" style="height:38px;font-size:13px;padding:0 16px"
             onclick="submitFollowup()">Ask →</button>
@@ -529,20 +523,20 @@ function renderRow(c) {
     : '';
 
   const cats = (c.top_cats || []).map(cat =>
-    `<span class="inline-block text-xs px-2 py-0.5 rounded-md mr-1 mb-0.5 whitespace-nowrap font-medium" style="background:#EEF9F8;color:var(--teal-d);border:1px solid #C8EEEB">${escHtml(cat)}</span>`
+    `<span class="inline-block text-xs px-2 py-0.5 rounded-md mr-1 mb-0.5 whitespace-nowrap font-medium" style="background:rgba(201,168,76,0.1);color:var(--teal);border:1px solid rgba(201,168,76,0.25)">${escHtml(cat)}</span>`
   ).join('');
 
   return `
   <tr data-status="${c.scls}" data-stylist="${escHtml(c.pref_tm)}" data-day="${c.pref_day}" data-name="${escHtml(c.name.toLowerCase())}" data-smsout="${c.sms_optout ? '1' : '0'}" data-emailout="${c.email_optout ? '1' : '0'}" data-salonspy="${c.salonspy_optin ? '1' : '0'}">
     <td class="py-3 px-3 font-mono text-xs" style="color:var(--muted)">${c.rank}</td>
     <td class="py-3 px-3">
-      <span class="font-semibold" style="color:var(--navy)">${escHtml(c.name)}</span>
+      <span class="font-semibold" style="color:var(--text)">${escHtml(c.name)}</span>
       ${noShowBadge}
     </td>
     <td class="py-3 px-3">
       <div class="tip-wrap">
         <div class="flex items-center gap-2">
-          <span class="font-bold w-10" style="color:var(--navy)">${c.score}</span>
+          <span class="font-bold w-10" style="color:var(--text)">${c.score}</span>
           <div class="score-bar"><div class="score-fill" style="width:${c.score_pct}%"></div></div>
         </div>
         <div class="tip-box">
@@ -572,7 +566,7 @@ function renderRow(c) {
     <td class="py-3 px-3 text-sm" style="color:var(--text)">${escHtml(c.pref_salon || '—')}</td>
     <td class="py-3 px-3 text-sm" style="color:var(--text)">${escHtml(c.pref_tm)}</td>
     <td class="py-3 px-3">
-      <div class="text-sm font-medium" style="color:var(--navy)">${c.pref_day}</div>
+      <div class="text-sm font-medium" style="color:var(--text)">${c.pref_day}</div>
       <div class="text-xs" style="color:var(--muted)">${c.pref_time}</div>
     </td>
     <td class="py-3 px-3">${cats}</td>
@@ -682,13 +676,13 @@ const _thinkingMessages = [
 function _buildLoader() {
   return `
   <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 24px;text-align:center">
-    <div class="ai-orb" style="font-size:52px;margin-bottom:20px">🧠</div>
+    <div class="ai-orb" style="font-size:52px;margin-bottom:20px">✦</div>
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:20px">
       <div style="width:8px;height:8px;border-radius:50%;background:var(--teal)" class="ai-dot"></div>
       <div style="width:8px;height:8px;border-radius:50%;background:var(--teal)" class="ai-dot"></div>
       <div style="width:8px;height:8px;border-radius:50%;background:var(--teal)" class="ai-dot"></div>
     </div>
-    <div id="aiThinkMsg" class="ai-msg" style="font-size:15px;font-weight:600;color:var(--navy);margin-bottom:8px;min-height:24px">
+    <div id="aiThinkMsg" class="ai-msg" style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:8px;min-height:24px">
       Reading through your client records…
     </div>
     <div id="analyseStep" style="font-size:12px;color:var(--muted)">Starting…</div>
@@ -729,9 +723,9 @@ async function _submitAnalysis(question, previousResult, resultBox, triggerBtn) 
 
   function showError(msg) {
     done();
-    resultBox.innerHTML = `<div class="rounded-2xl p-6" style="background:#FFF1F2;border:1px solid #FECDD3">
-      <div class="font-bold text-red-600 mb-1">Error</div>
-      <div class="text-sm text-red-500">${escHtml(msg)}</div>
+    resultBox.innerHTML = `<div class="rounded-2xl p-6" style="background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.25)">
+      <div class="font-bold mb-1" style="color:#F87171">Error</div>
+      <div class="text-sm" style="color:#FCA5A5">${escHtml(msg)}</div>
     </div>`;
   }
 
@@ -776,7 +770,7 @@ async function _submitAnalysis(question, previousResult, resultBox, triggerBtn) 
 function renderAnalysis(data, box) {
   if (!box) box = document.getElementById('analysisResults');
   let html  = `<div class="mb-5">
-    <h3 class="text-xl font-bold mb-1" style="color:var(--navy)">${escHtml(data.title || '')}</h3>
+    <h3 class="text-xl font-bold mb-1" style="color:var(--text)">${escHtml(data.title || '')}</h3>
     ${data.summary ? `<p class="text-sm" style="color:var(--muted)">${escHtml(data.summary)}</p>` : ''}
   </div>`;
 
@@ -785,8 +779,8 @@ function renderAnalysis(data, box) {
     const chartIds = (data.charts || []).map(() => ++_chartSeq);
     chartIds.forEach((uid, idx) => {
       const chart = data.charts[idx];
-      html += `<div class="rounded-2xl border mb-4" style="border-color:var(--border);background:#fff;padding:24px">
-        ${chart.title ? `<h4 class="font-bold text-base mb-4" style="color:var(--navy)">${escHtml(chart.title)}</h4>` : ''}
+      html += `<div class="rounded-2xl border mb-4" style="border-color:var(--border);background:var(--card);padding:24px">
+        ${chart.title ? `<h4 class="font-bold text-base mb-4" style="color:var(--text)">${escHtml(chart.title)}</h4>` : ''}
         <div style="position:relative;${chart.type==='pie'||chart.type==='doughnut'?'max-width:420px;margin:0 auto':''}">
           <canvas id="chart-canvas-${uid}"></canvas>
         </div>
@@ -806,15 +800,15 @@ function renderAnalysis(data, box) {
           const tIcon  = k.trend === 'up' ? '↑' : k.trend === 'down' ? '↓' : '→';
           html += `<div class="stat-card">
             <div class="text-xs font-semibold uppercase tracking-widest mb-2" style="color:var(--muted)">${escHtml(k.label)}</div>
-            <div class="text-3xl font-extrabold mb-1" style="color:var(--navy)">${escHtml(k.value)}</div>
+            <div class="text-3xl font-extrabold mb-1" style="color:var(--text)">${escHtml(k.value)}</div>
             ${k.detail ? `<div class="text-xs" style="color:${tColor}">${tIcon} ${escHtml(k.detail)}</div>` : ''}
           </div>`;
         });
         html += '</div>';
       }
       (data.sections || []).forEach(sec => {
-        html += `<div class="rounded-2xl border p-6 mb-4" style="border-color:var(--border);background:#fff">`;
-        if (sec.title)   html += `<h4 class="font-bold text-base mb-3" style="color:var(--navy)">${escHtml(sec.title)}</h4>`;
+        html += `<div class="rounded-2xl border p-6 mb-4" style="border-color:var(--border);background:var(--card)">`;
+        if (sec.title)   html += `<h4 class="font-bold text-base mb-3" style="color:var(--text)">${escHtml(sec.title)}</h4>`;
         if (sec.insight) html += `<p class="text-sm mb-3" style="color:var(--muted)">${escHtml(sec.insight)}</p>`;
         (sec.items || []).forEach(item => {
           if (typeof item === 'string') {
@@ -822,7 +816,7 @@ function renderAnalysis(data, box) {
           } else {
             html += `<div class="flex justify-between items-center py-2 border-b text-sm" style="border-color:var(--border)">
               <span style="color:var(--text)">${escHtml(item.label)}</span>
-              <span class="font-bold" style="color:var(--navy)">${escHtml(item.value)}</span>
+              <span class="font-bold" style="color:var(--text)">${escHtml(item.value)}</span>
             </div>`;
           }
         });
@@ -831,14 +825,14 @@ function renderAnalysis(data, box) {
 
     } else if (data.format === 'list') {
       if (data.columns && data.rows) {
-        html += '<div class="rounded-2xl border overflow-hidden mb-4" style="border-color:var(--border);background:#fff"><div class="overflow-x-auto"><table style="width:100%;border-collapse:collapse">';
-        html += '<thead><tr class="text-xs uppercase tracking-wider" style="background:#F8FAFC">';
+        html += '<div class="rounded-2xl border overflow-hidden mb-4" style="border-color:var(--border);background:var(--card)"><div class="overflow-x-auto"><table style="width:100%;border-collapse:collapse">';
+        html += '<thead><tr class="text-xs uppercase tracking-wider" style="background:var(--navy)">';
         data.columns.forEach(col => {
           html += `<th class="text-left py-3 px-4 font-semibold" style="color:var(--muted);border-bottom:2px solid var(--border)">${escHtml(col)}</th>`;
         });
         html += '</tr></thead><tbody>';
         data.rows.forEach((row, i) => {
-          html += `<tr style="${i % 2 ? 'background:#F8FAFC' : ''}">`;
+          html += `<tr style="${i % 2 ? 'background:rgba(201,168,76,0.04)' : ''}">`;
           row.forEach(cell => {
             html += `<td class="py-3 px-4 text-sm" style="color:var(--text);border-bottom:1px solid var(--border)">${escHtml(String(cell))}</td>`;
           });
@@ -848,14 +842,14 @@ function renderAnalysis(data, box) {
       }
 
     } else if (data.format === 'report') {
-      html += '<div class="rounded-2xl border p-8 mb-4" style="border-color:var(--border);background:#fff;max-width:820px">';
+      html += '<div class="rounded-2xl border p-8 mb-4" style="border-color:var(--border);background:var(--card);max-width:820px">';
       (data.sections || []).forEach(sec => {
-        if (sec.heading) html += `<h4 class="font-bold text-lg mb-3 mt-6" style="color:var(--navy)">${escHtml(sec.heading)}</h4>`;
+        if (sec.heading) html += `<h4 class="font-bold text-lg mb-3 mt-6" style="color:var(--text)">${escHtml(sec.heading)}</h4>`;
         if (sec.body)    html += `<p class="text-sm mb-4" style="color:var(--text);line-height:1.85">${escHtml(sec.body)}</p>`;
       });
       if (data.conclusion) {
-        html += `<div class="mt-6 p-4 rounded-xl" style="background:#F0FBF9;border:1px solid #C8EEEB">
-          <div class="font-bold mb-2" style="color:var(--teal-d)">Conclusion</div>
+        html += `<div class="mt-6 p-4 rounded-xl" style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.25)">
+          <div class="font-bold mb-2" style="color:var(--teal)">Conclusion</div>
           <p class="text-sm" style="color:var(--text);line-height:1.75">${escHtml(data.conclusion)}</p>
         </div>`;
       }
@@ -878,9 +872,9 @@ function renderAnalysis(data, box) {
 let _chartSeq = 0;   // ever-increasing counter — guarantees unique canvas IDs across all renders
 
 const _chartPalette = [
-  '#00B5A4','#1C2B3A','#F59E0B','#8B5CF6','#EF4444',
-  '#10B981','#3B82F6','#F97316','#EC4899','#6B7280',
-  '#06B6D4','#84CC16','#A855F7','#F43F5E','#14B8A6',
+  '#C9A84C','#4A9EBF','#F59E0B','#8B5CF6','#EF4444',
+  '#10B981','#60A5FA','#F97316','#EC4899','#7A93A8',
+  '#06B6D4','#84CC16','#A855F7','#F43F5E','#E0C070',
 ];
 
 function _drawChart(chart, uid) {
@@ -922,7 +916,7 @@ function _drawChart(chart, uid) {
         legend: {
           display:  isPie || datasets.length > 1,
           position: isPie ? 'right' : 'top',
-          labels:   { font: { family: 'Inter, sans-serif', size: 12 }, color: '#1C2B3A' },
+          labels:   { font: { family: 'Inter, sans-serif', size: 12 }, color: '#E2E8F0' },
         },
         tooltip: {
           callbacks: {
@@ -937,8 +931,8 @@ function _drawChart(chart, uid) {
         },
       },
       scales: isPie ? {} : {
-        x: { grid: { display: isHoriz }, ticks: { font: { family: 'Inter' }, color: '#64748B' } },
-        y: { beginAtZero: true, grid: { color: '#E2E8EF' }, ticks: { font: { family: 'Inter' }, color: '#64748B' } },
+        x: { grid: { display: isHoriz, color: '#243447' }, ticks: { font: { family: 'Inter' }, color: '#7A93A8' } },
+        y: { beginAtZero: true, grid: { color: '#243447' }, ticks: { font: { family: 'Inter' }, color: '#7A93A8' } },
       },
     },
   });
@@ -979,7 +973,7 @@ async function runQuery() {
     if (data.error) throw new Error(data.error);
     _selectionResults = data.clients;
     document.getElementById('queryStatus').innerHTML =
-      `<strong style="color:var(--navy)">${data.total.toLocaleString()} client${data.total !== 1 ? 's' : ''}</strong> matched &nbsp;·&nbsp; <em style="color:var(--muted)">${escHtml(data.description)}</em>`;
+      `<strong style="color:var(--text)">${data.total.toLocaleString()} client${data.total !== 1 ? 's' : ''}</strong> matched &nbsp;·&nbsp; <em style="color:var(--muted)">${escHtml(data.description)}</em>`;
     renderSelectionResults(_selectionResults);
     if (_selectionResults.length) {
       document.getElementById('queryActions').style.display = 'flex';
@@ -1002,10 +996,10 @@ function renderSelectionResults(clients) {
   }
   const rows = clients.map(c => {
     const cats = (c.top_cats || []).map(cat =>
-      `<span class="inline-block text-xs px-2 py-0.5 rounded-md mr-0.5 font-medium" style="background:#EEF9F8;color:var(--teal-d);border:1px solid #C8EEEB">${escHtml(cat)}</span>`
+      `<span class="inline-block text-xs px-2 py-0.5 rounded-md mr-0.5 font-medium" style="background:rgba(201,168,76,0.1);color:var(--teal);border:1px solid rgba(201,168,76,0.25)">${escHtml(cat)}</span>`
     ).join('');
     return `<tr data-name="${escHtml(c.name.toLowerCase())}">
-      <td class="py-3 px-3 font-semibold" style="color:var(--navy)">${escHtml(c.name)}</td>
+      <td class="py-3 px-3 font-semibold" style="color:var(--text)">${escHtml(c.name)}</td>
       <td class="py-3 px-3"><span class="px-2 py-0.5 rounded-full text-xs font-semibold badge-${c.scls}">${c.status}</span></td>
       <td class="py-3 px-3 text-sm" style="color:var(--muted)">${escHtml(c.last_visit)}</td>
       <td class="py-3 px-3 text-sm" style="color:var(--muted)">${c.days_since}d</td>
@@ -1022,24 +1016,24 @@ function renderSelectionResults(clients) {
   }).join('');
 
   box.innerHTML = `
-    <div class="rounded-2xl border overflow-hidden shadow-sm" style="border-color:var(--border);background:#fff">
+    <div class="rounded-2xl border overflow-hidden shadow-sm" style="border-color:var(--border);background:var(--card)">
     <div class="overflow-x-auto">
     <table>
       <thead>
         <tr class="text-xs uppercase tracking-wider">
-          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Client</th>
-          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600"><span class="tip-wrap">Status<span class="tip-box tip-box-down" style="white-space:normal;width:220px;text-align:left;line-height:1.6"><b>Active</b> — visited within 60 days<br><b>Due Soon</b> — 60–120 days ago<br><b>Lapsing</b> — 120–365 days ago<br><b>Lapsed</b> — over 365 days ago<br><b>No Visit (2yrs)</b> — no visit in last 2 years</span></span></th>
-          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Last Visit</th>
-          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Days Since</th>
-          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Visits</th>
-          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Avg Spend</th>
-          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Stylist</th>
-          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Stylists Seen</th>
-          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Services</th>
-          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Mobile</th>
-          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">SMS Opt-out</th>
-          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Email Opt-out</th>
-          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Salon Spy Opt-out</th>
+          <th class="text-left py-3 px-3" style="background:var(--navy);border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Client</th>
+          <th class="text-left py-3 px-3" style="background:var(--navy);border-bottom:2px solid var(--border);color:var(--muted);font-weight:600"><span class="tip-wrap">Status<span class="tip-box tip-box-down" style="white-space:normal;width:220px;text-align:left;line-height:1.6"><b>Active</b> — visited within 60 days<br><b>Due Soon</b> — 60–120 days ago<br><b>Lapsing</b> — 120–365 days ago<br><b>Lapsed</b> — over 365 days ago<br><b>No Visit (2yrs)</b> — no visit in last 2 years</span></span></th>
+          <th class="text-left py-3 px-3" style="background:var(--navy);border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Last Visit</th>
+          <th class="text-left py-3 px-3" style="background:var(--navy);border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Days Since</th>
+          <th class="text-left py-3 px-3" style="background:var(--navy);border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Visits</th>
+          <th class="text-left py-3 px-3" style="background:var(--navy);border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Avg Spend</th>
+          <th class="text-left py-3 px-3" style="background:var(--navy);border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Stylist</th>
+          <th class="text-left py-3 px-3" style="background:var(--navy);border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Stylists Seen</th>
+          <th class="text-left py-3 px-3" style="background:var(--navy);border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Services</th>
+          <th class="text-left py-3 px-3" style="background:var(--navy);border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Mobile</th>
+          <th class="text-left py-3 px-3" style="background:var(--navy);border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">SMS Opt-out</th>
+          <th class="text-left py-3 px-3" style="background:var(--navy);border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Email Opt-out</th>
+          <th class="text-left py-3 px-3" style="background:var(--navy);border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Salon Spy Opt-out</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
@@ -1072,9 +1066,9 @@ function setServer(s) {
   selectedServer = s;
   const isLive = s === 'LIVE';
   document.getElementById('btnBeta').style.cssText =
-    `flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;transition:all 0.15s;background:${isLive ? '#fff' : 'var(--navy)'};color:${isLive ? 'var(--muted)' : '#fff'}`;
+    `flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;transition:all 0.15s;background:${isLive ? 'var(--bg)' : 'var(--navy)'};color:${isLive ? 'var(--muted)' : 'var(--text)'}`;
   document.getElementById('btnLive').style.cssText =
-    `flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;transition:all 0.15s;background:${isLive ? '#059669' : '#fff'};color:${isLive ? '#fff' : 'var(--muted)'}`;
+    `flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;transition:all 0.15s;background:${isLive ? '#059669' : 'var(--bg)'};color:${isLive ? 'var(--text)' : 'var(--muted)'}`;
   initTenants();
 }
 
@@ -1138,14 +1132,14 @@ function renderLoadingSteps(activeIdx) {
   list.innerHTML = LOAD_STEPS.map((s, i) => {
     let icon, labelStyle;
     if (i < activeIdx) {
-      icon = `<svg width="20" height="20" viewBox="0 0 20 20" style="flex-shrink:0"><circle cx="10" cy="10" r="10" fill="#00B5A4"/><path d="M6 10.5l2.5 2.5 5-5" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
-      labelStyle = 'color:#94A3B8';
+      icon = `<svg width="20" height="20" viewBox="0 0 20 20" style="flex-shrink:0"><circle cx="10" cy="10" r="10" fill="#C9A84C"/><path d="M6 10.5l2.5 2.5 5-5" stroke="#0F1923" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
+      labelStyle = 'color:var(--muted)';
     } else if (i === activeIdx) {
       icon = `<div class="step-spinner"></div>`;
-      labelStyle = 'color:var(--navy);font-weight:600';
+      labelStyle = 'color:var(--text);font-weight:600';
     } else {
-      icon = `<svg width="20" height="20" viewBox="0 0 20 20" style="flex-shrink:0"><circle cx="10" cy="10" r="9" stroke="#E2E8EF" stroke-width="2" fill="none"/></svg>`;
-      labelStyle = 'color:#CBD5E1';
+      icon = `<svg width="20" height="20" viewBox="0 0 20 20" style="flex-shrink:0"><circle cx="10" cy="10" r="9" stroke="var(--border)" stroke-width="2" fill="none"/></svg>`;
+      labelStyle = 'color:var(--border)';
     }
     const border = i < LOAD_STEPS.length - 1 ? 'border-bottom:1px solid var(--border)' : '';
     return `<div style="display:flex;align-items:center;gap:12px;padding:9px 0;${border}">
@@ -1243,8 +1237,8 @@ async function fetchData() {
     const card = document.getElementById('loadingCard');
     if (card) {
       card.innerHTML = `
-        <div style="color:#991B1B;font-weight:700;font-size:1rem;margin-bottom:8px">Failed to load data</div>
-        <div style="color:#64748B;font-size:13px">${escHtml(err.message)}</div>
+        <div style="color:#F87171;font-weight:700;font-size:1rem;margin-bottom:8px">Failed to load data</div>
+        <div style="color:var(--muted);font-size:13px">${escHtml(err.message)}</div>
         <button onclick="document.getElementById('loadingOverlay').style.display='none';document.getElementById('tenantSelector').style.display='flex';" class="btn-teal mt-6">← Back to Salon List</button>`;
     }
   }
@@ -1351,63 +1345,63 @@ async function runLookup() {
   box.innerHTML = data.map(c => {
     const bCls = {active:'badge-active',due:'badge-due',lapsing:'badge-lapsing',lapsed:'badge-lapsed'}[c.scls] || '';
     const rankBadge = c.rank
-      ? `<span style="background:#EEF9F8;color:#007A6D;border:1px solid #C8EEEB" class="text-xs px-2 py-0.5 rounded-full font-bold">#${c.rank} in Top 500</span>`
-      : `<span style="background:#F1F5F9;color:#64748B;border:1px solid #E2E8EF" class="text-xs px-2 py-0.5 rounded-full">Not in Top 500</span>`;
+      ? `<span style="background:rgba(201,168,76,0.12);color:var(--teal);border:1px solid rgba(201,168,76,0.3)" class="text-xs px-2 py-0.5 rounded-full font-bold">#${c.rank} in Top 500</span>`
+      : `<span style="background:var(--card);color:var(--muted);border:1px solid var(--border)" class="text-xs px-2 py-0.5 rounded-full">Not in Top 500</span>`;
     const overdueTxt = c.overdue
       ? `<span class="text-amber-500 font-semibold">${c.overdue}d overdue</span>`
       : `<span style="color:#64748B">Not overdue</span>`;
     const cats = (c.top_cats||[]).map(cat =>
-      `<span style="background:#EEF9F8;color:#007A6D;border:1px solid #C8EEEB" class="text-xs px-2 py-0.5 rounded-md font-medium">${escHtml(cat)}</span>`
+      `<span style="background:rgba(201,168,76,0.1);color:var(--teal);border:1px solid rgba(201,168,76,0.25)" class="text-xs px-2 py-0.5 rounded-md font-medium">${escHtml(cat)}</span>`
     ).join(' ');
     return `
     <div class="lookup-card">
       <div class="flex flex-wrap items-start justify-between gap-3 mb-5">
         <div>
           <div class="flex items-center gap-2 flex-wrap mb-1">
-            <h3 class="text-xl font-bold" style="color:#1C2B3A">${escHtml(c.name)}</h3>
+            <h3 class="text-xl font-bold" style="color:var(--text)">${escHtml(c.name)}</h3>
             ${rankBadge}
             <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold ${bCls}">${c.status}</span>
             ${c.no_shows > 0 ? `<span class="text-red-400 text-xs">⚠ ${c.no_shows} no-show(s)</span>` : ''}
           </div>
-          <div class="text-sm" style="color:#64748B">Last visit: <strong style="color:#1C2B3A">${escHtml(c.last_visit)}</strong> &nbsp;·&nbsp; ${c.days_since} days ago</div>
-          <div class="text-sm mt-1" style="color:#64748B">
+          <div class="text-sm" style="color:var(--muted)">Last visit: <strong style="color:var(--text)">${escHtml(c.last_visit)}</strong> &nbsp;·&nbsp; ${c.days_since} days ago</div>
+          <div class="text-sm mt-1" style="color:var(--muted)">
             ${c.mobile ? `📱 ${escHtml(c.mobile)}` : ''}
             ${c.mobile && c.email ? '&nbsp;·&nbsp;' : ''}
             ${c.email ? `✉ ${escHtml(c.email)}` : ''}
           </div>
         </div>
         <div class="text-right">
-          <div class="text-4xl font-extrabold" style="color:#00B5A4">${c.score}</div>
-          <div class="text-xs font-medium" style="color:#64748B">SMS score</div>
+          <div class="text-4xl font-extrabold" style="color:var(--teal)">${c.score}</div>
+          <div class="text-xs font-medium" style="color:var(--muted)">SMS score</div>
         </div>
       </div>
       <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-        <div class="mini-stat"><div class="text-xs font-semibold mb-1" style="color:#64748B">Visits (2yr)</div><div class="font-bold" style="color:#1C2B3A">${c.n_visits}</div></div>
-        <div class="mini-stat"><div class="text-xs font-semibold mb-1" style="color:#64748B">Avg Spend</div><div class="font-bold" style="color:#1C2B3A">£${c.avg_spend}</div></div>
-        <div class="mini-stat"><div class="text-xs font-semibold mb-1" style="color:#64748B">Total Spend</div><div class="font-bold" style="color:#1C2B3A">£${c.total_spend}</div></div>
-        <div class="mini-stat"><div class="text-xs font-semibold mb-1" style="color:#64748B">Visit Gap</div><div class="font-bold" style="color:#1C2B3A">${c.avg_gap ? c.avg_gap + 'd' : '—'}</div></div>
+        <div class="mini-stat"><div class="text-xs font-semibold mb-1" style="color:var(--muted)">Visits (2yr)</div><div class="font-bold" style="color:var(--text)">${c.n_visits}</div></div>
+        <div class="mini-stat"><div class="text-xs font-semibold mb-1" style="color:var(--muted)">Avg Spend</div><div class="font-bold" style="color:var(--text)">£${c.avg_spend}</div></div>
+        <div class="mini-stat"><div class="text-xs font-semibold mb-1" style="color:var(--muted)">Total Spend</div><div class="font-bold" style="color:var(--text)">£${c.total_spend}</div></div>
+        <div class="mini-stat"><div class="text-xs font-semibold mb-1" style="color:var(--muted)">Visit Gap</div><div class="font-bold" style="color:var(--text)">${c.avg_gap ? c.avg_gap + 'd' : '—'}</div></div>
       </div>
       <div class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4 text-sm">
-        <div><span style="color:#64748B">Salon: </span><span class="font-semibold" style="color:#1C2B3A">${escHtml(c.pref_salon || '—')}</span></div>
-        <div><span style="color:#64748B">Preferred stylist: </span><span class="font-semibold" style="color:#1C2B3A">${escHtml(c.pref_tm)}</span></div>
-        <div><span style="color:#64748B">Best day: </span><span class="font-semibold" style="color:#1C2B3A">${c.pref_day} ${c.pref_time}</span></div>
-        <div><span style="color:#64748B">Overdue: </span>${overdueTxt}</div>
+        <div><span style="color:var(--muted)">Salon: </span><span class="font-semibold" style="color:var(--text)">${escHtml(c.pref_salon || '—')}</span></div>
+        <div><span style="color:var(--muted)">Preferred stylist: </span><span class="font-semibold" style="color:var(--text)">${escHtml(c.pref_tm)}</span></div>
+        <div><span style="color:var(--muted)">Best day: </span><span class="font-semibold" style="color:var(--text)">${c.pref_day} ${c.pref_time}</span></div>
+        <div><span style="color:var(--muted)">Overdue: </span>${overdueTxt}</div>
       </div>
       ${cats ? `<div class="flex flex-wrap gap-1 mb-4">${cats}</div>` : ''}
-      <div class="rounded-xl p-4 mb-4" style="background:#F8FAFC;border:1px solid #E2E8EF">
-        <div class="text-xs font-semibold uppercase tracking-widest mb-2" style="color:#64748B">Suggested SMS</div>
+      <div class="rounded-xl p-4 mb-4" style="background:var(--bg);border:1px solid var(--border)">
+        <div class="text-xs font-semibold uppercase tracking-widest mb-2" style="color:var(--muted)">Suggested SMS</div>
         <div class="flex items-start gap-3">
-          <p class="text-sm leading-relaxed flex-1" style="color:#1C2B3A" id="sms-lookup-${escHtml(c.id)}">${escHtml(c.sms)}</p>
+          <p class="text-sm leading-relaxed flex-1" style="color:var(--text)" id="sms-lookup-${escHtml(c.id)}">${escHtml(c.sms)}</p>
           <button onclick="copyLookupSMS('${escHtml(c.id)}')" class="btn-copy flex-shrink-0">Copy</button>
         </div>
-        <div class="text-xs mt-1" style="color:#94A3B8">${c.sms.length} chars</div>
+        <div class="text-xs mt-1" style="color:var(--muted)">${c.sms.length} chars</div>
       </div>
       <div class="grid grid-cols-5 gap-2 text-xs text-center">
-        <div class="mini-stat"><div style="color:#64748B" class="mb-1">Recency</div><div class="font-bold" style="color:#00B5A4">+${c.sr}</div></div>
-        <div class="mini-stat"><div style="color:#64748B" class="mb-1">Overdue</div><div class="font-bold" style="color:#00B5A4">+${c.so}</div></div>
-        <div class="mini-stat"><div style="color:#64748B" class="mb-1">Frequency</div><div class="font-bold" style="color:#00B5A4">+${c.sf}</div></div>
-        <div class="mini-stat"><div style="color:#64748B" class="mb-1">Spend</div><div class="font-bold" style="color:#00B5A4">+${c.sm}</div></div>
-        <div class="mini-stat"><div style="color:#64748B" class="mb-1">Penalty</div><div class="font-bold ${c.sp < 0 ? 'text-red-400' : ''}">${c.sp}</div></div>
+        <div class="mini-stat"><div style="color:var(--muted)" class="mb-1">Recency</div><div class="font-bold" style="color:var(--teal)">+${c.sr}</div></div>
+        <div class="mini-stat"><div style="color:var(--muted)" class="mb-1">Overdue</div><div class="font-bold" style="color:var(--teal)">+${c.so}</div></div>
+        <div class="mini-stat"><div style="color:var(--muted)" class="mb-1">Frequency</div><div class="font-bold" style="color:var(--teal)">+${c.sf}</div></div>
+        <div class="mini-stat"><div style="color:var(--muted)" class="mb-1">Spend</div><div class="font-bold" style="color:var(--teal)">+${c.sm}</div></div>
+        <div class="mini-stat"><div style="color:var(--muted)" class="mb-1">Penalty</div><div class="font-bold ${c.sp < 0 ? 'text-red-400' : ''}">${c.sp}</div></div>
       </div>
     </div>`;
   }).join('');
