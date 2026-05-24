@@ -739,7 +739,7 @@ async function _submitAnalysis(question, previousResult, resultBox, triggerBtn) 
     const kickRes  = await fetch('/api/analyse', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ question, format: _analysisFmt, previous_result: previousResult }),
+      body:    JSON.stringify({ question, format: _analysisFmt, previous_result: previousResult, tenant_id: selectedTenantId, server: selectedServer }),
     });
     const kickData = await kickRes.json();
     if (kickData.error) { showError(kickData.error); return; }
@@ -1340,7 +1340,9 @@ async function runLookup() {
   const box = document.getElementById('lookupResults');
   if (q.length < 2) { box.innerHTML = ''; return; }
   box.innerHTML = '<p style="color:#64748B" class="text-sm p-2">Searching…</p>';
-  const res  = await fetch('/api/search?q=' + encodeURIComponent(q));
+  const searchParams = new URLSearchParams({ q, server: selectedServer });
+  if (selectedTenantId) searchParams.set('tenant_id', selectedTenantId);
+  const res  = await fetch('/api/search?' + searchParams);
   const data = await res.json();
   if (!data.length) {
     box.innerHTML = `<p style="color:#64748B" class="text-sm p-2">No clients found matching "${escHtml(q)}".</p>`;

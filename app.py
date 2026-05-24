@@ -62,6 +62,13 @@ def _salon_label():
     return (_loaded_salon_name or _loaded_tenant_id or '')[:100]
 
 
+def _get_ctx(tenant_id, server="BETA"):
+    """Return the stored data context for a tenant, or None if not loaded."""
+    if tenant_id:
+        return _tenant_store.get(f"{server}|{tenant_id}".upper())
+    return None
+
+
 def _log(event_type, **kwargs):
     try:
         with sqlite3.connect(DB_PATH) as con:
@@ -143,6 +150,7 @@ _salon_map          = {}   # SalonId → salon name
 _retail_summary     = {}   # pre-aggregated retail: products, brands, lines, monthly
 _team_kpis          = {}   # team member name → KPI targets (from TeamMembers API)
 _load_timings       = {}   # timing checkpoints from last build_data call
+_tenant_store       = {}   # f"{server}|{tenant_id}" → per-tenant data context
 
 
 NOCACHE_REPORTS = {"XXX_Export_Admin_TUBR_Bookings"}
@@ -921,6 +929,26 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     _all_clients = rows + no_history
 
     _load_timings['t_build_done'] = time.time()
+    _tenant_store[f"{_loaded_server}|{_loaded_tenant_id}".upper()] = {
+        'all_clients':          _all_clients,
+        'all_scored':           _all_scored,
+        'total_clients':        _total_clients,
+        'utilisation':          _utilisation,
+        'retail_summary':       _retail_summary,
+        'salon_map':            _salon_map,
+        'service_monthly':      _service_monthly,
+        'service_weekly':       _service_weekly,
+        'service_daily':        _service_daily,
+        'service_cat_monthly':  _service_cat_monthly,
+        'service_salon_monthly':_service_salon_monthly,
+        'booking_stats':        _booking_stats,
+        'team_kpis':            _team_kpis,
+        'loaded_salon_name':    _loaded_salon_name,
+        'loaded_tenant_id':     _loaded_tenant_id,
+        'loaded_server':        _loaded_server,
+        'loaded_tenant_name':   _loaded_tenant_name,
+        'loaded_account_code':  _loaded_account_code,
+    }
     top = rows[:500]
     for i, c in enumerate(top, 1):
         c["rank"] = i
@@ -1107,20 +1135,28 @@ def refresh():
 @app.route("/api/search")
 @require_auth
 def search_clients():
-    q = request.args.get("q", "").lower().strip()
+    q         = request.args.get("q", "").lower().strip()
+    tenant_id = request.args.get("tenant_id") or None
+    server    = request.args.get("server", "BETA")
     if len(q) < 2:
         return jsonify([])
-    results = [c for c in _all_scored if q in c["name"].lower()]
+    ctx    = _get_ctx(tenant_id, server)
+    scored = ctx['all_scored'] if ctx else _all_scored
+    results = [c for c in scored if q in c["name"].lower()]
     return jsonify(results[:20])
 
 
 @app.route("/api/query")
 @require_auth
 def query_clients():
-    q = request.args.get("q", "").strip()
+    q         = request.args.get("q", "").strip()
+    tenant_id = request.args.get("tenant_id") or None
+    server    = request.args.get("server", "BETA")
+    ctx       = _get_ctx(tenant_id, server)
+    clients   = ctx['all_clients'] if ctx else _all_clients
     if not q:
         return jsonify({"error": "No query provided"}), 400
-    if not _all_clients:
+    if not clients:
         return jsonify({"error": "No data loaded — load a salon first"}), 400
 
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
@@ -1338,7 +1374,7 @@ IMPORTANT: always use contains_exact (not contains) for promo_codes — these ar
         return False
 
     results = [
-        c for c in _all_clients
+        c for c in clients
         if (any if logic == "OR" else all)(matches(c, f) for f in filters)
     ] if filters else []
 
@@ -1367,7 +1403,23 @@ def _sort_months(keys):
     return sorted(keys, key=parse, reverse=True)
 
 
-def build_analysis_context(question=""):
+def build_analysis_context(question="", ctx=None):
+    # Unpack per-tenant context, falling back to module globals
+    _all_clients          = (ctx or {}).get('all_clients',          globals().get('_all_clients', []))
+    _all_scored           = (ctx or {}).get('all_scored',           globals().get('_all_scored', []))
+    _booking_stats        = (ctx or {}).get('booking_stats',        globals().get('_booking_stats', {}))
+    _service_daily        = (ctx or {}).get('service_daily',        globals().get('_service_daily', {}))
+    _service_weekly       = (ctx or {}).get('service_weekly',       globals().get('_service_weekly', {}))
+    _service_monthly      = (ctx or {}).get('service_monthly',      globals().get('_service_monthly', {}))
+    _service_salon_monthly= (ctx or {}).get('service_salon_monthly',globals().get('_service_salon_monthly', {}))
+    _service_cat_monthly  = (ctx or {}).get('service_cat_monthly',  globals().get('_service_cat_monthly', {}))
+    _retail_summary       = (ctx or {}).get('retail_summary',       globals().get('_retail_summary', {}))
+    _utilisation          = (ctx or {}).get('utilisation',          globals().get('_utilisation', []))
+    _team_kpis            = (ctx or {}).get('team_kpis',            globals().get('_team_kpis', {}))
+    _loaded_salon_name    = (ctx or {}).get('loaded_salon_name',    globals().get('_loaded_salon_name', ''))
+    _loaded_tenant_id     = (ctx or {}).get('loaded_tenant_id',     globals().get('_loaded_tenant_id', ''))
+    _loaded_server        = (ctx or {}).get('loaded_server',        globals().get('_loaded_server', ''))
+
     if not _all_clients:
         return "No data loaded."
 
@@ -1774,9 +1826,12 @@ def analyse():
         question        = (body.get("question") or "").strip()
         fmt             = body.get("format") or "dashboard"
         previous_result = body.get("previous_result")  # optional JSON of prior analysis
+        tenant_id       = body.get("tenant_id") or None
+        server          = body.get("server") or "BETA"
+        ctx             = _get_ctx(tenant_id, server)
         if not question:
             return jsonify(error="No question provided"), 400
-        if not _all_clients:
+        if not (ctx or _all_clients):
             return jsonify(error="No data loaded — load a salon first."), 400
 
         api_key = os.environ.get("ANTHROPIC_API_KEY", "")
@@ -1823,7 +1878,7 @@ def analyse():
                     + fmt_instructions.get(fmt, fmt_instructions["dashboard"])
                 )
                 _jobs[job_id]["step"] = "Building data context…"
-                context  = build_analysis_context(question)
+                context  = build_analysis_context(question, ctx=ctx)
                 prev_block = ""
                 if previous_result:
                     prev_block = (
