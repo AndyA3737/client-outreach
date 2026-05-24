@@ -4,7 +4,8 @@
 import os
 import base64
 import json
-import sqlite3
+import psycopg2
+import psycopg2.extras
 import threading
 import uuid
 from functools import wraps
@@ -29,13 +30,19 @@ ADMIN_USER = os.environ.get('ADMIN_USER', 'admin').strip()
 ADMIN_PASS = os.environ.get('ADMIN_PASS', 'changeme').strip()
 
 # ── Activity logging ──────────────────────────────────────────
-DB_PATH = os.path.join(BASE_DIR, 'activity.db')
+def _get_db():
+    url = os.environ.get('DATABASE_URL', '')
+    if url.startswith('postgres://'):
+        url = url.replace('postgres://', 'postgresql://', 1)
+    return psycopg2.connect(url)
 
 def _db_setup():
-    with sqlite3.connect(DB_PATH) as con:
-        con.execute("""
+    try:
+        con = _get_db()
+        cur = con.cursor()
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS activity_log (
-                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                id            SERIAL PRIMARY KEY,
                 ts            TEXT    NOT NULL,
                 event_type    TEXT    NOT NULL,
                 salon         TEXT,
@@ -52,6 +59,10 @@ def _db_setup():
             )
         """)
         con.commit()
+        cur.close()
+        con.close()
+    except Exception as e:
+        app.logger.warning("DB setup failed: %s", e)
 
 _db_setup()
 
@@ -71,15 +82,18 @@ def _get_ctx(tenant_id, server="BETA"):
 
 def _log(event_type, **kwargs):
     try:
-        with sqlite3.connect(DB_PATH) as con:
-            cols = ['ts', 'event_type'] + list(kwargs.keys())
-            from datetime import timezone
-            vals = [datetime.now(timezone.utc).isoformat(timespec='seconds'), event_type] + list(kwargs.values())
-            con.execute(
-                f"INSERT INTO activity_log ({','.join(cols)}) VALUES ({','.join('?' * len(cols))})",
-                vals,
-            )
-            con.commit()
+        from datetime import timezone
+        con = _get_db()
+        cur = con.cursor()
+        cols = ['ts', 'event_type'] + list(kwargs.keys())
+        vals = [datetime.now(timezone.utc).isoformat(timespec='seconds'), event_type] + list(kwargs.values())
+        cur.execute(
+            f"INSERT INTO activity_log ({','.join(cols)}) VALUES ({','.join(['%s'] * len(cols))})",
+            vals,
+        )
+        con.commit()
+        cur.close()
+        con.close()
     except Exception as e:
         app.logger.warning("Activity log write failed: %s", e)
 
@@ -2016,24 +2030,26 @@ def client_log():
 @app.route("/admin/logs")
 @require_auth_or_redirect
 def admin_logs():
-    with sqlite3.connect(DB_PATH) as con:
-        con.row_factory = sqlite3.Row
-        rows = con.execute(
-            "SELECT * FROM activity_log ORDER BY id DESC LIMIT 500"
-        ).fetchall()
-        totals = con.execute("""
-            SELECT
-                COUNT(*)                                                        AS total,
-                COUNT(CASE WHEN event_type='analyse' THEN 1 END)                AS analyses,
-                COUNT(CASE WHEN event_type='query'   THEN 1 END)                AS queries,
-                COUNT(CASE WHEN event_type='session' THEN 1 END)                AS sessions,
-                ROUND(AVG(CASE WHEN response_ms IS NOT NULL AND error IS NULL
-                               THEN response_ms END))                           AS avg_ms,
-                SUM(COALESCE(input_tokens,  0))                                 AS total_in,
-                SUM(COALESCE(output_tokens, 0))                                 AS total_out,
-                COUNT(CASE WHEN error IS NOT NULL THEN 1 END)                   AS errors
-            FROM activity_log
-        """).fetchone()
+    con = _get_db()
+    cur = con.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute("SELECT * FROM activity_log ORDER BY id DESC LIMIT 500")
+    rows = cur.fetchall()
+    cur.execute("""
+        SELECT
+            COUNT(*)                                                        AS total,
+            COUNT(CASE WHEN event_type='analyse' THEN 1 END)                AS analyses,
+            COUNT(CASE WHEN event_type='query'   THEN 1 END)                AS queries,
+            COUNT(CASE WHEN event_type='session' THEN 1 END)                AS sessions,
+            ROUND(AVG(CASE WHEN response_ms IS NOT NULL AND error IS NULL
+                           THEN response_ms END))                           AS avg_ms,
+            SUM(COALESCE(input_tokens,  0))                                 AS total_in,
+            SUM(COALESCE(output_tokens, 0))                                 AS total_out,
+            COUNT(CASE WHEN error IS NOT NULL THEN 1 END)                   AS errors
+        FROM activity_log
+    """)
+    totals = cur.fetchone()
+    cur.close()
+    con.close()
 
     # Cost estimate: Sonnet 4.6 — $3/MTok in, $15/MTok out
     total_in  = totals['total_in']  or 0
