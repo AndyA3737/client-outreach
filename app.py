@@ -988,7 +988,9 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     _all_clients = rows + no_history
 
     _load_timings['t_build_done'] = time.time()
-    _tenant_store[f"{_loaded_server}|{_loaded_tenant_id}".upper()] = {
+    _store_key = f"{_loaded_server}|{_loaded_tenant_id}".upper()
+    print(f"[build_data] storing tenant key={_store_key!r} clients={len(_all_clients)}", flush=True)
+    _tenant_store[_store_key] = {
         'all_clients':          _all_clients,
         'all_scored':           _all_scored,
         'total_clients':        _total_clients,
@@ -1914,6 +1916,8 @@ def analyse():
         tenant_id       = body.get("tenant_id") or None
         server          = body.get("server") or "BETA"
         ctx             = _get_ctx(tenant_id, server)
+        store_keys      = list(_tenant_store.keys())
+        print(f"[analyse] tenant_id={tenant_id!r} server={server!r} ctx_found={ctx is not None} store_keys={store_keys}", flush=True)
         if not question:
             return jsonify(error="No question provided"), 400
         if tenant_id and not ctx:
