@@ -186,13 +186,13 @@
 
 <!-- Nav tabs -->
 <div style="background:#fff;border-bottom:1px solid var(--border);" class="px-6 flex gap-1">
-  <button class="nav-tab active" id="tabDashboard" onclick="switchPage('dashboard')">Client Dashboard</button>
-  <button class="nav-tab" id="tabSelections" onclick="switchPage('selections')">Client Selections</button>
-  <button class="nav-tab" id="tabAnalysis" onclick="switchPage('analysis')">Data Analysis</button>
+  <button class="nav-tab" id="tabDashboard" onclick="switchPage('dashboard')" style="display:none">Client Dashboard</button>
+  <button class="nav-tab" id="tabSelections" onclick="switchPage('selections')" style="display:none">Client Selections</button>
+  <button class="nav-tab active" id="tabAnalysis" onclick="switchPage('analysis')">Data Analysis</button>
 </div>
 
 <!-- ── Page: SMS Dashboard ─────────────────────────────────── -->
-<div id="pageDashboard">
+<div id="pageDashboard" style="display:none">
 
 <!-- Stat Cards -->
 <div class="grid grid-cols-2 md:grid-cols-5 gap-4 p-6 pb-4">
@@ -433,7 +433,7 @@
 </div><!-- end #pageSelections -->
 
 <!-- ── Page: Data Analysis ────────────────────────────────── -->
-<div id="pageAnalysis" style="display:none">
+<div id="pageAnalysis">
 <div class="px-6 py-8" style="max-width:96rem;margin:0 auto">
 
   <div class="flex items-start justify-between gap-4 mb-6">
