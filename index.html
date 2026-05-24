@@ -1170,6 +1170,13 @@ function loadTenant() {
   document.getElementById('tenantSelector').style.display   = 'none';
   document.getElementById('loadingOverlay').style.display   = 'flex';
   document.getElementById('selectedSalonLabel').textContent = displayLabel;
+  // Clear previous tenant's analysis results so stale data is never shown
+  document.getElementById('analysisResults').innerHTML  = '';
+  document.getElementById('followupResult').innerHTML   = '';
+  const _fb = document.getElementById('followupBar');
+  if (_fb) _fb.style.display = 'none';
+  _lastAnalysis = null;
+  document.getElementById('analysisInput').value = '';
   const badge = document.getElementById('serverBadge');
   badge.textContent   = selectedServer;
   badge.style.background = selectedServer === 'LIVE' ? '#059669' : 'rgba(255,255,255,0.12)';
