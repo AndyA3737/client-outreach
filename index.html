@@ -1228,6 +1228,8 @@ async function fetchData() {
 
     document.getElementById('loadingOverlay').style.display = 'none';
     document.getElementById('mainContent').style.display    = 'block';
+    fetch('/api/log', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ event_type:'session', detail: d.generated || '' }) }).catch(()=>{});
   } catch (err) {
     const card = document.getElementById('loadingCard');
     if (card) {

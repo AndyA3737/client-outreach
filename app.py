@@ -4,6 +4,7 @@
 import os
 import base64
 import json
+import sqlite3
 import threading
 import uuid
 from functools import wraps
@@ -26,6 +27,47 @@ def json_error(e):
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DASHBOARD_USER = os.environ.get('DASHBOARD_USER', 'admin').strip()
 DASHBOARD_PASS = os.environ.get('DASHBOARD_PASS', 'changeme').strip()
+
+# ── Activity logging ──────────────────────────────────────────
+DB_PATH = os.path.join(BASE_DIR, 'activity.db')
+
+def _db_setup():
+    with sqlite3.connect(DB_PATH) as con:
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS activity_log (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                ts            TEXT    NOT NULL,
+                event_type    TEXT    NOT NULL,
+                salon         TEXT,
+                question      TEXT,
+                format        TEXT,
+                is_followup   INTEGER,
+                result_count  INTEGER,
+                result_title  TEXT,
+                result_summary TEXT,
+                response_ms   INTEGER,
+                input_tokens  INTEGER,
+                output_tokens INTEGER,
+                error         TEXT
+            )
+        """)
+        con.commit()
+
+_db_setup()
+
+def _log(event_type, **kwargs):
+    try:
+        with sqlite3.connect(DB_PATH) as con:
+            cols = ['ts', 'event_type'] + list(kwargs.keys())
+            from datetime import timezone
+            vals = [datetime.now(timezone.utc).isoformat(timespec='seconds'), event_type] + list(kwargs.values())
+            con.execute(
+                f"INSERT INTO activity_log ({','.join(cols)}) VALUES ({','.join('?' * len(cols))})",
+                vals,
+            )
+            con.commit()
+    except Exception as e:
+        app.logger.warning("Activity log write failed: %s", e)
 
 
 def require_auth(f):
@@ -1056,6 +1098,7 @@ def query_clients():
     if not api_key:
         return jsonify({"error": "ANTHROPIC_API_KEY is not configured on this server"}), 500
 
+    t0 = time.time()
     schema = """
 NOTE: Booking history, gift cards, and promotions cover the last 2 years only. Client records, tags, and opt-out status are current. Mention this limitation in your description when relevant.
 
@@ -1213,6 +1256,12 @@ IMPORTANT: always use contains_exact (not contains) for promo_codes — these ar
         criteria = json.loads(raw.strip())
 
     except Exception as e:
+        _log('query',
+             salon=(_loaded_salon_name or _loaded_tenant_id or '')[:100],
+             question=q[:500],
+             response_ms=round((time.time() - t0) * 1000),
+             error=str(e)[:500],
+        )
         return jsonify({"error": f"Could not interpret query: {e}"}), 400
 
     filters     = criteria.get("filters", [])
@@ -1264,6 +1313,13 @@ IMPORTANT: always use contains_exact (not contains) for promo_codes — these ar
         if (any if logic == "OR" else all)(matches(c, f) for f in filters)
     ] if filters else []
 
+    _log('query',
+         salon=(_loaded_salon_name or _loaded_tenant_id or '')[:100],
+         question=q[:500],
+         result_count=len(results),
+         result_title=description[:200],
+         response_ms=round((time.time() - t0) * 1000),
+    )
     return jsonify({"clients": results, "total": len(results),
                     "description": description, "criteria": criteria})
 
@@ -1702,6 +1758,7 @@ def analyse():
         _jobs[job_id] = {"status": "loading", "step": "Thinking…"}
 
         def worker():
+            t0 = time.time()
             try:
                 fmt_instructions = {
                     "dashboard": (
@@ -1784,9 +1841,28 @@ def analyse():
                     "input_tokens":  msg.usage.input_tokens,
                     "output_tokens": msg.usage.output_tokens,
                 }
+                _log('analyse',
+                     salon=(_loaded_salon_name or _loaded_tenant_id or '')[:100],
+                     question=question[:500],
+                     format=fmt,
+                     is_followup=1 if previous_result else 0,
+                     result_title=(result.get('title') or '')[:200],
+                     result_summary=(result.get('summary') or '')[:500],
+                     response_ms=round((time.time() - t0) * 1000),
+                     input_tokens=msg.usage.input_tokens,
+                     output_tokens=msg.usage.output_tokens,
+                )
                 _jobs[job_id] = {"status": "done", "data": result}
             except Exception as e:
                 app.logger.exception("ANALYSE worker error: %s", e)
+                _log('analyse',
+                     salon=(_loaded_salon_name or _loaded_tenant_id or '')[:100],
+                     question=question[:500],
+                     format=fmt,
+                     is_followup=1 if previous_result else 0,
+                     response_ms=round((time.time() - t0) * 1000),
+                     error=str(e)[:500],
+                )
                 _jobs[job_id] = {"status": "error", "error": str(e)}
 
         threading.Thread(target=worker, daemon=True).start()
@@ -1795,6 +1871,120 @@ def analyse():
     except Exception as e:
         app.logger.exception("ANALYSE error: %s", e)
         return jsonify(error=str(e)), 500
+
+
+@app.route("/api/log", methods=["POST"])
+@require_auth
+def client_log():
+    """Receives lightweight frontend events (page loads, UI interactions)."""
+    body = request.get_json(silent=True) or {}
+    event_type = (body.get("event_type") or "client_event")[:50]
+    _log(event_type,
+         salon=(_loaded_salon_name or _loaded_tenant_id or '')[:100],
+         question=(body.get("detail") or '')[:500],
+    )
+    return jsonify(ok=True)
+
+
+@app.route("/admin/logs")
+@require_auth
+def admin_logs():
+    with sqlite3.connect(DB_PATH) as con:
+        con.row_factory = sqlite3.Row
+        rows = con.execute(
+            "SELECT * FROM activity_log ORDER BY id DESC LIMIT 500"
+        ).fetchall()
+        totals = con.execute("""
+            SELECT
+                COUNT(*)                                                        AS total,
+                COUNT(CASE WHEN event_type='analyse' THEN 1 END)                AS analyses,
+                COUNT(CASE WHEN event_type='query'   THEN 1 END)                AS queries,
+                COUNT(CASE WHEN event_type='session' THEN 1 END)                AS sessions,
+                ROUND(AVG(CASE WHEN response_ms IS NOT NULL AND error IS NULL
+                               THEN response_ms END))                           AS avg_ms,
+                SUM(COALESCE(input_tokens,  0))                                 AS total_in,
+                SUM(COALESCE(output_tokens, 0))                                 AS total_out,
+                COUNT(CASE WHEN error IS NOT NULL THEN 1 END)                   AS errors
+            FROM activity_log
+        """).fetchone()
+
+    # Cost estimate: Sonnet 4.6 — $3/MTok in, $15/MTok out
+    cost_usd = (totals['total_in'] * 3 + totals['total_out'] * 15) / 1_000_000
+
+    def badge(event_type):
+        colours = {'analyse': '#0EA5E9', 'query': '#8B5CF6', 'session': '#10B981'}
+        bg = colours.get(event_type, '#94A3B8')
+        return f'<span style="background:{bg};color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600">{event_type}</span>'
+
+    def ms_cell(ms):
+        if ms is None: return '<td style="color:#94A3B8">—</td>'
+        s = ms / 1000
+        colour = '#10B981' if s < 5 else ('#F59E0B' if s < 15 else '#EF4444')
+        return f'<td style="color:{colour};font-weight:600">{s:.1f}s</td>'
+
+    def esc(v):
+        if v is None: return ''
+        return str(v).replace('&','&amp;').replace('<','&lt;').replace('>','&gt;').replace('"','&quot;')
+
+    rows_html = ''
+    for r in rows:
+        tok = f"{r['input_tokens'] or 0:,} / {r['output_tokens'] or 0:,}" if (r['input_tokens'] or r['output_tokens']) else '—'
+        err_cell = f'<td style="color:#EF4444;font-size:11px">{esc(r["error"])}</td>' if r['error'] else '<td style="color:#94A3B8">—</td>'
+        followup = '↩ follow-up' if r['is_followup'] else ''
+        rows_html += f"""<tr style="border-bottom:1px solid #F1F5F9">
+            <td style="white-space:nowrap;color:#64748B;font-size:11px">{esc(r['ts'])}</td>
+            <td>{badge(r['event_type'])}</td>
+            <td style="font-size:12px;color:#475569">{esc(r['salon'])}</td>
+            <td style="max-width:320px;font-size:13px" title="{esc(r['question'])}">{esc((r['question'] or '')[:80])}{'…' if len(r['question'] or '')>80 else ''}</td>
+            <td style="font-size:12px;color:#64748B">{esc(r['format'] or '')} <span style="color:#94A3B8;font-size:11px">{followup}</span></td>
+            {ms_cell(r['response_ms'])}
+            <td style="font-size:12px;color:#64748B">{tok}</td>
+            <td style="max-width:260px;font-size:12px;color:#334155" title="{esc(r['result_title'])}">{esc((r['result_title'] or '')[:60])}{'…' if len(r['result_title'] or '')>60 else ''}</td>
+            {err_cell}
+        </tr>"""
+
+    html = f"""<!doctype html><html><head><meta charset="utf-8">
+<title>Activity Log — SalonIQ AI</title>
+<meta http-equiv="refresh" content="30">
+<style>
+  body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0;background:#F8FAFC;color:#1E293B}}
+  .hdr{{background:#1C2B3A;color:#fff;padding:18px 32px;display:flex;align-items:center;gap:24px}}
+  .hdr h1{{margin:0;font-size:20px;font-weight:700}}
+  .hdr span{{font-size:13px;opacity:.7}}
+  .stat-row{{display:flex;gap:16px;padding:20px 32px;flex-wrap:wrap}}
+  .stat{{background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:14px 22px;min-width:120px}}
+  .stat .val{{font-size:28px;font-weight:700;color:#1C2B3A}}
+  .stat .lbl{{font-size:12px;color:#64748B;margin-top:2px}}
+  .tbl-wrap{{padding:0 32px 40px}}
+  table{{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #E2E8F0}}
+  th{{background:#F1F5F9;padding:10px 12px;text-align:left;font-size:12px;font-weight:600;color:#475569;white-space:nowrap}}
+  td{{padding:9px 12px;vertical-align:top}}
+  tr:hover td{{background:#FAFBFF}}
+  .refresh{{font-size:12px;opacity:.6}}
+</style></head><body>
+<div class="hdr">
+  <h1>Activity Log</h1>
+  <span>SalonIQ AI User Testing &nbsp;·&nbsp; last 500 events &nbsp;·&nbsp; auto-refreshes every 30s</span>
+</div>
+<div class="stat-row">
+  <div class="stat"><div class="val">{totals['total']}</div><div class="lbl">Total events</div></div>
+  <div class="stat"><div class="val">{totals['sessions']}</div><div class="lbl">Sessions</div></div>
+  <div class="stat"><div class="val">{totals['analyses']}</div><div class="lbl">AI analyses</div></div>
+  <div class="stat"><div class="val">{totals['queries']}</div><div class="lbl">Client queries</div></div>
+  <div class="stat"><div class="val">{int(totals['avg_ms'] or 0) // 1000}.{(int(totals['avg_ms'] or 0) % 1000) // 100}s</div><div class="lbl">Avg response</div></div>
+  <div class="stat"><div class="val">${cost_usd:.2f}</div><div class="lbl">Est. API cost (USD)</div></div>
+  <div class="stat"><div class="val" style="color:{'#EF4444' if totals['errors'] else '#10B981'}">{totals['errors']}</div><div class="lbl">Errors</div></div>
+</div>
+<div class="tbl-wrap">
+<table>
+<thead><tr>
+  <th>Time (UTC)</th><th>Type</th><th>Salon</th><th>Question</th>
+  <th>Format</th><th>Response</th><th>Tokens in/out</th><th>Result title</th><th>Error</th>
+</tr></thead>
+<tbody>{rows_html}</tbody>
+</table></div>
+</body></html>"""
+    return html
 
 
 if __name__ == "__main__":
