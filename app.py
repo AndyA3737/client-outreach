@@ -620,18 +620,20 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                 "price": float(r.get("TotalSalesPrice") or 0),
                 "qty":   int(float(r.get("Qty") or 1)),
                 "dt":    parse_dt(r.get("TransactionDate") or ""),
+                "sid":   str(r.get("Salonid") or r.get("SalonId") or r.get("salonid") or ""),
             })
         del retail_raw
     except Exception as e:
         print(f"RETAIL fetch failed: {e}", flush=True)
 
     # Aggregate retail transactions into summary tables while retail_by_client is in scope
-    prod_agg         = defaultdict(lambda: {"clients": set(), "units": 0, "revenue": 0.0})
-    brand_agg        = defaultdict(lambda: {"clients": set(), "units": 0, "revenue": 0.0})
-    line_agg         = defaultdict(lambda: {"clients": set(), "units": 0, "revenue": 0.0})
-    monthly_agg      = defaultdict(lambda: {"units": 0, "revenue": 0.0})
-    monthly_prod_agg = defaultdict(lambda: defaultdict(lambda: {"units": 0, "revenue": 0.0}))
-    monthly_brand_agg= defaultdict(lambda: defaultdict(lambda: {"units": 0, "revenue": 0.0}))
+    prod_agg          = defaultdict(lambda: {"clients": set(), "units": 0, "revenue": 0.0})
+    brand_agg         = defaultdict(lambda: {"clients": set(), "units": 0, "revenue": 0.0})
+    line_agg          = defaultdict(lambda: {"clients": set(), "units": 0, "revenue": 0.0})
+    monthly_agg       = defaultdict(lambda: {"units": 0, "revenue": 0.0})
+    monthly_prod_agg  = defaultdict(lambda: defaultdict(lambda: {"units": 0, "revenue": 0.0}))
+    monthly_brand_agg = defaultdict(lambda: defaultdict(lambda: {"units": 0, "revenue": 0.0}))
+    salon_monthly_agg = defaultdict(lambda: defaultdict(lambda: {"units": 0, "revenue": 0.0}))
 
     for cid, items in retail_by_client.items():
         for r in items:
@@ -642,6 +644,8 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             price  = float(r.get("price") or 0) * qty
             dt     = r.get("dt")
             mk     = dt.strftime("%b %Y") if dt else None
+            sid    = (r.get("sid") or "").strip()
+            salon  = _salon_map.get(sid, "") if sid else ""
 
             if name:
                 prod_agg[name]["clients"].add(cid)
@@ -664,6 +668,9 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             if mk:
                 monthly_agg[mk]["units"]   += qty
                 monthly_agg[mk]["revenue"] += price
+            if mk and salon:
+                salon_monthly_agg[salon][mk]["units"]   += qty
+                salon_monthly_agg[salon][mk]["revenue"] += price
 
     _retail_summary = {
         "products": {k: {"clients": len(v["clients"]), "units": v["units"],
@@ -687,6 +694,11 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             mk: {brand: {"units": d["units"], "revenue": round(d["revenue"])}
                  for brand, d in brands.items()}
             for mk, brands in monthly_brand_agg.items()
+        },
+        "salon_monthly": {
+            salon: {mk: {"units": d["units"], "revenue": round(d["revenue"])}
+                    for mk, d in months.items()}
+            for salon, months in salon_monthly_agg.items()
         },
     }
 
@@ -1642,6 +1654,17 @@ def build_analysis_context(question="", ctx=None):
                 brands = rs["monthly_brands"][mk]
                 for brand, d in sorted(brands.items(), key=lambda x: -x[1]["revenue"])[:10]:
                     lines.append(f"{mk},{brand},{d['units']},£{d['revenue']}")
+
+        if rs.get("salon_monthly"):
+            salon_totals = {s: sum(d["revenue"] for d in months.values())
+                            for s, months in rs["salon_monthly"].items()}
+            lines += ["", "MONTHLY RETAIL SALES BY SALON:",
+                      "Month,Salon,UnitsSold,Revenue£"]
+            for mk in _sort_months(_retail_summary.get("monthly", {}))[:24]:
+                for salon in sorted(salon_totals, key=lambda s: -salon_totals[s]):
+                    d = rs["salon_monthly"].get(salon, {}).get(mk)
+                    if d and d["revenue"] > 0:
+                        lines.append(f"{mk},{salon},{d['units']},£{d['revenue']}")
     else:
         # Fallback: aggregate product/brand names from client records (buyer counts only)
         prod_counts  = Counter()
