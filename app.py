@@ -25,8 +25,8 @@ def json_error(e):
     return jsonify(error=str(e)), code
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DASHBOARD_USER = os.environ.get('DASHBOARD_USER', 'admin').strip()
-DASHBOARD_PASS = os.environ.get('DASHBOARD_PASS', 'changeme').strip()
+ADMIN_USER = os.environ.get('ADMIN_USER', 'admin').strip()
+ADMIN_PASS = os.environ.get('ADMIN_PASS', 'changeme').strip()
 
 # ── Activity logging ──────────────────────────────────────────
 DB_PATH = os.path.join(BASE_DIR, 'activity.db')
@@ -90,7 +90,7 @@ def require_auth(f):
         # Try Flask's built-in parser first, then fall back to manual header parse
         auth = request.authorization
         if auth:
-            if auth.username == DASHBOARD_USER and auth.password == DASHBOARD_PASS:
+            if auth.username == ADMIN_USER and auth.password == ADMIN_PASS:
                 return f(*args, **kwargs)
         else:
             raw = request.headers.get('Authorization') or request.environ.get('HTTP_AUTHORIZATION', '')
@@ -98,7 +98,7 @@ def require_auth(f):
                 try:
                     creds = base64.b64decode(raw[6:]).decode('utf-8')
                     user, pwd = creds.split(':', 1)
-                    if user == DASHBOARD_USER and pwd == DASHBOARD_PASS:
+                    if user == ADMIN_USER and pwd == ADMIN_PASS:
                         return f(*args, **kwargs)
                 except Exception:
                     pass
