@@ -28,6 +28,11 @@ def json_error(e):
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ADMIN_USER = os.environ.get('ADMIN_USER', 'admin').strip()
 ADMIN_PASS = os.environ.get('ADMIN_PASS', 'changeme').strip()
+USER_USER  = os.environ.get('USER_USER',  '').strip()
+USER_PASS  = os.environ.get('USER_PASS',  '').strip()
+
+# TenantId that maps to the BETA server in user mode; all others → LIVE
+BETA_TENANT_ID = '1E7D7624-FEB7-4950-A6BE-5FBB1498EE39'
 
 # ── Activity logging ──────────────────────────────────────────
 def _get_db():
@@ -99,23 +104,31 @@ def _log(event_type, **kwargs):
 
 
 def _check_credentials():
-    """Return True if the request carries valid admin credentials."""
+    """Return 'admin', 'user', or None based on the request's Basic Auth credentials."""
+    def _match(user, pwd):
+        if user == ADMIN_USER and pwd == ADMIN_PASS:
+            return 'admin'
+        if USER_USER and user == USER_USER and pwd == USER_PASS:
+            return 'user'
+        return None
+
     auth = request.authorization
-    if auth and auth.username == ADMIN_USER and auth.password == ADMIN_PASS:
-        return True
+    if auth:
+        result = _match(auth.username, auth.password)
+        if result:
+            return result
     raw = request.headers.get('Authorization') or request.environ.get('HTTP_AUTHORIZATION', '')
     if raw.startswith('Basic '):
         try:
             creds = base64.b64decode(raw[6:]).decode('utf-8')
             user, pwd = creds.split(':', 1)
-            if user == ADMIN_USER and pwd == ADMIN_PASS:
-                return True
+            return _match(user, pwd)
         except Exception:
             pass
-    return False
+    return None
 
 def require_auth(f):
-    """Protect a route with Basic Auth — challenges the browser for credentials."""
+    """Protect a route — accepts both admin and user credentials."""
     @wraps(f)
     def decorated(*args, **kwargs):
         if _check_credentials():
@@ -123,13 +136,22 @@ def require_auth(f):
         return Response(
             'Authentication required.',
             401,
-            {'WWW-Authenticate': 'Basic realm="SalonIQ SMS Dashboard"'},
+            {'WWW-Authenticate': 'Basic realm="SalonIQ Aria"'},
         )
     return decorated
 
+def require_admin(f):
+    """Restrict a route to admin credentials only — redirects users to /."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if _check_credentials() == 'admin':
+            return f(*args, **kwargs)
+        from flask import redirect
+        return redirect('/')
+    return decorated
+
 def require_auth_or_redirect(f):
-    """Protect a route but redirect to / instead of issuing a Basic Auth challenge.
-    Prevents the browser from logging the user into this page instead of the main app."""
+    """Protect a route but redirect to / instead of issuing a Basic Auth challenge."""
     @wraps(f)
     def decorated(*args, **kwargs):
         if _check_credentials():
@@ -2027,8 +2049,19 @@ def client_log():
     return jsonify(ok=True)
 
 
+@app.route("/api/mode")
+@require_auth
+def api_mode():
+    mode = _check_credentials()
+    if mode == 'user':
+        tenant_id = request.args.get('tenantId', '')
+        server = 'BETA' if tenant_id.upper() == BETA_TENANT_ID.upper() else 'LIVE'
+        return jsonify(mode='user', tenant_id=tenant_id, server=server)
+    return jsonify(mode='admin')
+
+
 @app.route("/admin/logs")
-@require_auth_or_redirect
+@require_admin
 def admin_logs():
     con = _get_db()
     cur = con.cursor(cursor_factory=psycopg2.extras.RealDictCursor)

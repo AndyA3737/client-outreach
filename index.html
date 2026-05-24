@@ -174,8 +174,8 @@
     </div>
   </div>
   <div class="flex items-center gap-3">
-    <button onclick="changeSalon()" class="text-sm transition-colors" style="color:rgba(255,255,255,0.5)" onmouseover="this.style.color='rgba(255,255,255,0.9)'" onmouseout="this.style.color='rgba(255,255,255,0.5)'">⇄ Change Tenant</button>
-    <a href="/admin/logs" class="text-sm transition-colors" style="color:rgba(255,255,255,0.5);text-decoration:none" onmouseover="this.style.color='rgba(255,255,255,0.9)'" onmouseout="this.style.color='rgba(255,255,255,0.5)'">📋 Logs</a>
+    <button id="changeTenantBtn" onclick="changeSalon()" class="text-sm transition-colors" style="color:rgba(255,255,255,0.5)" onmouseover="this.style.color='rgba(255,255,255,0.9)'" onmouseout="this.style.color='rgba(255,255,255,0.5)'">⇄ Change Tenant</button>
+    <a id="logsBtnHeader" href="/admin/logs" class="text-sm transition-colors" style="color:rgba(255,255,255,0.5);text-decoration:none" onmouseover="this.style.color='rgba(255,255,255,0.9)'" onmouseout="this.style.color='rgba(255,255,255,0.5)'">📋 Logs</a>
     <button onclick="refreshData()" id="refreshBtn" class="btn-teal text-sm">↻ Refresh</button>
   </div>
 </header>
@@ -1419,7 +1419,62 @@ function copyLookupSMS(id) {
   });
 }
 
-initTenants();
+// ── Two-mode initialisation ──────────────────────────────────
+let appMode = 'admin';
+const urlTenantId = new URLSearchParams(window.location.search).get('tenantId') || '';
+
+async function init() {
+  try {
+    const modeUrl = urlTenantId ? `/api/mode?tenantId=${encodeURIComponent(urlTenantId)}` : '/api/mode';
+    const res = await fetch(modeUrl);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    appMode = data.mode;
+
+    if (appMode === 'user') {
+      // Hide admin-only controls
+      document.getElementById('changeTenantBtn').style.display = 'none';
+      document.getElementById('logsBtnHeader').style.display   = 'none';
+
+      // Set state from URL + server determined by tenantId
+      selectedTenantId = data.tenant_id;
+      selectedServer   = data.server;
+
+      // Try to resolve a display name by fetching the tenant list
+      let displayLabel = selectedTenantId;
+      try {
+        const tr = await fetch(`/api/tenants?server=${selectedServer}`);
+        if (tr.ok) {
+          const tenants = await tr.json();
+          const match = tenants.find(t => t.id && t.id.toUpperCase() === selectedTenantId.toUpperCase());
+          if (match) {
+            selectedTenantName  = match.name  || '';
+            selectedAccountCode = match.code  || '';
+            displayLabel = selectedAccountCode ? `${selectedAccountCode} – ${selectedTenantName}` : selectedTenantName;
+          }
+        }
+      } catch (_) {}
+
+      // Skip tenant selector — go straight to loading
+      document.getElementById('tenantSelector').style.display  = 'none';
+      document.getElementById('loadingOverlay').style.display  = 'flex';
+      document.getElementById('selectedSalonLabel').textContent = displayLabel;
+      const badge = document.getElementById('serverBadge');
+      badge.textContent      = selectedServer;
+      badge.style.background = selectedServer === 'LIVE' ? '#059669' : 'rgba(255,255,255,0.12)';
+      initLoadingCard();
+      fetchData();
+    } else {
+      // Admin mode — normal tenant selector flow
+      initTenants();
+    }
+  } catch (e) {
+    // Fall back to admin flow on any error
+    initTenants();
+  }
+}
+
+init();
 </script>
 </body>
 </html>
