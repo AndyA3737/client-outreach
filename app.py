@@ -84,29 +84,44 @@ def _log(event_type, **kwargs):
         app.logger.warning("Activity log write failed: %s", e)
 
 
+def _check_credentials():
+    """Return True if the request carries valid admin credentials."""
+    auth = request.authorization
+    if auth and auth.username == ADMIN_USER and auth.password == ADMIN_PASS:
+        return True
+    raw = request.headers.get('Authorization') or request.environ.get('HTTP_AUTHORIZATION', '')
+    if raw.startswith('Basic '):
+        try:
+            creds = base64.b64decode(raw[6:]).decode('utf-8')
+            user, pwd = creds.split(':', 1)
+            if user == ADMIN_USER and pwd == ADMIN_PASS:
+                return True
+        except Exception:
+            pass
+    return False
+
 def require_auth(f):
+    """Protect a route with Basic Auth — challenges the browser for credentials."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        # Try Flask's built-in parser first, then fall back to manual header parse
-        auth = request.authorization
-        if auth:
-            if auth.username == ADMIN_USER and auth.password == ADMIN_PASS:
-                return f(*args, **kwargs)
-        else:
-            raw = request.headers.get('Authorization') or request.environ.get('HTTP_AUTHORIZATION', '')
-            if raw.startswith('Basic '):
-                try:
-                    creds = base64.b64decode(raw[6:]).decode('utf-8')
-                    user, pwd = creds.split(':', 1)
-                    if user == ADMIN_USER and pwd == ADMIN_PASS:
-                        return f(*args, **kwargs)
-                except Exception:
-                    pass
+        if _check_credentials():
+            return f(*args, **kwargs)
         return Response(
             'Authentication required.',
             401,
             {'WWW-Authenticate': 'Basic realm="SalonIQ SMS Dashboard"'},
         )
+    return decorated
+
+def require_auth_or_redirect(f):
+    """Protect a route but redirect to / instead of issuing a Basic Auth challenge.
+    Prevents the browser from logging the user into this page instead of the main app."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if _check_credentials():
+            return f(*args, **kwargs)
+        from flask import redirect
+        return redirect('/')
     return decorated
 
 
@@ -1999,7 +2014,7 @@ def client_log():
 
 
 @app.route("/admin/logs")
-@require_auth
+@require_auth_or_redirect
 def admin_logs():
     with sqlite3.connect(DB_PATH) as con:
         con.row_factory = sqlite3.Row
