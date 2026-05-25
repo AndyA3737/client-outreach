@@ -2126,7 +2126,7 @@ input:focus{{border-color:#C9A84C}}
     <input type="hidden" name="next" value="{next_url}">
     <div class="field"><label>Account Code</label>
       <input type="text" name="account_code" id="account_code" autofocus autocomplete="organization"
-             placeholder="e.g. GRT001"></div>
+             placeholder=""></div>
     <hr class="divider">
     <div class="field"><label>Username</label>
       <input type="text" name="username" autocomplete="username"></div>
