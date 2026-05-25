@@ -28,13 +28,7 @@ def json_error(e):
     return jsonify(error=str(e)), code
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-ADMIN_USER = os.environ.get('ADMIN_USER', 'admin').strip()
-ADMIN_PASS = os.environ.get('ADMIN_PASS', 'changeme').strip()
-USER_USER  = os.environ.get('USER_USER',  '').strip()
-USER_PASS  = os.environ.get('USER_PASS',  '').strip()
-
-# TenantId that maps to the BETA server in user mode; all others → LIVE
-BETA_TENANT_ID = '1E7D7624-FEB7-4950-A6BE-5FBB1498EE39'
+import calendar
 
 # ── Activity logging ──────────────────────────────────────────
 def _get_db():
@@ -112,13 +106,44 @@ def _log(event_type, **kwargs):
         app.logger.warning("Activity log write failed: %s", e)
 
 
-def _verify_login(username, password):
-    """Return 'admin', 'user', or None for the given username/password."""
-    if username == ADMIN_USER and password == ADMIN_PASS:
-        return 'admin'
-    if USER_USER and username == USER_USER and password == USER_PASS:
-        return 'user'
-    return None
+def _saloniq_login(account_code, username, password):
+    """Validate credentials via the SalonIQ Aria LogOn API.
+    Returns (tenant_id, server) on success, or (None, None) on failure.
+    GRT001 routes to the BETA (greathairhub) server; all others go to LIVE (apihub).
+    """
+    server = 'BETA' if account_code.strip().upper() == 'GRT001' else 'LIVE'
+    srv    = SERVERS[server]
+    today  = date.today()
+    sd     = today.replace(day=1).strftime('%d/%m/%Y')
+    ed     = today.replace(day=calendar.monthrange(today.year, today.month)[1]).strftime('%d/%m/%Y')
+    params = {
+        'TokenID':    srv['token'],
+        'ReportName': 'XXX_Export_Admin_Aria_LogOn',
+        'TenantID':   '',
+        'Salonid':    '',
+        'UserID':     '',
+        'startdate':  sd,
+        'enddate':    ed,
+        'data1':      account_code,
+        'data2':      username,
+        'data3':      password,
+        'data4':      '',
+    }
+    try:
+        resp = requests.get(srv['base'], params=params, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+        if data and isinstance(data, list):
+            record = data[0]
+            tenant_id = (record.get('TenantID') or record.get('TenantId') or
+                         record.get('tenantid') or record.get('Tenantid') or
+                         record.get('TenantGuid') or '').strip()
+            if tenant_id:
+                return tenant_id, server
+        return None, None
+    except Exception as e:
+        app.logger.warning("SalonIQ login API error: %s", e)
+        return None, None
 
 def _session_role():
     """Return the role stored in the Flask session, or None."""
@@ -2069,7 +2094,7 @@ _LOGIN_PAGE = """<!DOCTYPE html>
 *{{box-sizing:border-box;margin:0;padding:0}}
 body{{background:#F0F4F8;font-family:system-ui,-apple-system,sans-serif;
       display:flex;align-items:center;justify-content:center;min-height:100vh}}
-.card{{background:#fff;border-radius:16px;padding:40px;width:360px;
+.card{{background:#fff;border-radius:16px;padding:40px;width:380px;
        box-shadow:0 4px 32px rgba(0,0,0,0.10);border:1px solid #D8E2EC}}
 h1{{color:#1C2B3A;font-size:1.5rem;margin-bottom:4px}}
 .sub{{color:#64748B;font-size:.875rem;margin-bottom:28px}}
@@ -2082,22 +2107,37 @@ input:focus{{border-color:#C9A84C}}
 .btn{{width:100%;padding:12px;background:#C9A84C;color:#fff;border:none;
       border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;margin-top:4px}}
 .btn:hover{{background:#A8883A}}
+.btn:disabled{{opacity:0.6;cursor:not-allowed}}
 .err{{background:#FEF2F2;border:1px solid #FECACA;color:#DC2626;
       padding:10px 14px;border-radius:8px;font-size:.875rem;margin-bottom:20px}}
+.divider{{border:none;border-top:1px solid #E2E8F0;margin:20px 0}}
 </style>
 </head>
 <body><div class="card">
   <h1>SalonIQ <span style="color:#C9A84C">Aria</span></h1>
   <p class="sub">Sign in to continue</p>
   {error_html}
-  <form method="POST" action="/login">
+  <form method="POST" action="/login" id="loginForm">
     <input type="hidden" name="next" value="{next_url}">
+    <div class="field"><label>Account Code</label>
+      <input type="text" name="account_code" id="account_code" autofocus autocomplete="organization"
+             placeholder="e.g. GRT001" style="text-transform:uppercase"></div>
+    <hr class="divider">
     <div class="field"><label>Username</label>
-      <input type="text" name="username" autofocus autocomplete="username"></div>
+      <input type="text" name="username" autocomplete="username"></div>
     <div class="field"><label>Password</label>
       <input type="password" name="password" autocomplete="current-password"></div>
-    <button type="submit" class="btn">Sign in →</button>
+    <button type="submit" class="btn" id="submitBtn">Sign in →</button>
   </form>
+  <script>
+    document.getElementById('account_code').addEventListener('input', function(){{
+      this.value = this.value.toUpperCase();
+    }});
+    document.getElementById('loginForm').addEventListener('submit', function(){{
+      document.getElementById('submitBtn').disabled = true;
+      document.getElementById('submitBtn').textContent = 'Signing in…';
+    }});
+  </script>
 </div></body></html>"""
 
 
@@ -2105,15 +2145,21 @@ input:focus{{border-color:#C9A84C}}
 def login():
     next_url = request.args.get('next') or request.form.get('next') or '/'
     if request.method == "POST":
-        username = request.form.get('username', '').strip()
-        password = request.form.get('password', '').strip()
-        role = _verify_login(username, password)
-        if role:
-            flask_session['role'] = role
-            flask_session.permanent = True
+        account_code = request.form.get('account_code', '').strip().upper()
+        username     = request.form.get('username', '').strip()
+        password     = request.form.get('password', '').strip()
+        if not account_code or not username or not password:
+            return _login_page(next_url, '<div class="err">Please fill in all fields.</div>'), 401
+        tenant_id, server = _saloniq_login(account_code, username, password)
+        if tenant_id:
+            role = 'admin' if username.lower() == 'admin' else 'user'
+            flask_session.permanent  = True
+            flask_session['role']         = role
+            flask_session['tenant_id']    = tenant_id
+            flask_session['server']       = server
+            flask_session['account_code'] = account_code
             return redirect(next_url)
-        error_html = '<div class="err">Incorrect username or password.</div>'
-        return _login_page(next_url, error_html), 401
+        return _login_page(next_url, '<div class="err">Invalid account code, username, or password.</div>'), 401
     return _login_page(next_url, '')
 
 
@@ -2130,12 +2176,12 @@ def logout():
 @app.route("/api/mode")
 @require_auth
 def api_mode():
-    mode = _session_role()
-    if mode == 'user':
-        tenant_id = request.args.get('tenantId', '')
-        server = 'BETA' if tenant_id.upper() == BETA_TENANT_ID.upper() else 'LIVE'
-        return jsonify(mode='user', tenant_id=tenant_id, server=server)
-    return jsonify(mode='admin')
+    return jsonify(
+        mode         = _session_role(),
+        tenant_id    = flask_session.get('tenant_id', ''),
+        server       = flask_session.get('server', 'BETA'),
+        account_code = flask_session.get('account_code', ''),
+    )
 
 
 @app.route("/admin/logs")
