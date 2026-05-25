@@ -48,6 +48,7 @@ def _db_setup():
                 ts            TEXT    NOT NULL,
                 event_type    TEXT    NOT NULL,
                 salon         TEXT,
+                username      TEXT,
                 question      TEXT,
                 format        TEXT,
                 is_followup   INTEGER,
@@ -60,6 +61,7 @@ def _db_setup():
                 error         TEXT
             )
         """)
+        cur.execute("ALTER TABLE activity_log ADD COLUMN IF NOT EXISTS username TEXT")
         con.commit()
         cur.execute("SELECT COUNT(*) FROM activity_log")
         count = cur.fetchone()[0]
@@ -90,6 +92,8 @@ def _log(event_type, **kwargs):
     import sys
     try:
         from datetime import timezone
+        if 'username' not in kwargs:
+            kwargs['username'] = flask_session.get('username', '')
         con = _get_db()
         cur = con.cursor()
         cols = ['ts', 'event_type'] + list(kwargs.keys())
@@ -2167,6 +2171,7 @@ def login():
                 role = 'admin' if username.lower() == 'admin' else 'user'
                 flask_session.permanent       = True
                 flask_session['role']         = role
+                flask_session['username']     = username
                 flask_session['tenant_id']    = _fb_tenant
                 flask_session['server']       = _fb_server
                 flask_session['account_code'] = account_code
@@ -2175,8 +2180,9 @@ def login():
         tenant_id, server = _saloniq_login(account_code, username, password)
         if tenant_id:
             role = 'admin' if username.lower() == 'admin' else 'user'
-            flask_session.permanent  = True
+            flask_session.permanent       = True
             flask_session['role']         = role
+            flask_session['username']     = username
             flask_session['tenant_id']    = tenant_id
             flask_session['server']       = server
             flask_session['account_code'] = account_code
@@ -2260,6 +2266,7 @@ def admin_logs():
             <td style="white-space:nowrap;color:#64748B;font-size:11px">{esc(r['ts'])}</td>
             <td>{badge(r['event_type'])}</td>
             <td style="font-size:12px;color:#475569">{esc(r['salon'])}</td>
+            <td style="font-size:12px;color:#475569;font-weight:600">{esc(r.get('username') or '—')}</td>
             <td style="max-width:320px;font-size:13px" title="{esc(r['question'])}">{esc((r['question'] or '')[:80])}{'…' if len(r['question'] or '')>80 else ''}</td>
             <td style="font-size:12px;color:#64748B">{esc(r['format'] or '')} <span style="color:#94A3B8;font-size:11px">{followup}</span></td>
             {ms_cell(r['response_ms'])}
@@ -2307,7 +2314,7 @@ def admin_logs():
 <div class="tbl-wrap">
 <table>
 <thead><tr>
-  <th>Time (UTC)</th><th>Type</th><th>Salon</th><th>Question</th>
+  <th>Time (UTC)</th><th>Type</th><th>Salon</th><th>User</th><th>Question</th>
   <th>Format</th><th>Response</th><th>Tokens in/out</th><th>Result title</th><th>Error</th>
 </tr></thead>
 <tbody>{rows_html}</tbody>
