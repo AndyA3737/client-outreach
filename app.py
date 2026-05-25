@@ -2154,6 +2154,22 @@ def login():
         password     = request.form.get('password', '').strip()
         if not account_code or not username or not password:
             return _login_page(next_url, '<div class="err">Please fill in all fields.</div>'), 401
+
+        # ── Env-var fallback (used while SalonIQ LogOn endpoint is confirmed) ──
+        _fb_user   = os.environ.get('ADMIN_USER', '').strip()
+        _fb_pass   = os.environ.get('ADMIN_PASS', '').strip()
+        _fb_tenant = os.environ.get('ADMIN_TENANT', '').strip()
+        _fb_server = os.environ.get('ADMIN_SERVER', 'BETA').strip().upper()
+        if _fb_user and _fb_pass and _fb_tenant:
+            if username == _fb_user and password == _fb_pass:
+                role = 'admin' if username.lower() == 'admin' else 'user'
+                flask_session.permanent       = True
+                flask_session['role']         = role
+                flask_session['tenant_id']    = _fb_tenant
+                flask_session['server']       = _fb_server
+                flask_session['account_code'] = account_code
+                return redirect(next_url)
+
         tenant_id, server = _saloniq_login(account_code, username, password)
         if tenant_id:
             role = 'admin' if username.lower() == 'admin' else 'user'
