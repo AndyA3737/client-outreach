@@ -130,18 +130,25 @@ def _saloniq_login(account_code, username, password):
         'data4':      '',
     }
     try:
+        print(f"[login] calling {srv['base']} account={account_code!r} user={username!r} server={server}", flush=True)
         resp = requests.get(srv['base'], params=params, timeout=15)
+        print(f"[login] HTTP {resp.status_code} — body: {resp.text[:500]!r}", flush=True)
         resp.raise_for_status()
         data = resp.json()
+        print(f"[login] parsed JSON: {str(data)[:300]}", flush=True)
         if data and isinstance(data, list):
             record = data[0]
+            print(f"[login] first record keys: {list(record.keys())}", flush=True)
             tenant_id = (record.get('TenantID') or record.get('TenantId') or
                          record.get('tenantid') or record.get('Tenantid') or
                          record.get('TenantGuid') or '').strip()
+            print(f"[login] tenant_id found: {tenant_id!r}", flush=True)
             if tenant_id:
                 return tenant_id, server
+        print(f"[login] no tenant_id in response — login failed", flush=True)
         return None, None
     except Exception as e:
+        print(f"[login] EXCEPTION: {e}", flush=True)
         app.logger.warning("SalonIQ login API error: %s", e)
         return None, None
 
