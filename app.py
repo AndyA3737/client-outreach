@@ -114,8 +114,9 @@ def _saloniq_login(account_code, username, password):
     server = 'BETA' if account_code.strip().upper() == 'GRT001' else 'LIVE'
     srv    = SERVERS[server]
     today  = date.today()
-    sd     = today.replace(day=1).strftime('%d/%m/%Y')
-    ed     = today.replace(day=calendar.monthrange(today.year, today.month)[1]).strftime('%d/%m/%Y')
+    fmt    = srv['date_fmt']
+    sd     = today.replace(day=1).strftime(fmt)
+    ed     = today.replace(day=calendar.monthrange(today.year, today.month)[1]).strftime(fmt)
     params = {
         'TokenID':    srv['token'],
         'ReportName': 'XXX_Export_Admin_Aria_LogOn',
