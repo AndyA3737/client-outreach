@@ -1106,6 +1106,7 @@ def data():
     account_code = request.args.get("account_code", "").strip()
     job_id      = str(uuid.uuid4())
     _jobs[job_id] = {"status": "loading", "step": ""}
+    _current_user = flask_session.get('username', '')
 
     def worker():
         global _loaded_salon_name, _loaded_tenant_name, _loaded_account_code
@@ -1126,6 +1127,7 @@ def data():
             total_ms = round((_load_timings['t_build_done'] - _load_timings['t_start'])    * 1000)
             _log('data_loaded',
                  salon=_salon_label(),
+                 username=_current_user,
                  result_count=_total_clients,
                  result_title=f"API fetch: {fetch_ms/1000:.1f}s | Profile build: {build_ms/1000:.1f}s",
                  response_ms=total_ms,
@@ -1962,6 +1964,7 @@ def analyse():
 
         job_id = str(uuid.uuid4())
         _jobs[job_id] = {"status": "loading", "step": "Thinking…"}
+        _current_user = flask_session.get('username', '')
 
         def worker():
             t0 = time.time()
@@ -2049,6 +2052,7 @@ def analyse():
                 }
                 _log('analyse',
                      salon=_salon_label(),
+                     username=_current_user,
                      question=question[:500],
                      format=fmt,
                      is_followup=1 if previous_result else 0,
@@ -2063,6 +2067,7 @@ def analyse():
                 app.logger.exception("ANALYSE worker error: %s", e)
                 _log('analyse',
                      salon=_salon_label(),
+                     username=_current_user,
                      question=question[:500],
                      format=fmt,
                      is_followup=1 if previous_result else 0,
