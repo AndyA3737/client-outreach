@@ -2220,9 +2220,12 @@ def api_mode():
 @app.route("/admin/logs")
 @require_admin
 def admin_logs():
+    page     = max(1, int(request.args.get('page', 1)))
+    per_page = 100
+    offset   = (page - 1) * per_page
     con = _get_db()
     cur = con.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute("SELECT * FROM activity_log ORDER BY id DESC LIMIT 500")
+    cur.execute("SELECT * FROM activity_log ORDER BY id DESC LIMIT %s OFFSET %s", (per_page, offset))
     rows = cur.fetchall()
     cur.execute("""
         SELECT
@@ -2299,6 +2302,20 @@ def admin_logs():
             {err_cell}
         </tr>"""
 
+    total_rows  = totals['total'] or 0
+    total_pages = max(1, -(-total_rows // per_page))  # ceiling division
+    pgn_parts = []
+    if page > 1:
+        pgn_parts.append(f'<a href="/admin/logs?page={page-1}">← Prev</a>')
+    for p in range(max(1, page-2), min(total_pages+1, page+3)):
+        if p == page:
+            pgn_parts.append(f'<span class="cur">{p}</span>')
+        else:
+            pgn_parts.append(f'<a href="/admin/logs?page={p}">{p}</a>')
+    if page < total_pages:
+        pgn_parts.append(f'<a href="/admin/logs?page={page+1}">Next →</a>')
+    pagination_html = f'<div class="pgn"><span style="font-size:13px;color:#64748B;margin-right:8px">Showing {offset+1}–{min(offset+per_page, total_rows)} of {total_rows:,}</span>{"".join(pgn_parts)}</div>' if total_pages > 1 else ''
+
     html = f"""<!doctype html><html><head><meta charset="utf-8">
 <title>Activity Log — SalonIQ AI</title>
 <meta http-equiv="refresh" content="30">
@@ -2318,11 +2335,15 @@ def admin_logs():
   td{{padding:9px 12px;vertical-align:top}}
   tr:hover td{{background:#FAFBFF}}
   .refresh{{font-size:12px;opacity:.6}}
+  .pgn{{display:flex;align-items:center;gap:10px;padding:16px 32px 32px;justify-content:flex-end}}
+  .pgn a{{background:#fff;border:1px solid #E2E8F0;border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;color:#1C2B3A;text-decoration:none}}
+  .pgn a:hover{{background:#F1F5F9}}
+  .pgn .cur{{background:#0F1923;color:#fff;border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600}}
 </style></head><body>
 <div class="hdr">
   <div style="display:flex;align-items:center;gap:24px">
     <h1>Activity Log</h1>
-    <span>SalonIQ Aria &nbsp;·&nbsp; last 500 events &nbsp;·&nbsp; auto-refreshes every 30s</span>
+    <span>SalonIQ Aria &nbsp;·&nbsp; page {page} &nbsp;·&nbsp; auto-refreshes every 30s</span>
   </div>
   <a href="javascript:history.back()" class="btn-back">← Back to Aria</a>
 </div>
@@ -2343,6 +2364,7 @@ def admin_logs():
 </tr></thead>
 <tbody>{rows_html}</tbody>
 </table></div>
+{pagination_html}
 </body></html>"""
     return html
 
