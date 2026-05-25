@@ -2262,13 +2262,32 @@ def admin_logs():
         if v is None: return ''
         return str(v).replace('&','&amp;').replace('<','&lt;').replace('>','&gt;').replace('"','&quot;')
 
+    def fmt_ts(ts):
+        if not ts: return '—'
+        try:
+            from datetime import timezone
+            dt = datetime.fromisoformat(ts).replace(tzinfo=timezone.utc)
+            now = datetime.now(timezone.utc)
+            diff = now - dt
+            if diff.total_seconds() < 60:
+                return 'just now'
+            if diff.total_seconds() < 3600:
+                return f"{int(diff.total_seconds() // 60)}m ago"
+            if dt.date() == now.date():
+                return f"Today {dt.strftime('%H:%M')}"
+            if (now.date() - dt.date()).days == 1:
+                return f"Yesterday {dt.strftime('%H:%M')}"
+            return dt.strftime('%-d %b %Y %H:%M')
+        except Exception:
+            return str(ts)[:16]
+
     rows_html = ''
     for r in rows:
         tok = f"{r['input_tokens'] or 0:,} / {r['output_tokens'] or 0:,}" if (r['input_tokens'] or r['output_tokens']) else '—'
         err_cell = f'<td style="color:#EF4444;font-size:11px">{esc(r["error"])}</td>' if r['error'] else '<td style="color:#94A3B8">—</td>'
         followup = '↩ follow-up' if r['is_followup'] else ''
         rows_html += f"""<tr style="border-bottom:1px solid #F1F5F9">
-            <td style="white-space:nowrap;color:#64748B;font-size:11px">{esc(r['ts'])}</td>
+            <td style="white-space:nowrap;color:#64748B;font-size:12px" title="{esc(r['ts'])}">{fmt_ts(r['ts'])}</td>
             <td>{badge(r['event_type'])}</td>
             <td style="font-size:12px;color:#475569">{esc(r['salon'])}</td>
             <td style="font-size:12px;color:#475569;font-weight:600">{esc(r.get('username') or '—')}</td>
