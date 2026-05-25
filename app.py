@@ -131,17 +131,15 @@ def _saloniq_login(account_code, username, password):
     }
     try:
         print(f"[login] calling {srv['base']} account={account_code!r} user={username!r} server={server}", flush=True)
-        resp = requests.get(srv['base'], params=params, timeout=15)
+        resp = requests.post(srv['base'], params=params, timeout=15)
         print(f"[login] HTTP {resp.status_code} — body: {resp.text[:500]!r}", flush=True)
         resp.raise_for_status()
         data = resp.json()
         print(f"[login] parsed JSON: {str(data)[:300]}", flush=True)
-        if data and isinstance(data, list):
-            record = data[0]
-            print(f"[login] first record keys: {list(record.keys())}", flush=True)
-            tenant_id = (record.get('TenantID') or record.get('TenantId') or
-                         record.get('tenantid') or record.get('Tenantid') or
-                         record.get('TenantGuid') or '').strip()
+        # Response format: {"Data": {"Array": [{"TenantId": "..."}]}, "Status": "Success"}
+        arr = (data.get('Data') or {}).get('Array') or []
+        if arr and isinstance(arr, list):
+            tenant_id = (arr[0].get('TenantId') or arr[0].get('TenantID') or '').strip()
             print(f"[login] tenant_id found: {tenant_id!r}", flush=True)
             if tenant_id:
                 return tenant_id, server
