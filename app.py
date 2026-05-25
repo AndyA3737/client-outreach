@@ -2131,7 +2131,10 @@ input:focus{{border-color:#C9A84C}}
     <div class="field"><label>Username</label>
       <input type="text" name="username" autocomplete="username"></div>
     <div class="field"><label>Password</label>
-      <input type="password" name="password" autocomplete="current-password"></div>
+      <div style="position:relative">
+        <input type="password" name="password" id="passwordInput" autocomplete="current-password" style="width:100%;padding-right:44px;box-sizing:border-box">
+        <button type="button" id="togglePwd" onclick="var i=document.getElementById('passwordInput');var b=document.getElementById('togglePwd');i.type=i.type==='password'?'text':'password';b.textContent=i.type==='password'?'👁':'🙈';" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;padding:0;line-height:1">👁</button>
+      </div></div>
     <button type="submit" class="btn" id="submitBtn">Sign in →</button>
   </form>
   <script>
