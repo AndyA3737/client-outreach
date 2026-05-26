@@ -548,6 +548,10 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     _cat_agg   = defaultdict(lambda: defaultdict(lambda: {"revenue": 0.0, "visits": 0}))
     _salon_agg = defaultdict(lambda: defaultdict(lambda: {"revenue": 0.0, "visits": 0,
                                                            "no_shows": 0, "no_show_value": 0.0}))
+    _hour_agg  = defaultdict(lambda: {"visits": 0, "no_shows": 0, "revenue": 0.0})
+    _dow_agg   = defaultdict(lambda: {"visits": 0, "no_shows": 0, "revenue": 0.0})
+    _seen_hr   = set()   # (bid, hour) — dedup visits per hour slot
+    _seen_dow  = set()   # (bid, dow)  — dedup visits per day-of-week
     for cid, bkgs in by_client.items():
         for b in bkgs:
             mk     = b["dt"].strftime("%b %Y")
@@ -607,6 +611,25 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                     if (bid, salon, mk) not in _seen_smk:
                         _seen_smk.add((bid, salon, mk))
                         _salon_agg[salon][mk]["no_shows"] += 1
+            # hour-of-day and day-of-week aggregation (paid visits and no-shows only)
+            hour = b["dt"].hour
+            dow  = b["dt"].weekday()  # 0=Mon … 6=Sun
+            if st == 2:
+                _hour_agg[hour]["revenue"] += b["price"]
+                if (bid, hour) not in _seen_hr:
+                    _seen_hr.add((bid, hour))
+                    _hour_agg[hour]["visits"] += 1
+                if (bid, dow) not in _seen_dow:
+                    _seen_dow.add((bid, dow))
+                    _dow_agg[dow]["visits"]  += 1
+                    _dow_agg[dow]["revenue"] += b["price"]
+            elif st == 3:
+                if (bid, hour) not in _seen_hr:
+                    _seen_hr.add((bid, hour))
+                    _hour_agg[hour]["no_shows"] += 1
+                if (bid, dow) not in _seen_dow:
+                    _seen_dow.add((bid, dow))
+                    _dow_agg[dow]["no_shows"] += 1
             # status 0 (booked) and 1 (arrived) excluded from all counts
             if src == 1:
                 if (bid, mk) not in _seen_omk:
@@ -638,11 +661,20 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                 for mk, d in months.items()}
         for salon, months in _salon_agg.items()
     }
+    _DOW_LABELS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     booking_stats = {
         "status": {_STATUS_LABELS.get(k, f"Status{k}"): v
                    for k, v in sorted(_status_counts.items())},
         "source": {_SOURCE_LABELS.get(k, f"Source{k}"): v
                    for k, v in sorted(_source_counts.items())},
+        "by_hour": {f"{h:02d}:00": {"visits": _hour_agg[h]["visits"],
+                                     "no_shows": _hour_agg[h]["no_shows"],
+                                     "revenue": round(_hour_agg[h]["revenue"])}
+                    for h in range(6, 22) if _hour_agg[h]["visits"] or _hour_agg[h]["no_shows"]},
+        "by_dow":  {_DOW_LABELS[d]: {"visits": _dow_agg[d]["visits"],
+                                      "no_shows": _dow_agg[d]["no_shows"],
+                                      "revenue": round(_dow_agg[d]["revenue"])}
+                    for d in range(7) if _dow_agg[d]["visits"] or _dow_agg[d]["no_shows"]},
     }
 
     step("Fetching gift cards")
@@ -1678,6 +1710,25 @@ def build_analysis_context(question="", ctx=None):
             lines += ["", "BOOKING SOURCE (how clients book):"]
             for label, cnt in src.items():
                 lines.append(f"  {label}: {cnt:,} ({cnt/tot_src*100:.1f}%)")
+
+        by_hour = booking_stats.get("by_hour", {})
+        if by_hour:
+            total_visits = sum(v["visits"] for v in by_hour.values()) or 1
+            sorted_hours = sorted(by_hour.items())
+            lines += ["", "APPOINTMENTS BY HOUR OF DAY (paid visits, 2yr history):",
+                      "Hour,Visits,Share%,NoShows,Revenue£"]
+            for hr, v in sorted_hours:
+                lines.append(f"  {hr},{v['visits']:,},{v['visits']/total_visits*100:.1f}%,"
+                             f"{v['no_shows']},{v['revenue']:,}")
+
+        by_dow = booking_stats.get("by_dow", {})
+        if by_dow:
+            total_dow = sum(v["visits"] for v in by_dow.values()) or 1
+            lines += ["", "APPOINTMENTS BY DAY OF WEEK (paid visits, 2yr history):",
+                      "Day,Visits,Share%,NoShows,Revenue£"]
+            for day, v in by_dow.items():
+                lines.append(f"  {day},{v['visits']:,},{v['visits']/total_dow*100:.1f}%,"
+                             f"{v['no_shows']},{v['revenue']:,}")
 
     if service_daily:
         cutoff = (today - timedelta(days=90)).isoformat()
