@@ -74,11 +74,14 @@ def _db_setup():
 
 _db_setup()
 
-def _salon_label():
-    if _loaded_account_code or _loaded_tenant_name:
-        parts = [p for p in [_loaded_account_code, _loaded_tenant_name] if p]
-        return (' – '.join(parts))[:100]
-    return (_loaded_salon_name or _loaded_tenant_id or '')[:100]
+def _salon_label(ctx=None):
+    ac  = (ctx or {}).get('loaded_account_code', '')
+    tn  = (ctx or {}).get('loaded_tenant_name', '')
+    sn  = (ctx or {}).get('loaded_salon_name', '')
+    tid = (ctx or {}).get('loaded_tenant_id', '')
+    if ac or tn:
+        return (' – '.join(p for p in [ac, tn] if p))[:100]
+    return (sn or tid or '')[:100]
 
 
 def _get_ctx(tenant_id, server="BETA"):
@@ -211,28 +214,8 @@ SERVERS = {
 
 _cache, _cache_ts = {}, {}
 CACHE_TTL = 3600
-_all_scored = []
-_all_clients = []   # every client including those with no visits
-_total_clients = 0
-_jobs = {}  # job_id -> {status, data, error}
-_utilisation = []   # raw rows from XXX_Export_Admin_TUBR_Utilisation
-_loaded_tenant_id   = None
-_loaded_server      = "BETA"
-_loaded_salon_ids   = []   # SalonIds from the salon list, needed for utilisation API
-_loaded_salon_name  = ""   # human-readable name of the currently loaded tenant/salon
-_loaded_tenant_name = ""   # tenant name only (no account code prefix)
-_loaded_account_code = ""  # account code for the loaded tenant
-_service_monthly    = {}   # month → {revenue, visits, no_shows, clients} aggregated from bookings
-_service_weekly     = {}   # ISO-monday → {revenue, visits, no_shows, online, clients}
-_service_daily        = {}   # ISO-date  → {revenue, visits, no_shows, no_show_value, online, clients}
-_service_cat_monthly  = {}  # category → {month → {revenue, visits}}
-_service_salon_monthly = {} # salon_name → {month → {revenue, visits, no_shows, no_show_value}}
-_booking_stats      = {}   # {status: {label: count}, source: {label: count}}
-_salon_map          = {}   # SalonId → salon name
-_retail_summary     = {}   # pre-aggregated retail: products, brands, lines, monthly
-_team_kpis          = {}   # team member name → KPI targets (from TeamMembers API)
-_load_timings       = {}   # timing checkpoints from last build_data call
-_tenant_store       = {}   # f"{server}|{tenant_id}" → per-tenant data context
+_jobs = {}          # job_id -> {status, data, error}
+_tenant_store = {}  # f"{server}|{tenant_id}" → per-tenant data context
 
 
 NOCACHE_REPORTS = {"XXX_Export_Admin_TUBR_Bookings"}
@@ -347,23 +330,18 @@ def time_label(h):
 
 
 def build_data(tenant_id=None, server="BETA", step_fn=None):
-    global _loaded_tenant_id, _loaded_server, _loaded_salon_name
-    global _all_scored, _all_clients, _total_clients
-    global _utilisation, _retail_summary, _salon_map, _loaded_salon_ids
-    global _service_monthly, _service_weekly, _service_daily
-    global _service_cat_monthly, _service_salon_monthly, _booking_stats
-    global _team_kpis, _load_timings, _loaded_tenant_name, _loaded_account_code
-
-    # Clear all globals immediately so no stale data from a previous tenant lingers
-    _all_scored = []; _all_clients = []; _total_clients = 0
-    _utilisation = []; _retail_summary = {}; _team_kpis = {}; _load_timings = {}
-    _loaded_tenant_name = ""; _loaded_account_code = ""
-    _load_timings['t_start'] = time.time()
-    _service_monthly = {}; _service_weekly = {}; _service_daily = {}
-    _service_cat_monthly = {}; _service_salon_monthly = {}; _booking_stats = {}
-    _salon_map = {}; _loaded_salon_ids = []; _loaded_salon_name = ""
-    _loaded_server    = server
-    _loaded_tenant_id = tenant_id or SERVERS.get(server, SERVERS["BETA"])["default_tenant"]
+    # All data is kept in local variables and written to _tenant_store at the end.
+    # No module-level globals are used, so concurrent requests for different tenants
+    # cannot overwrite each other.
+    all_scored = []; all_clients = []; total_clients = 0
+    utilisation = []; retail_summary = {}; team_kpis = {}; load_timings = {}
+    loaded_tenant_name = ""; loaded_account_code = ""
+    load_timings['t_start'] = time.time()
+    service_monthly = {}; service_weekly = {}; service_daily = {}
+    service_cat_monthly = {}; service_salon_monthly = {}; booking_stats = {}
+    loaded_salon_ids = []; loaded_salon_name = ""
+    loaded_server    = server
+    loaded_tenant_id = tenant_id or SERVERS.get(server, SERVERS["BETA"])["default_tenant"]
 
     def step(msg):
         if step_fn:
@@ -388,7 +366,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         app.logger.warning("SalonList fetch failed (salon names will be blank): %s", e)
         salons_raw = []
 
-    _total_clients = len(clients_raw)
+    total_clients = len(clients_raw)
 
     svc_map  = {s["ServiceId"]: s for s in svcs_raw}
     team_map = {
@@ -401,12 +379,12 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         (s.get("SalonName") or s.get("Name") or s.get("name") or "")
         for s in salons_raw
     }
-    _loaded_salon_ids = [sid for sid in salon_map if sid]
-    _salon_map = {sid: name for sid, name in salon_map.items() if sid}
+    loaded_salon_ids = [sid for sid in salon_map if sid]
+    salon_name_map = {sid: name for sid, name in salon_map.items() if sid}
     # Use the SalonList name if available; the /api/data route will override with
     # the tenant name from the UI dropdown if this remains blank
-    if _salon_map and not _loaded_salon_name:
-        _loaded_salon_name = next(iter(_salon_map.values()), "")
+    if salon_name_map and not loaded_salon_name:
+        loaded_salon_name = next(iter(salon_name_map.values()), "")
 
     _PERIOD_LABELS = {0: "Weekly", 1: "4-Weekly", 2: "Monthly", 3: "Daily"}
     for t in team_raw:
@@ -414,7 +392,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         if not tid:
             continue
         name = team_map.get(tid, "Unknown")
-        _team_kpis[name] = {
+        team_kpis[name] = {
             "period":           _PERIOD_LABELS.get(int(t.get("PeriodRange") or 0), "Unknown"),
             "kpi_retail":       float(t.get("KPIRetail")         or 0),
             "kpi_care_factor":  float(t.get("KPICareFactor")      or 0),
@@ -443,16 +421,16 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             sid = row.get("SalonId", "")
             row["SalonName"] = salon_map.get(sid, sid)  # fallback to ID if name unknown
             resolved.append(row)
-        _utilisation = resolved
-        salon_count   = len({r["SalonName"] for r in _utilisation})
-        stylist_count = len({r["StylistName"] for r in _utilisation})
+        utilisation = resolved
+        salon_count   = len({r["SalonName"] for r in utilisation})
+        stylist_count = len({r["StylistName"] for r in utilisation})
         app.logger.info("Utilisation: %d rows, %d salons, %d stylists",
-                        len(_utilisation), salon_count, stylist_count)
-        step(f"Utilisation loaded ({len(_utilisation)} rows · {salon_count} salon(s) · {stylist_count} stylist(s))")
+                        len(utilisation), salon_count, stylist_count)
+        step(f"Utilisation loaded ({len(utilisation)} rows · {salon_count} salon(s) · {stylist_count} stylist(s))")
     except Exception as e:
         app.logger.warning("Utilisation fetch failed: %s", e)
         step(f"Utilisation unavailable: {e}")
-        _utilisation = []
+        utilisation = []
 
     step("Fetching client tags")
     tags_by_client = defaultdict(list)
@@ -564,7 +542,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             src    = b.get("source", 5)
             cat    = b.get("cat", "")
             sid    = b.get("sid", "")
-            salon  = _salon_map.get(sid, sid) or sid   # resolve to name; fall back to raw ID
+            salon  = salon_name_map.get(sid, sid) or sid   # resolve to name; fall back to raw ID
             bid    = b.get("bid") or f"{cid}_{bdate.isoformat()}"
             _status_counts[st]  += 1
             _source_counts[src] += 1
@@ -630,21 +608,21 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                 "no_shows": d["no_shows"], "no_show_value": round(d["no_show_value"]),
                 "online": d["online"], "clients": len(d["clients"])}
 
-    _service_monthly = {mk: _agg_to_dict(d) for mk, d in _svc_agg.items()}
-    _service_cat_monthly = {
+    service_monthly = {mk: _agg_to_dict(d) for mk, d in _svc_agg.items()}
+    service_cat_monthly = {
         cat: {mk: {"revenue": round(d["revenue"]), "visits": d["visits"]}
               for mk, d in months.items()}
         for cat, months in _cat_agg.items()
     }
-    _service_weekly  = {wk: _agg_to_dict(d) for wk, d in _wk_agg.items()}
-    _service_daily   = {day: _agg_to_dict(d) for day, d in _day_agg.items()}
-    _service_salon_monthly = {
+    service_weekly  = {wk: _agg_to_dict(d) for wk, d in _wk_agg.items()}
+    service_daily   = {day: _agg_to_dict(d) for day, d in _day_agg.items()}
+    service_salon_monthly = {
         salon: {mk: {"revenue": round(d["revenue"]), "visits": d["visits"],
                      "no_shows": d["no_shows"], "no_show_value": round(d["no_show_value"])}
                 for mk, d in months.items()}
         for salon, months in _salon_agg.items()
     }
-    _booking_stats = {
+    booking_stats = {
         "status": {_STATUS_LABELS.get(k, f"Status{k}"): v
                    for k, v in sorted(_status_counts.items())},
         "source": {_SOURCE_LABELS.get(k, f"Source{k}"): v
@@ -727,7 +705,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             dt     = r.get("dt")
             mk     = dt.strftime("%b %Y") if dt else None
             sid    = (r.get("sid") or "").strip()
-            salon  = _salon_map.get(sid, "") if sid else ""
+            salon  = salon_name_map.get(sid, "") if sid else ""
 
             if name:
                 prod_agg[name]["clients"].add(cid)
@@ -754,7 +732,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                 salon_monthly_agg[salon][mk]["units"]   += qty
                 salon_monthly_agg[salon][mk]["revenue"] += price
 
-    _retail_summary = {
+    retail_summary = {
         "products": {k: {"clients": len(v["clients"]), "units": v["units"],
                          "revenue": round(v["revenue"])}
                      for k, v in prod_agg.items()},
@@ -784,7 +762,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         },
     }
 
-    _load_timings['t_fetch_done'] = time.time()
+    load_timings['t_fetch_done'] = time.time()
     step("Building client profiles")
     rows = []
     for cid, bkgs in by_client.items():
@@ -970,9 +948,9 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         ))
 
     rows.sort(key=lambda x: x["score"], reverse=True)
-    _all_scored = [r for r in rows if not r["has_future_booking"]]
+    all_scored = [r for r in rows if not r["has_future_booking"]]
 
-    # Add clients with no past visits (but possibly future bookings) to _all_clients
+    # Add clients with no past visits (but possibly future bookings) to all_clients
     visited_ids = {c["id"] for c in rows}
     no_history = []
     for cid, cli in cli_map.items():
@@ -1020,28 +998,31 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             age_group=cli.get("AgeGroup", ""), occupation=cli.get("Occupation", ""),
             how_heard=cli.get("HowHeard", ""), sr=0, so=0, sf=0, sm=0, sp=0, score_pct=0, sms="",
         ))
-    _all_clients = rows + no_history
+    all_clients = rows + no_history
 
-    _load_timings['t_build_done'] = time.time()
-    _tenant_store[f"{_loaded_server}|{_loaded_tenant_id}".upper()] = {
-        'all_clients':          _all_clients,
-        'all_scored':           _all_scored,
-        'total_clients':        _total_clients,
-        'utilisation':          _utilisation,
-        'retail_summary':       _retail_summary,
-        'salon_map':            _salon_map,
-        'service_monthly':      _service_monthly,
-        'service_weekly':       _service_weekly,
-        'service_daily':        _service_daily,
-        'service_cat_monthly':  _service_cat_monthly,
-        'service_salon_monthly':_service_salon_monthly,
-        'booking_stats':        _booking_stats,
-        'team_kpis':            _team_kpis,
-        'loaded_salon_name':    _loaded_salon_name,
-        'loaded_tenant_id':     _loaded_tenant_id,
-        'loaded_server':        _loaded_server,
-        'loaded_tenant_name':   _loaded_tenant_name,
-        'loaded_account_code':  _loaded_account_code,
+    load_timings['t_build_done'] = time.time()
+    ctx_key = f"{loaded_server}|{loaded_tenant_id}".upper()
+    _tenant_store[ctx_key] = {
+        'all_clients':           all_clients,
+        'all_scored':            all_scored,
+        'total_clients':         total_clients,
+        'utilisation':           utilisation,
+        'retail_summary':        retail_summary,
+        'salon_map':             salon_name_map,
+        'service_monthly':       service_monthly,
+        'service_weekly':        service_weekly,
+        'service_daily':         service_daily,
+        'service_cat_monthly':   service_cat_monthly,
+        'service_salon_monthly': service_salon_monthly,
+        'booking_stats':         booking_stats,
+        'team_kpis':             team_kpis,
+        'load_timings':          load_timings,
+        'loaded_salon_name':     loaded_salon_name,
+        'loaded_tenant_id':      loaded_tenant_id,
+        'loaded_server':         loaded_server,
+        'loaded_tenant_name':    loaded_tenant_name,
+        'loaded_account_code':   loaded_account_code,
+        'loaded_salon_ids':      loaded_salon_ids,
     }
     top = rows[:500]
     for i, c in enumerate(top, 1):
@@ -1080,14 +1061,19 @@ def _build_response(tenant_id, server, set_step=None):
     try:
         clients  = build_data(tenant_id, server, step_fn=set_step)
         stylists = sorted(set(c["pref_tm"] for c in clients))
+        resolved_tid = (tenant_id or SERVERS.get(server, SERVERS["BETA"])["default_tenant"]).upper()
+        ctx_key = f"{server}|{resolved_tid}".upper()
+        stored = _tenant_store.get(ctx_key, {})
+        all_scored = stored.get('all_scored', [])
+        total_clients = stored.get('total_clients', 0)
         result   = dict(
             clients=clients,
             stylists=stylists,
-            n_active  =sum(1 for c in _all_scored if c["scls"] == "active"),
-            n_due     =sum(1 for c in _all_scored if c["scls"] == "due"),
-            n_lapsing =sum(1 for c in _all_scored if c["scls"] == "lapsing"),
-            n_lapsed  =sum(1 for c in _all_scored if c["scls"] == "lapsed"),
-            n_total=_total_clients,
+            n_active  =sum(1 for c in all_scored if c["scls"] == "active"),
+            n_due     =sum(1 for c in all_scored if c["scls"] == "due"),
+            n_lapsing =sum(1 for c in all_scored if c["scls"] == "lapsing"),
+            n_lapsed  =sum(1 for c in all_scored if c["scls"] == "lapsed"),
+            n_total=total_clients,
             generated=datetime.now().strftime("%-d %b %Y at %H:%M"),
         )
         return {"status": "done", "data": result}
@@ -1109,26 +1095,28 @@ def data():
     _current_user = flask_session.get('username', '')
 
     def worker():
-        global _loaded_salon_name, _loaded_tenant_name, _loaded_account_code
         def set_step(msg):
             if isinstance(_jobs.get(job_id), dict) and _jobs[job_id].get("status") == "loading":
                 _jobs[job_id]["step"] = msg
         result = _build_response(tenant_id, server, set_step=set_step)
-        # Use the UI tenant name if the salon map didn't yield one
-        if tenant_name and not _loaded_salon_name:
-            _loaded_salon_name = tenant_name
+        resolved_tid = (tenant_id or SERVERS.get(server, SERVERS["BETA"])["default_tenant"]).upper()
+        ctx_key = f"{server}|{resolved_tid}".upper()
+        stored_ctx = _tenant_store.get(ctx_key, {})
+        if tenant_name and not stored_ctx.get('loaded_salon_name'):
+            stored_ctx['loaded_salon_name'] = tenant_name
         if tenant_name:
-            _loaded_tenant_name = tenant_name
+            stored_ctx['loaded_tenant_name'] = tenant_name
         if account_code:
-            _loaded_account_code = account_code
-        if result.get("status") == "done" and _load_timings.get('t_start'):
-            fetch_ms = round((_load_timings['t_fetch_done'] - _load_timings['t_start'])    * 1000)
-            build_ms = round((_load_timings['t_build_done'] - _load_timings['t_fetch_done']) * 1000)
-            total_ms = round((_load_timings['t_build_done'] - _load_timings['t_start'])    * 1000)
+            stored_ctx['loaded_account_code'] = account_code
+        load_timings = stored_ctx.get('load_timings', {})
+        if result.get("status") == "done" and load_timings.get('t_start'):
+            fetch_ms = round((load_timings['t_fetch_done'] - load_timings['t_start']) * 1000)
+            build_ms = round((load_timings['t_build_done'] - load_timings['t_fetch_done']) * 1000)
+            total_ms = round((load_timings['t_build_done'] - load_timings['t_start']) * 1000)
             _log('data_loaded',
-                 salon=_salon_label(),
+                 salon=_salon_label(stored_ctx),
                  username=_current_user,
-                 result_count=_total_clients,
+                 result_count=stored_ctx.get('total_clients', 0),
                  result_title=f"API fetch: {fetch_ms/1000:.1f}s | Profile build: {build_ms/1000:.1f}s",
                  response_ms=total_ms,
             )
@@ -1163,8 +1151,11 @@ def job_status(job_id):
 @require_auth
 def debug_utilisation():
     """Try TenantID-only and SalonId combinations to find what returns rows."""
-    server    = request.args.get("server", _loaded_server)
-    tenant_id = request.args.get("tenant_id") or _loaded_tenant_id or SERVERS.get(server, SERVERS["BETA"])["default_tenant"]
+    server    = request.args.get("server", "BETA")
+    tenant_id = request.args.get("tenant_id") or SERVERS.get(server, SERVERS["BETA"])["default_tenant"]
+    ctx = _get_ctx(tenant_id, server) or {}
+    known_salon_ids = ctx.get('loaded_salon_ids', [])
+    utilisation     = ctx.get('utilisation', [])
     today_d   = date.today()
     srv       = SERVERS.get(server, SERVERS["BETA"])
     sd        = (today_d - timedelta(days=182)).strftime("%m/%d/%Y")
@@ -1174,9 +1165,9 @@ def debug_utilisation():
         "_query_info": {
             "server":          server,
             "tenant_id":       tenant_id,
-            "known_salon_ids": _loaded_salon_ids,
+            "known_salon_ids": known_salon_ids,
         },
-        "cached_global": {"row_count": len(_utilisation), "sample": _utilisation[:2]},
+        "cached_global": {"row_count": len(utilisation), "sample": utilisation[:2]},
     }
 
     # Test with no SalonId (current approach)
@@ -1189,7 +1180,7 @@ def debug_utilisation():
             results[f"no_salonid__{label}"] = {"error": str(e)}
 
     # Test passing each known SalonId explicitly in the Salonid parameter
-    for salon_id in (_loaded_salon_ids or ["0f3bc7d0-38d4-10be-2960-1c6d71b3dc8a"])[:5]:
+    for salon_id in (known_salon_ids or ["0f3bc7d0-38d4-10be-2960-1c6d71b3dc8a"])[:5]:
         for tsd, ted, dlabel in [("", "", "empty"), (sd, ed, "range")]:
             key = f"salonid_{salon_id[:8]}__{dlabel}"
             try:
@@ -1239,7 +1230,7 @@ def search_clients():
     ctx    = _get_ctx(tenant_id, server)
     if tenant_id and not ctx:
         return jsonify([])
-    scored = ctx['all_scored'] if ctx else _all_scored
+    scored = (ctx or {}).get('all_scored', [])
     results = [c for c in scored if q in c["name"].lower()]
     return jsonify(results[:20])
 
@@ -1253,7 +1244,7 @@ def query_clients():
     ctx       = _get_ctx(tenant_id, server)
     if tenant_id and not ctx:
         return jsonify({"error": "Salon data not found — please reload the salon data."}), 400
-    clients   = ctx['all_clients'] if ctx else _all_clients
+    clients   = (ctx or {}).get('all_clients', [])
     if not q:
         return jsonify({"error": "No query provided"}), 400
     if not clients:
@@ -1504,45 +1495,45 @@ def _sort_months(keys):
 
 
 def build_analysis_context(question="", ctx=None):
-    # Unpack per-tenant context, falling back to module globals
-    _all_clients          = (ctx or {}).get('all_clients',          globals().get('_all_clients', []))
-    _all_scored           = (ctx or {}).get('all_scored',           globals().get('_all_scored', []))
-    _booking_stats        = (ctx or {}).get('booking_stats',        globals().get('_booking_stats', {}))
-    _service_daily        = (ctx or {}).get('service_daily',        globals().get('_service_daily', {}))
-    _service_weekly       = (ctx or {}).get('service_weekly',       globals().get('_service_weekly', {}))
-    _service_monthly      = (ctx or {}).get('service_monthly',      globals().get('_service_monthly', {}))
-    _service_salon_monthly= (ctx or {}).get('service_salon_monthly',globals().get('_service_salon_monthly', {}))
-    _service_cat_monthly  = (ctx or {}).get('service_cat_monthly',  globals().get('_service_cat_monthly', {}))
-    _retail_summary       = (ctx or {}).get('retail_summary',       globals().get('_retail_summary', {}))
-    _utilisation          = (ctx or {}).get('utilisation',          globals().get('_utilisation', []))
-    _team_kpis            = (ctx or {}).get('team_kpis',            globals().get('_team_kpis', {}))
-    _loaded_salon_name    = (ctx or {}).get('loaded_salon_name',    globals().get('_loaded_salon_name', ''))
-    _loaded_tenant_name   = (ctx or {}).get('loaded_tenant_name',   globals().get('_loaded_tenant_name', ''))
-    _loaded_account_code  = (ctx or {}).get('loaded_account_code',  globals().get('_loaded_account_code', ''))
-    _loaded_tenant_id     = (ctx or {}).get('loaded_tenant_id',     globals().get('_loaded_tenant_id', ''))
-    _loaded_server        = (ctx or {}).get('loaded_server',        globals().get('_loaded_server', ''))
-    _salon_map            = (ctx or {}).get('salon_map',            globals().get('_salon_map', {}))
+    # Unpack per-tenant context
+    all_clients          = (ctx or {}).get('all_clients', [])
+    all_scored           = (ctx or {}).get('all_scored', [])
+    booking_stats        = (ctx or {}).get('booking_stats', {})
+    service_daily        = (ctx or {}).get('service_daily', {})
+    service_weekly       = (ctx or {}).get('service_weekly', {})
+    service_monthly      = (ctx or {}).get('service_monthly', {})
+    service_salon_monthly= (ctx or {}).get('service_salon_monthly', {})
+    service_cat_monthly  = (ctx or {}).get('service_cat_monthly', {})
+    retail_summary       = (ctx or {}).get('retail_summary', {})
+    utilisation          = (ctx or {}).get('utilisation', [])
+    team_kpis            = (ctx or {}).get('team_kpis', {})
+    loaded_salon_name    = (ctx or {}).get('loaded_salon_name', '')
+    loaded_tenant_name   = (ctx or {}).get('loaded_tenant_name', '')
+    loaded_account_code  = (ctx or {}).get('loaded_account_code', '')
+    loaded_tenant_id     = (ctx or {}).get('loaded_tenant_id', '')
+    loaded_server        = (ctx or {}).get('loaded_server', 'BETA')
+    salon_map            = (ctx or {}).get('salon_map', {})
 
-    if not _all_clients:
+    if not all_clients:
         return "No data loaded."
 
     today = date.today()
-    status_counts = Counter(c.get("scls", "") for c in _all_clients)
+    status_counts = Counter(c.get("scls", "") for c in all_clients)
 
     stylist_data = defaultdict(lambda: {"clients": 0, "revenue": 0, "visits": 0})
-    for c in _all_clients:
+    for c in all_clients:
         tm = c.get("pref_tm", "?")
         stylist_data[tm]["clients"] += 1
         stylist_data[tm]["revenue"] += c.get("total_spend", 0)
         stylist_data[tm]["visits"]  += c.get("n_visits", 0)
 
     all_cats = []
-    for c in _all_clients:
+    for c in all_clients:
         all_cats.extend(c.get("top_cats", []))
 
     # Monthly retail: distribute each client's total spend evenly across their purchase months
     monthly_retail = defaultdict(lambda: {"clients": 0, "spend": 0.0})
-    for c in _all_clients:
+    for c in all_clients:
         months = list({_month_key(d) for d in (c.get("retail_dates") or []) if _month_key(d)})
         if not months:
             continue
@@ -1552,19 +1543,19 @@ def build_analysis_context(question="", ctx=None):
             monthly_retail[mk]["spend"]   += share
 
     monthly_gc = defaultdict(int)
-    for c in _all_clients:
+    for c in all_clients:
         for mk in {_month_key(d) for d in (c.get("giftcard_dates") or []) if _month_key(d)}:
             monthly_gc[mk] += 1
 
     monthly_promo = defaultdict(int)
-    for c in _all_clients:
+    for c in all_clients:
         for mk in {_month_key(d) for d in (c.get("promo_dates") or []) if _month_key(d)}:
             monthly_promo[mk] += 1
 
     # Segment deep-dives (aggregated, no individual rows)
     segments = {}
     for seg in ("active", "due", "lapsing", "lapsed", "never"):
-        grp = [c for c in _all_clients if c.get("scls") == seg]
+        grp = [c for c in all_clients if c.get("scls") == seg]
         if grp:
             segments[seg] = {
                 "count":        len(grp),
@@ -1579,7 +1570,7 @@ def build_analysis_context(question="", ctx=None):
     if question:
         q_lower = question.lower()
         q_words = set(q_lower.split())
-        for c in _all_clients:
+        for c in all_clients:
             name = (c.get("name") or "").strip()
             if not name:
                 continue
@@ -1592,8 +1583,8 @@ def build_analysis_context(question="", ctx=None):
     last_monday  = this_monday - timedelta(days=7)
     last_sunday  = this_monday - timedelta(days=1)
 
-    all_salon_names = sorted(set(_salon_map.values())) if _salon_map else []
-    tenant_label = (' – '.join(p for p in [_loaded_account_code, _loaded_tenant_name] if p)) or _loaded_salon_name or _loaded_tenant_id or 'Unknown'
+    all_salon_names = sorted(set(salon_map.values())) if salon_map else []
+    tenant_label = (' – '.join(p for p in [loaded_account_code, loaded_tenant_name] if p)) or loaded_salon_name or loaded_tenant_id or 'Unknown'
     if len(all_salon_names) > 1:
         salons_str = ', '.join(all_salon_names)
         scope_note = f"DATA SCOPE: This data covers ALL {len(all_salon_names)} salons in this tenant: {salons_str}. Client totals and revenue figures are combined across all locations."
@@ -1601,17 +1592,17 @@ def build_analysis_context(question="", ctx=None):
         scope_note = f"DATA SCOPE: Single salon — {all_salon_names[0] if all_salon_names else tenant_label}."
 
     lines = [
-        f"SALON / TENANT: {tenant_label} (server: {_loaded_server}) — data as of {today.strftime('%-d %b %Y')}",
+        f"SALON / TENANT: {tenant_label} (server: {loaded_server}) — data as of {today.strftime('%-d %b %Y')}",
         scope_note,
         f"DATE CONTEXT: Today={today.strftime('%-d %b %Y')} | "
         f"This week=w/c {this_monday.strftime('%-d %b %Y')} | "
         f"Last week={last_monday.strftime('%-d %b %Y')}–{last_sunday.strftime('%-d %b %Y')}",
         f"IMPORTANT: When answering questions, make clear whether figures are for a specific salon or the whole group. "
         f"Use the PrefSalon field on client records to attribute clients to their home salon.",
-        f"Total clients: {len(_all_clients)} | Active scoring pool: {len(_all_scored)}",
-        f"Total 2yr service revenue: £{sum(c.get('total_spend',0) for c in _all_clients):,.0f}",
-        f"Total 2yr retail spend:    £{sum(c.get('retail_total',0) for c in _all_clients):,.0f}",
-        f"Total 2yr gift card spend: £{sum(c.get('giftcard_total',0) for c in _all_clients):,.0f}",
+        f"Total clients: {len(all_clients)} | Active scoring pool: {len(all_scored)}",
+        f"Total 2yr service revenue: £{sum(c.get('total_spend',0) for c in all_clients):,.0f}",
+        f"Total 2yr retail spend:    £{sum(c.get('retail_total',0) for c in all_clients):,.0f}",
+        f"Total 2yr gift card spend: £{sum(c.get('giftcard_total',0) for c in all_clients):,.0f}",
         "",
         "CLIENT STATUS BREAKDOWN:",
     ]
@@ -1630,11 +1621,11 @@ def build_analysis_context(question="", ctx=None):
         lines.append(f"  {nm}: {d['clients']} clients, {d['visits']} visits, "
                      f"£{d['revenue']:,.0f} revenue, £{avg:.0f} avg/client")
 
-    if _team_kpis:
+    if team_kpis:
         lines += ["", "TEAM MEMBER KPI TARGETS:",
                   "Name,Period,RetailTarget£,CareFactorTarget%,ReBookingsTarget%,"
                   "ClientCountTarget,RequestCountTarget,AvgServicesTarget,UtilizationTarget%"]
-        for name, k in sorted(_team_kpis.items()):
+        for name, k in sorted(team_kpis.items()):
             lines.append(
                 f"{name},{k['period']},£{k['kpi_retail']:.0f},{k['kpi_care_factor']:.1f}%,"
                 f"{k['kpi_rebookings']:.1f}%,{k['kpi_client_count']:.0f},"
@@ -1645,9 +1636,9 @@ def build_analysis_context(question="", ctx=None):
     for cat, cnt in Counter(all_cats).most_common(15):
         lines.append(f"  {cat}: {cnt} clients")
 
-    if _booking_stats:
-        st = _booking_stats.get("status", {})
-        src = _booking_stats.get("source", {})
+    if booking_stats:
+        st = booking_stats.get("status", {})
+        src = booking_stats.get("source", {})
         tot = sum(st.values()) or 1
         lines += ["", "BOOKING STATUS BREAKDOWN (all past bookings):"]
         for label, cnt in st.items():
@@ -1658,64 +1649,64 @@ def build_analysis_context(question="", ctx=None):
             for label, cnt in src.items():
                 lines.append(f"  {label}: {cnt:,} ({cnt/tot_src*100:.1f}%)")
 
-    if _service_daily:
+    if service_daily:
         cutoff = (today - timedelta(days=90)).isoformat()
-        recent_days = sorted(d for d in _service_daily if d >= cutoff)
+        recent_days = sorted(d for d in service_daily if d >= cutoff)
         lines += ["", "DAILY SERVICE DATA (last 90 days — use for specific dates, 'yesterday', 'today', daily questions):",
                   "Date,ServiceRevenue£,Visits,NoShows,NoShowValue£,OnlineBookings,UniqueClients"]
         for day in recent_days:
-            d = _service_daily[day]
+            d = service_daily[day]
             day_label = date.fromisoformat(day).strftime("%a %-d %b %Y")
             lines.append(f"{day_label},£{d['revenue']:,},{d['visits']},"
                          f"{d.get('no_shows',0)},£{d.get('no_show_value',0):,},{d.get('online',0)},{d['clients']}")
 
-    if _service_weekly:
-        recent_wks = sorted(_service_weekly.keys(), reverse=True)[:52]
+    if service_weekly:
+        recent_wks = sorted(service_weekly.keys(), reverse=True)[:52]
         lines += ["", "WEEKLY SERVICE DATA (most recent 52 weeks — use this for 'last week', 'this week', weekly questions):",
                   "WeekCommencing,ServiceRevenue£,Visits,NoShows,NoShowValue£,OnlineBookings,UniqueClients"]
         for wk in sorted(recent_wks):
-            w = _service_weekly[wk]
+            w = service_weekly[wk]
             wk_label = date.fromisoformat(wk).strftime("%-d %b %Y")
             lines.append(f"w/c {wk_label},£{w['revenue']:,},{w['visits']},"
                          f"{w.get('no_shows',0)},£{w.get('no_show_value',0):,},{w.get('online',0)},{w['clients']}")
 
-    if _service_monthly:
+    if service_monthly:
         lines += ["", "MONTHLY SERVICE REVENUE & VISITS:",
                   "Month,ServiceRevenue£,Visits,NoShows,NoShowValue£,OnlineBookings,UniqueClients"]
-        for mk in _sort_months(_service_monthly)[:24]:
-            m = _service_monthly[mk]
+        for mk in _sort_months(service_monthly)[:24]:
+            m = service_monthly[mk]
             lines.append(f"{mk},£{m['revenue']:,},{m['visits']},"
                          f"{m.get('no_shows',0)},£{m.get('no_show_value',0):,},{m.get('online',0)},{m['clients']}")
 
-    if _service_salon_monthly:
+    if service_salon_monthly:
         salon_totals = {s: sum(d["revenue"] for d in months.values())
-                        for s, months in _service_salon_monthly.items()}
+                        for s, months in service_salon_monthly.items()}
         lines += ["", "MONTHLY REVENUE & VISITS BY SALON:",
                   "Month,Salon,Revenue£,Visits,NoShows,NoShowValue£"]
-        for mk in _sort_months(_service_monthly)[:24]:
+        for mk in _sort_months(service_monthly)[:24]:
             for salon in sorted(salon_totals, key=lambda s: -salon_totals[s]):
-                d = _service_salon_monthly.get(salon, {}).get(mk)
+                d = service_salon_monthly.get(salon, {}).get(mk)
                 if d and d["revenue"] > 0:
                     lines.append(f"{mk},{salon},£{d['revenue']:,},{d['visits']},"
                                  f"{d['no_shows']},£{d['no_show_value']:,}")
 
-    if _service_cat_monthly:
+    if service_cat_monthly:
         # Rank categories by total 2yr revenue; include top 15
         cat_totals = {cat: sum(d["revenue"] for d in months.values())
-                      for cat, months in _service_cat_monthly.items()}
+                      for cat, months in service_cat_monthly.items()}
         top_cats_ranked = sorted(cat_totals, key=lambda c: -cat_totals[c])[:15]
         lines += ["", "MONTHLY REVENUE & VISITS BY SERVICE CATEGORY (paid bookings only):",
                   "Month,Category,Revenue£,Visits"]
-        for mk in _sort_months(_service_monthly)[:24]:
+        for mk in _sort_months(service_monthly)[:24]:
             for cat in top_cats_ranked:
-                d = _service_cat_monthly.get(cat, {}).get(mk)
+                d = service_cat_monthly.get(cat, {}).get(mk)
                 if d and d["revenue"] > 0:
                     lines.append(f"{mk},{cat},£{d['revenue']:,},{d['visits']}")
 
     # Retail product aggregates — use transaction-level data if available,
     # fall back to counting product names across client records
-    if _retail_summary.get("products"):
-        rs = _retail_summary
+    if retail_summary.get("products"):
+        rs = retail_summary
         lines += ["", "TOP RETAIL PRODUCTS (transaction data — units sold + revenue):",
                   "Product,ClientsBuying,UnitsSold,Revenue£"]
         for name, d in sorted(rs["products"].items(), key=lambda x: -x[1]["revenue"])[:30]:
@@ -1759,7 +1750,7 @@ def build_analysis_context(question="", ctx=None):
                             for s, months in rs["salon_monthly"].items()}
             lines += ["", "MONTHLY RETAIL SALES BY SALON:",
                       "Month,Salon,UnitsSold,Revenue£"]
-            for mk in _sort_months(_retail_summary.get("monthly", {}))[:24]:
+            for mk in _sort_months(retail_summary.get("monthly", {}))[:24]:
                 for salon in sorted(salon_totals, key=lambda s: -salon_totals[s]):
                     d = rs["salon_monthly"].get(salon, {}).get(mk)
                     if d and d["revenue"] > 0:
@@ -1769,7 +1760,7 @@ def build_analysis_context(question="", ctx=None):
         prod_counts  = Counter()
         brand_counts = Counter()
         line_counts  = Counter()
-        for c in _all_clients:
+        for c in all_clients:
             for p in (c.get("retail_products") or []):
                 if p: prod_counts[p] += 1
             for b in (c.get("retail_brands") or []):
@@ -1804,11 +1795,11 @@ def build_analysis_context(question="", ctx=None):
     lines += ["", "SPEND DISTRIBUTION (avg spend per visit):"]
     for lo, hi, label in [(0,50,"£0-50"),(50,100,"£50-100"),(100,200,"£100-200"),
                            (200,500,"£200-500"),(500,1000,"£500-1000"),(1000,9e9,"£1000+")]:
-        cnt = sum(1 for c in _all_clients if lo <= c.get("avg_spend", 0) < hi)
+        cnt = sum(1 for c in all_clients if lo <= c.get("avg_spend", 0) < hi)
         lines.append(f"  {label}: {cnt} clients")
 
     # Top 100 clients by total spend (compact rows, no arrays)
-    top100 = sorted(_all_clients, key=lambda x: x.get("total_spend", 0), reverse=True)[:100]
+    top100 = sorted(all_clients, key=lambda x: x.get("total_spend", 0), reverse=True)[:100]
     lines += ["", "TOP 100 CLIENTS BY TOTAL SPEND:",
               "Name,Status,DaysSince,Visits,ServiceRevenue,AvgSpend,RetailTotal,GiftcardTotal,Stylist,PrefSalon,Services"]
     for c in top100:
@@ -1840,7 +1831,7 @@ def build_analysis_context(question="", ctx=None):
             ]
 
     # Utilisation data — aggregated from daily rows (ClientMinutes / AvailablTime)
-    if _utilisation:
+    if utilisation:
         zero = lambda: {"client_mins": 0, "avail_mins": 0, "days": 0,
                         "future_days": 0, "future_client_mins": 0, "future_avail_mins": 0}
         salon_util   = defaultdict(zero)
@@ -1849,7 +1840,7 @@ def build_analysis_context(question="", ctx=None):
         salon_stylist_util = defaultdict(zero)
         monthly_util = defaultdict(lambda: {"client_mins": 0, "avail_mins": 0})
 
-        for row in _utilisation:
+        for row in utilisation:
             stylist    = row.get("StylistName", "Unknown")
             salon      = row.get("SalonName") or row.get("SalonId", "Unknown salon")
             cm         = int(row.get("ClientMinutes", 0) or 0)
@@ -1955,7 +1946,7 @@ def analyse():
             return jsonify(error="No question provided"), 400
         if tenant_id and not ctx:
             return jsonify(error="Salon data not found — please reload the salon data."), 400
-        if not (ctx or _all_clients):
+        if not ctx:
             return jsonify(error="No data loaded — load a salon first."), 400
 
         api_key = os.environ.get("ANTHROPIC_API_KEY", "")
@@ -2051,7 +2042,7 @@ def analyse():
                     "output_tokens": msg.usage.output_tokens,
                 }
                 _log('analyse',
-                     salon=_salon_label(),
+                     salon=_salon_label(ctx),
                      username=_current_user,
                      question=question[:500],
                      format=fmt,
@@ -2066,7 +2057,7 @@ def analyse():
             except Exception as e:
                 app.logger.exception("ANALYSE worker error: %s", e)
                 _log('analyse',
-                     salon=_salon_label(),
+                     salon=_salon_label(ctx),
                      username=_current_user,
                      question=question[:500],
                      format=fmt,
