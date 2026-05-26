@@ -360,7 +360,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     _team_ed = today.strftime(SERVERS.get(server, SERVERS["BETA"])["date_fmt"])
     team_raw    = fetch("XXX_Export_Admin_TUBR_TeamMembers", _team_sd, _team_ed, tenant_id=tenant_id, server=server)
     try:
-        salons_raw = fetch("XXX_Export_Admin_BenchMarks_SalonList", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
+        salons_raw = fetch("XXX_Export_Admin_Aria_SalonList", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
 
     except Exception as e:
         app.logger.warning("SalonList fetch failed (salon names will be blank): %s", e)
@@ -374,6 +374,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         for t in team_raw if t.get("TeamMemberId")
     }
     cli_map  = {c["ClientId"].lower(): c for c in clients_raw if c.get("ClientId")}
+    _PERIOD_LABELS = {0: "Weekly", 1: "4-Weekly", 2: "Monthly", 3: "Daily"}
     salon_map = {
         str(s.get("SalonId") or s.get("Salonid") or s.get("salonid") or s.get("ID") or ""):
         (s.get("SalonName") or s.get("Name") or s.get("name") or "")
@@ -381,12 +382,27 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     }
     loaded_salon_ids = [sid for sid in salon_map if sid]
     salon_name_map = {sid: name for sid, name in salon_map.items() if sid}
+    salon_kpis = {
+        str(s.get("SalonId") or s.get("Salonid") or s.get("salonid") or s.get("ID") or ""): {
+            "name":               (s.get("SalonName") or s.get("Name") or s.get("name") or ""),
+            "kpi_services":       float(s.get("KPIServices")       or 0),
+            "kpi_retail":         float(s.get("KPIRetail")         or 0),
+            "kpi_care_factor":    float(s.get("KPICareFactor")     or 0),
+            "kpi_rebookings":     float(s.get("KPIReBookings")     or 0),
+            "kpi_client_count":   float(s.get("KPIClientCount")    or 0),
+            "kpi_request_count":  float(s.get("KPIRequestCount")   or 0),
+            "kpi_avg_services":   float(s.get("KPIAverageServices") or 0),
+            "kpi_utilization":    float(s.get("KPIUtilization")    or 0),
+            "period":             _PERIOD_LABELS.get(int(s.get("PeriodRange") or 0), "Unknown"),
+        }
+        for s in salons_raw
+        if (s.get("SalonId") or s.get("Salonid") or s.get("salonid") or s.get("ID"))
+    }
     # Use the SalonList name if available; the /api/data route will override with
     # the tenant name from the UI dropdown if this remains blank
     if salon_name_map and not loaded_salon_name:
         loaded_salon_name = next(iter(salon_name_map.values()), "")
 
-    _PERIOD_LABELS = {0: "Weekly", 1: "4-Weekly", 2: "Monthly", 3: "Daily"}
     for t in team_raw:
         tid = t.get("TeamMemberId")
         if not tid:
@@ -1009,6 +1025,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         'utilisation':           utilisation,
         'retail_summary':        retail_summary,
         'salon_map':             salon_name_map,
+        'salon_kpis':            salon_kpis,
         'service_monthly':       service_monthly,
         'service_weekly':        service_weekly,
         'service_daily':         service_daily,
@@ -1513,6 +1530,7 @@ def build_analysis_context(question="", ctx=None):
     loaded_tenant_id     = (ctx or {}).get('loaded_tenant_id', '')
     loaded_server        = (ctx or {}).get('loaded_server', 'BETA')
     salon_map            = (ctx or {}).get('salon_map', {})
+    salon_kpis           = (ctx or {}).get('salon_kpis', {})
 
     if not all_clients:
         return "No data loaded."
@@ -1620,6 +1638,18 @@ def build_analysis_context(question="", ctx=None):
         avg = d["revenue"] / d["clients"] if d["clients"] else 0
         lines.append(f"  {nm}: {d['clients']} clients, {d['visits']} visits, "
                      f"£{d['revenue']:,.0f} revenue, £{avg:.0f} avg/client")
+
+    if salon_kpis:
+        lines += ["", "SALON KPI TARGETS:",
+                  "Salon,Period,ServicesTarget,RetailTarget£,CareFactorTarget%,ReBookingsTarget%,"
+                  "ClientCountTarget,RequestCountTarget,AvgServicesTarget,UtilizationTarget%"]
+        for _, k in sorted(salon_kpis.items(), key=lambda x: x[1].get('name', '')):
+            lines.append(
+                f"{k['name']},{k['period']},{k['kpi_services']:.0f},£{k['kpi_retail']:.0f},"
+                f"{k['kpi_care_factor']:.1f}%,{k['kpi_rebookings']:.1f}%,"
+                f"{k['kpi_client_count']:.0f},{k['kpi_request_count']:.0f},"
+                f"{k['kpi_avg_services']:.1f},{k['kpi_utilization']:.1f}%"
+            )
 
     if team_kpis:
         lines += ["", "TEAM MEMBER KPI TARGETS:",
