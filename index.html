@@ -1205,7 +1205,6 @@ async function fetchData(force = false) {
     if (!startRes.ok) throw new Error(`HTTP ${startRes.status}`);
     const { job_id, cached, error: startErr } = await startRes.json();
     if (startErr) throw new Error(startErr);
-    if (cached) { document.getElementById('loadingStep').textContent = 'Loading from cache…'; }
 
     // Poll until done
     let d = null;
