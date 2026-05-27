@@ -566,8 +566,8 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     _dow_agg   = defaultdict(lambda: {"visits": 0, "no_shows": 0, "revenue": 0.0})
     _seen_hr   = set()   # (bid, hour) — dedup visits per hour slot
     _seen_dow  = set()   # (bid, dow)  — dedup visits per day-of-week
-    _tm_rebook_agg = defaultdict(lambda: defaultdict(lambda: {"visits": 0, "rebooked": 0}))
-    _seen_tm_bid   = set()  # (tm_id, bid) — dedup bookings per team member
+    _tm_rebook_agg = defaultdict(lambda: defaultdict(lambda: {"visits": 0, "rebooked": 0, "revenue": 0.0}))
+    _seen_tm_bid   = set()  # (tm_id, bid) — dedup booking visits per team member
     for cid, bkgs in by_client.items():
         for b in bkgs:
             mk     = b["dt"].strftime("%b %Y")
@@ -640,11 +640,13 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                     _dow_agg[dow]["visits"]  += 1
                     _dow_agg[dow]["revenue"] += b["price"]
                 tm_id = b.get("tm", "")
-                if tm_id and (tm_id, bid) not in _seen_tm_bid:
-                    _seen_tm_bid.add((tm_id, bid))
-                    _tm_rebook_agg[tm_id][mk]["visits"] += 1
-                    if b.get("rebooked"):
-                        _tm_rebook_agg[tm_id][mk]["rebooked"] += 1
+                if tm_id:
+                    _tm_rebook_agg[tm_id][mk]["revenue"] += b["price"]  # sum all service lines
+                    if (tm_id, bid) not in _seen_tm_bid:
+                        _seen_tm_bid.add((tm_id, bid))
+                        _tm_rebook_agg[tm_id][mk]["visits"] += 1
+                        if b.get("rebooked"):
+                            _tm_rebook_agg[tm_id][mk]["rebooked"] += 1
             elif st == 3:
                 if (bid, hour) not in _seen_hr:
                     _seen_hr.add((bid, hour))
@@ -708,15 +710,17 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     team_rebook_monthly = {
         team_map.get(tm_id, tm_id): {
             mk: {
-                "visits":  d["visits"],
+                "visits":   d["visits"],
                 "rebooked": d["rebooked"],
-                "rate":    round(d["rebooked"] / d["visits"] * 100) if d["visits"] else 0,
+                "revenue":  round(d["revenue"]),
+                "rate":     round(d["rebooked"] / d["visits"] * 100) if d["visits"] else 0,
             }
             for mk, d in months.items()
         }
         for tm_id, months in _tm_rebook_agg.items()
         if team_map.get(tm_id, tm_id)
     }
+
     _all_rebook_months = sorted({mk for m in team_rebook_monthly.values() for mk in m})
     _total_rebook_v = sum(d['visits']   for m in team_rebook_monthly.values() for d in m.values())
     _total_rebook_r = sum(d['rebooked'] for m in team_rebook_monthly.values() for d in m.values())
@@ -1675,14 +1679,21 @@ def build_analysis_context(question="", ctx=None):
     today = date.today()
     status_counts = Counter(c.get("scls", "") for c in all_clients)
 
-    stylist_data = defaultdict(lambda: {"clients": 0, "revenue": 0, "visits": 0, "rebooked_clients": 0})
+    # Accurate per-stylist stats from actual booking records
+    stylist_data = {}
+    for name, months in team_rebook_monthly.items():
+        stylist_data[name] = {
+            "visits":      sum(d["visits"]   for d in months.values()),
+            "revenue":     sum(d["revenue"]  for d in months.values()),
+            "rebooked":    sum(d["rebooked"] for d in months.values()),
+            "clients":     0,  # filled in below from client profiles
+        }
+    # Client counts: how many clients list this stylist as their preferred
     for c in all_clients:
         tm = c.get("pref_tm", "?")
+        if tm not in stylist_data:
+            stylist_data[tm] = {"visits": 0, "revenue": 0, "rebooked": 0, "clients": 0}
         stylist_data[tm]["clients"] += 1
-        stylist_data[tm]["revenue"] += c.get("total_spend", 0)
-        stylist_data[tm]["visits"]  += c.get("n_visits", 0)
-        if c.get("rebooking_rate", 0) > 0:
-            stylist_data[tm]["rebooked_clients"] += 1
 
     all_cats = []
     for c in all_clients:
@@ -1772,12 +1783,12 @@ def build_analysis_context(question="", ctx=None):
             f"{d['retail_buyers']} retail buyers"
         )
 
-    lines += ["", "STYLISTS (by revenue):"]
+    lines += ["", "STYLISTS (by revenue — visits and revenue from actual booking records):"]
     for nm, d in sorted(stylist_data.items(), key=lambda x: -x[1]["revenue"])[:15]:
-        avg = d["revenue"] / d["clients"] if d["clients"] else 0
-        rebook_pct = round(d["rebooked_clients"] / d["clients"] * 100) if d["clients"] else 0
-        lines.append(f"  {nm}: {d['clients']} clients, {d['visits']} visits, "
-                     f"£{d['revenue']:,.0f} revenue, £{avg:.0f} avg/client, "
+        avg_per_visit = d["revenue"] / d["visits"] if d["visits"] else 0
+        rebook_pct    = round(d["rebooked"] / d["visits"] * 100) if d["visits"] else 0
+        lines.append(f"  {nm}: {d['clients']} pref-clients, {d['visits']} visits, "
+                     f"£{d['revenue']:,.0f} revenue, £{avg_per_visit:.0f} avg/visit, "
                      f"{rebook_pct}% rebooking rate")
 
     if salon_kpis:
