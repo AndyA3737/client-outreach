@@ -494,7 +494,12 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         futures = {pool.submit(_fetch_chunk, r): r for r in booking_ranges}
         for future in as_completed(futures):
             chunk = future.result()
+            _logged_booking_keys = False
             for b in chunk:
+                if not _logged_booking_keys:
+                    app.logger.info("BOOKING RECORD KEYS: %s", list(b.keys()))
+                    app.logger.info("HasBeenReBooked sample: %r", b.get("HasBeenReBooked"))
+                    _logged_booking_keys = True
                 cid = (b.get("ClientId") or "").lower()
                 dt  = parse_dt(b.get("Start"))
                 if not cid or not dt:
@@ -527,7 +532,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                     "status":  bk_status,
                     "source":  bk_source,
                     "bid":     bk_id,
-                    "rebooked": bool(int(b.get("HasBeenReBooked") or 0)),
+                    "rebooked": str(b.get("HasBeenReBooked") or "").strip().lower() in ("1", "true", "yes"),
                 })
             del chunk  # discard as soon as processed
 
