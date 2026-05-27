@@ -1741,8 +1741,6 @@ def build_analysis_context(question="", ctx=None):
         f"Total 2yr service revenue: £{sum(c.get('total_spend',0) for c in all_clients):,.0f}",
         f"Total 2yr retail spend:    £{sum(c.get('retail_total',0) for c in all_clients):,.0f}",
         f"Total 2yr gift card spend: £{sum(c.get('giftcard_total',0) for c in all_clients):,.0f}",
-        f"Overall rebooking rate: {round(sum(c.get('rebooking_rate',0) for c in all_clients) / len(all_clients)) if all_clients else 0}% "
-        f"(clients who rebooked within 24hrs of their visit, avg across all clients)",
         "",
         "CLIENT STATUS BREAKDOWN:",
     ]
@@ -1823,10 +1821,17 @@ def build_analysis_context(question="", ctx=None):
                              f"{v['no_shows']},{v['revenue']:,}")
 
     if team_rebook_monthly:
+        _trm_total_v = sum(d['visits']   for months in team_rebook_monthly.values() for d in months.values())
+        _trm_total_r = sum(d['rebooked'] for months in team_rebook_monthly.values() for d in months.values())
+        _overall_rebook_rate = round(_trm_total_r / _trm_total_v * 100) if _trm_total_v else 0
         all_months = sorted({mk for months in team_rebook_monthly.values() for mk in months},
                             key=lambda m: (int(m.split()[1]), ["Jan","Feb","Mar","Apr","May","Jun",
                                            "Jul","Aug","Sep","Oct","Nov","Dec"].index(m.split()[0])))
-        lines += ["", "TEAM REBOOKING RATES BY MONTH (from HasBeenReBooked field — actual API data):",
+        lines += ["",
+                  f"OVERALL REBOOKING RATE (2yr, from HasBeenRebooked API field): {_overall_rebook_rate}% "
+                  f"({_trm_total_r:,} rebooked out of {_trm_total_v:,} paid visits)",
+                  "",
+                  "TEAM REBOOKING RATES BY MONTH (from HasBeenRebooked field — actual API data):",
                   "TeamMember," + ",".join(f"{m} Visits,{m} Rebooked,{m} Rate%" for m in all_months)]
         for name in sorted(team_rebook_monthly):
             months = team_rebook_monthly[name]
