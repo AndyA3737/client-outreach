@@ -693,6 +693,12 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                     for d in range(7) if _dow_agg[d]["visits"] or _dow_agg[d]["no_shows"]},
     }
 
+    _paid_bkgs   = [(cid, b) for cid, bkgs in by_client.items() for b in bkgs if b.get("status") == 2]
+    _sample_tms  = list({b.get("tm","") for _, b in _paid_bkgs if b.get("tm")})[:5]
+    _rebook_true = sum(1 for _, b in _paid_bkgs if b.get("rebooked"))
+    print(f"[rebook-debug] {len(by_client)} clients | {len(_paid_bkgs)} paid visits | "
+          f"{_rebook_true} rebooked=True | tm_ids sample: {_sample_tms}", flush=True)
+
     team_rebook_monthly = {
         team_map.get(tm_id, tm_id): {
             mk: {
