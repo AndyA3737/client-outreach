@@ -1192,18 +1192,20 @@ function changeSalon() {
 }
 
 // ── Data fetch (background job + polling) ────────────────────
-async function fetchData() {
+async function fetchData(force = false) {
   try {
     const params = new URLSearchParams({ server: selectedServer });
     if (selectedTenantId)    params.set('tenant_id',    selectedTenantId);
     if (selectedTenantName)  params.set('tenant_name',  selectedTenantName);
     if (selectedAccountCode) params.set('account_code', selectedAccountCode);
+    if (force)               params.set('force',        '1');
 
     // Start background job — returns immediately with a job_id
     const startRes = await fetch('/api/data?' + params);
     if (!startRes.ok) throw new Error(`HTTP ${startRes.status}`);
-    const { job_id, error: startErr } = await startRes.json();
+    const { job_id, cached, error: startErr } = await startRes.json();
     if (startErr) throw new Error(startErr);
+    if (cached) { document.getElementById('loadingStep').textContent = 'Loading from cache…'; }
 
     // Poll until done
     let d = null;
@@ -1328,7 +1330,7 @@ async function refreshData() {
   initLoadingCard();
   btn.textContent = '↻ Refresh Data';
   btn.disabled = false;
-  await fetchData();
+  await fetchData(true);
 }
 
 // ── Copy SMS ──────────────────────────────────────────────────

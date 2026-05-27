@@ -216,6 +216,8 @@ _cache, _cache_ts = {}, {}
 CACHE_TTL = 3600
 _jobs = {}          # job_id -> {status, data, error}
 _tenant_store = {}  # f"{server}|{tenant_id}" → per-tenant data context
+_build_locks  = {}  # ctx_key → job_id of the in-progress build for that tenant
+DATA_TTL      = 4 * 3600  # seconds before cached salon data is considered stale
 
 
 NOCACHE_REPORTS = {"XXX_Export_Admin_TUBR_Bookings"}
@@ -1072,6 +1074,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         'loaded_tenant_name':    loaded_tenant_name,
         'loaded_account_code':   loaded_account_code,
         'loaded_salon_ids':      loaded_salon_ids,
+        '_loaded_at':            time.time(),
     }
     top = rows[:500]
     for i, c in enumerate(top, 1):
@@ -1131,6 +1134,27 @@ def _build_response(tenant_id, server, set_step=None):
         return {"status": "error", "error": str(e)}
 
 
+def _response_from_cache(ctx):
+    """Build the job result dict from an already-loaded _tenant_store entry."""
+    clients    = ctx.get('all_clients', [])
+    top        = sorted(clients, key=lambda c: c.get('total_spend', 0), reverse=True)[:500]
+    for i, c in enumerate(top, 1):
+        c['rank'] = i
+    all_scored = ctx.get('all_scored', [])
+    age_s      = time.time() - ctx.get('_loaded_at', 0)
+    age_str    = f"{int(age_s // 60)}m ago" if age_s < 3600 else f"{age_s/3600:.1f}h ago"
+    return {"status": "done", "data": dict(
+        clients   = top,
+        stylists  = sorted(set(c["pref_tm"] for c in top)),
+        n_active  = sum(1 for c in all_scored if c["scls"] == "active"),
+        n_due     = sum(1 for c in all_scored if c["scls"] == "due"),
+        n_lapsing = sum(1 for c in all_scored if c["scls"] == "lapsing"),
+        n_lapsed  = sum(1 for c in all_scored if c["scls"] == "lapsed"),
+        n_total   = ctx.get('total_clients', 0),
+        generated = datetime.now().strftime("%-d %b %Y at %H:%M") + f" (cached {age_str})",
+    )}
+
+
 @app.route("/api/data")
 @require_auth
 def data():
@@ -1139,40 +1163,63 @@ def data():
     server       = request.args.get("server", "BETA")
     tenant_name  = request.args.get("tenant_name", "").strip()
     account_code = request.args.get("account_code", "").strip()
-    job_id      = str(uuid.uuid4())
-    _jobs[job_id] = {"status": "loading", "step": ""}
+    force        = request.args.get("force", "0") == "1"
     _current_user = flask_session.get('username', '')
 
+    resolved_tid = (tenant_id or SERVERS.get(server, SERVERS["BETA"])["default_tenant"]).upper()
+    ctx_key      = f"{server}|{resolved_tid}".upper()
+
+    # 1. Serve from cache if fresh enough and not a forced reload
+    if not force:
+        cached = _tenant_store.get(ctx_key)
+        if cached and (time.time() - cached.get('_loaded_at', 0)) < DATA_TTL:
+            job_id = str(uuid.uuid4())
+            _jobs[job_id] = _response_from_cache(cached)
+            print(f"[data] cache hit for {ctx_key} — age {(time.time()-cached['_loaded_at'])/60:.0f}m", flush=True)
+            return jsonify({"job_id": job_id, "cached": True})
+
+    # 2. If a build is already running for this tenant, piggyback on it
+    existing = _build_locks.get(ctx_key)
+    if existing and _jobs.get(existing, {}).get("status") == "loading":
+        print(f"[data] piggybacking on in-progress build {existing} for {ctx_key}", flush=True)
+        return jsonify({"job_id": existing, "cached": False})
+
+    # 3. Start a fresh build
+    job_id = str(uuid.uuid4())
+    _jobs[job_id] = {"status": "loading", "step": ""}
+    _build_locks[ctx_key] = job_id
+
     def worker():
-        def set_step(msg):
-            if isinstance(_jobs.get(job_id), dict) and _jobs[job_id].get("status") == "loading":
-                _jobs[job_id]["step"] = msg
-        result = _build_response(tenant_id, server, set_step=set_step)
-        resolved_tid = (tenant_id or SERVERS.get(server, SERVERS["BETA"])["default_tenant"]).upper()
-        ctx_key = f"{server}|{resolved_tid}".upper()
-        stored_ctx = _tenant_store.get(ctx_key, {})
-        if tenant_name and not stored_ctx.get('loaded_salon_name'):
-            stored_ctx['loaded_salon_name'] = tenant_name
-        if tenant_name:
-            stored_ctx['loaded_tenant_name'] = tenant_name
-        if account_code:
-            stored_ctx['loaded_account_code'] = account_code
-        load_timings = stored_ctx.get('load_timings', {})
-        if result.get("status") == "done" and load_timings.get('t_start'):
-            fetch_ms = round((load_timings['t_fetch_done'] - load_timings['t_start']) * 1000)
-            build_ms = round((load_timings['t_build_done'] - load_timings['t_fetch_done']) * 1000)
-            total_ms = round((load_timings['t_build_done'] - load_timings['t_start']) * 1000)
-            _log('data_loaded',
-                 salon=_salon_label(stored_ctx),
-                 username=_current_user,
-                 result_count=stored_ctx.get('total_clients', 0),
-                 result_title=f"API fetch: {fetch_ms/1000:.1f}s | Profile build: {build_ms/1000:.1f}s",
-                 response_ms=total_ms,
-            )
-        _jobs[job_id] = result
+        try:
+            def set_step(msg):
+                if isinstance(_jobs.get(job_id), dict) and _jobs[job_id].get("status") == "loading":
+                    _jobs[job_id]["step"] = msg
+            result = _build_response(tenant_id, server, set_step=set_step)
+            stored_ctx = _tenant_store.get(ctx_key, {})
+            if tenant_name and not stored_ctx.get('loaded_salon_name'):
+                stored_ctx['loaded_salon_name'] = tenant_name
+            if tenant_name:
+                stored_ctx['loaded_tenant_name'] = tenant_name
+            if account_code:
+                stored_ctx['loaded_account_code'] = account_code
+            load_timings = stored_ctx.get('load_timings', {})
+            if result.get("status") == "done" and load_timings.get('t_start'):
+                fetch_ms = round((load_timings['t_fetch_done'] - load_timings['t_start']) * 1000)
+                build_ms = round((load_timings['t_build_done'] - load_timings['t_fetch_done']) * 1000)
+                total_ms = round((load_timings['t_build_done'] - load_timings['t_start']) * 1000)
+                _log('data_loaded',
+                     salon=_salon_label(stored_ctx),
+                     username=_current_user,
+                     result_count=stored_ctx.get('total_clients', 0),
+                     result_title=f"API fetch: {fetch_ms/1000:.1f}s | Profile build: {build_ms/1000:.1f}s",
+                     response_ms=total_ms,
+                )
+            _jobs[job_id] = result
+        finally:
+            _build_locks.pop(ctx_key, None)
 
     threading.Thread(target=worker, daemon=True).start()
-    return jsonify({"job_id": job_id})
+    return jsonify({"job_id": job_id, "cached": False})
 
 
 
