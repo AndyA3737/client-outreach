@@ -465,7 +465,7 @@
   <div class="flex flex-wrap items-center gap-2 mb-5">
     <span class="text-xs font-semibold mr-1" style="color:var(--muted)">Try:</span>
     <button class="eg-chip" onclick="useEgPrompt(this)">Total retail sales for March 2025</button>
-    <button class="eg-chip" onclick="useEgPrompt(this)">Personal dashboard for Stacey — strengths, weaknesses, opportunities</button>
+    <button class="eg-chip" onclick="useEgPrompt(this)">Personal dashboard for [team member name] — strengths, weaknesses, opportunities</button>
     <button class="eg-chip" onclick="useEgPrompt(this)">Top 10 clients by revenue</button>
     <button class="eg-chip" onclick="useEgPrompt(this)">Which stylist has the highest average spend per client?</button>
     <button class="eg-chip" onclick="useEgPrompt(this)">Lapsing clients and potential revenue recovery</button>
@@ -1206,26 +1206,35 @@ async function fetchData(force = false) {
     const { job_id, cached, error: startErr } = await startRes.json();
     if (startErr) throw new Error(startErr);
 
-    // Poll until done
     let d = null;
-    let elapsed = 0;
-    while (!d) {
-      await new Promise(r => setTimeout(r, 2000));
-      elapsed += 2;
+    if (cached) {
+      // Job already resolved — fetch immediately, skip loading UI
       const pollRes = await fetch(`/api/job/${job_id}`);
       if (!pollRes.ok) throw new Error(`HTTP ${pollRes.status}`);
       const pollData = await pollRes.json();
       if (pollData.error) throw new Error(pollData.error);
-      if (pollData.status === 'loading') {
-        const stepIdx = getStepIndex(pollData.step || '');
-        renderLoadingSteps(stepIdx);
-        const timer = document.getElementById('loadingTimer');
-        if (timer) timer.textContent = `${elapsed}s elapsed`;
-      } else {
-        d = pollData;
+      d = pollData;
+    } else {
+      // Fresh build — poll with step display
+      let elapsed = 0;
+      while (!d) {
+        await new Promise(r => setTimeout(r, 2000));
+        elapsed += 2;
+        const pollRes = await fetch(`/api/job/${job_id}`);
+        if (!pollRes.ok) throw new Error(`HTTP ${pollRes.status}`);
+        const pollData = await pollRes.json();
+        if (pollData.error) throw new Error(pollData.error);
+        if (pollData.status === 'loading') {
+          const stepIdx = getStepIndex(pollData.step || '');
+          renderLoadingSteps(stepIdx);
+          const timer = document.getElementById('loadingTimer');
+          if (timer) timer.textContent = `${elapsed}s elapsed`;
+        } else {
+          d = pollData;
+        }
       }
+      renderLoadingSteps(LOAD_STEPS.length);
     }
-    renderLoadingSteps(LOAD_STEPS.length); // mark all done briefly before hiding
 
     document.getElementById('generatedTs').textContent    = d.generated;
     document.getElementById('statTotal').textContent      = d.n_total.toLocaleString();
