@@ -2190,6 +2190,10 @@ def analyse():
                     "You are an expert salon business analyst with access to live UK hair salon data. "
                     "Analyse the data carefully and answer the user's question accurately. "
                     "All monetary values are in British Pounds (£). "
+                    "IMPORTANT: The data includes a section called 'TEAM REBOOKING RATES BY MONTH' "
+                    "which contains actual per-stylist rebooking rates sourced directly from the "
+                    "HasBeenRebooked field in the booking API. Use this table when asked about "
+                    "rebooking rates — do NOT say the data is unavailable if this section is present. "
                     "Return ONLY valid JSON — no markdown, no code blocks, no extra text. "
                     + fmt_instructions.get(fmt, fmt_instructions["dashboard"])
                 )
