@@ -220,7 +220,7 @@ _build_locks  = {}  # ctx_key → job_id of the in-progress build for that tenan
 DATA_TTL      = 4 * 3600  # seconds before cached salon data is considered stale
 
 
-NOCACHE_REPORTS = {"XXX_Export_Admin_Aria_TUBR_Bookings", "XXX_Export_Admin_TUBR_Bookings"}
+NOCACHE_REPORTS = {"XXX_Export_Admin_Aria_Bookings", "XXX_Export_Admin_TUBR_Bookings"}
 
 def fetch(report_name, sd="", ed="", tenant_id=None, server="BETA", method="POST"):
     srv = SERVERS.get(server, SERVERS["BETA"])
@@ -483,7 +483,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     def _fetch_chunk(args):
         sd, ed = args
         try:
-            rows = fetch("XXX_Export_Admin_Aria_TUBR_Bookings", sd, ed,
+            rows = fetch("XXX_Export_Admin_Aria_Bookings", sd, ed,
                          tenant_id=tenant_id, server=server)
             if rows:
                 return rows
