@@ -498,7 +498,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             for b in chunk:
                 if not _logged_booking_keys:
                     app.logger.info("BOOKING RECORD KEYS: %s", list(b.keys()))
-                    app.logger.info("HasBeenReBooked sample: %r", b.get("HasBeenReBooked"))
+                    app.logger.info("HasBeenRebooked sample: %r", b.get("HasBeenRebooked"))
                     _logged_booking_keys = True
                 cid = (b.get("ClientId") or "").lower()
                 dt  = parse_dt(b.get("Start"))
@@ -532,7 +532,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                     "status":  bk_status,
                     "source":  bk_source,
                     "bid":     bk_id,
-                    "rebooked": str(b.get("HasBeenReBooked") or "").strip().lower() in ("1", "true", "yes"),
+                    "rebooked": str(b.get("HasBeenRebooked") or "").strip().lower() in ("1", "true", "yes"),
                 })
             del chunk  # discard as soon as processed
 
