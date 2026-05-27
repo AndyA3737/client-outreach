@@ -220,7 +220,7 @@ _build_locks  = {}  # ctx_key → job_id of the in-progress build for that tenan
 DATA_TTL      = 4 * 3600  # seconds before cached salon data is considered stale
 
 
-NOCACHE_REPORTS = {"XXX_Export_Admin_TUBR_Bookings"}
+NOCACHE_REPORTS = {"XXX_Export_Admin_Aria_TUBR_Bookings"}
 
 def fetch(report_name, sd="", ed="", tenant_id=None, server="BETA", method="POST"):
     srv = SERVERS.get(server, SERVERS["BETA"])
@@ -483,7 +483,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     def _fetch_chunk(args):
         sd, ed = args
         try:
-            return fetch("XXX_Export_Admin_TUBR_Bookings", sd, ed,
+            return fetch("XXX_Export_Admin_Aria_TUBR_Bookings", sd, ed,
                          tenant_id=tenant_id, server=server)
         except Exception as e:
             app.logger.error("CHUNK FAILED [%s→%s]: %s", sd, ed, e)
@@ -517,16 +517,17 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                 if any(k in svc_name.upper() for k in SKIP_KEYWORDS):
                     continue
                 by_client[cid].append({
-                    "dt":     dt,
-                    "price":  float(b.get("TotalSalesPrice") or 0),
-                    "tm":     b.get("TeamMemberId", ""),
-                    "cat":    svc.get("Categoty", "").replace("HAIR - ", ""),
-                    "svc":    svc_name,
-                    "sid":    str(b.get("Salonid") or b.get("SalonId") or b.get("salonid") or ""),
-                    "dept":   (svc.get("Department") or "").lower(),
-                    "status": bk_status,
-                    "source": bk_source,
-                    "bid":    bk_id,
+                    "dt":      dt,
+                    "price":   float(b.get("TotalSalesPrice") or 0),
+                    "tm":      b.get("TeamMemberId", ""),
+                    "cat":     svc.get("Categoty", "").replace("HAIR - ", ""),
+                    "svc":     svc_name,
+                    "sid":     str(b.get("Salonid") or b.get("SalonId") or b.get("salonid") or ""),
+                    "dept":    (svc.get("Department") or "").lower(),
+                    "status":  bk_status,
+                    "source":  bk_source,
+                    "bid":     bk_id,
+                    "rebooked": bool(int(b.get("HasBeenReBooked") or 0)),
                 })
             del chunk  # discard as soon as processed
 
@@ -554,6 +555,8 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     _dow_agg   = defaultdict(lambda: {"visits": 0, "no_shows": 0, "revenue": 0.0})
     _seen_hr   = set()   # (bid, hour) — dedup visits per hour slot
     _seen_dow  = set()   # (bid, dow)  — dedup visits per day-of-week
+    _tm_rebook_agg = defaultdict(lambda: defaultdict(lambda: {"visits": 0, "rebooked": 0}))
+    _seen_tm_bid   = set()  # (tm_id, bid) — dedup bookings per team member
     for cid, bkgs in by_client.items():
         for b in bkgs:
             mk     = b["dt"].strftime("%b %Y")
@@ -625,6 +628,12 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                     _seen_dow.add((bid, dow))
                     _dow_agg[dow]["visits"]  += 1
                     _dow_agg[dow]["revenue"] += b["price"]
+                tm_id = b.get("tm", "")
+                if tm_id and (tm_id, bid) not in _seen_tm_bid:
+                    _seen_tm_bid.add((tm_id, bid))
+                    _tm_rebook_agg[tm_id][mk]["visits"] += 1
+                    if b.get("rebooked"):
+                        _tm_rebook_agg[tm_id][mk]["rebooked"] += 1
             elif st == 3:
                 if (bid, hour) not in _seen_hr:
                     _seen_hr.add((bid, hour))
@@ -677,6 +686,19 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                                       "no_shows": _dow_agg[d]["no_shows"],
                                       "revenue": round(_dow_agg[d]["revenue"])}
                     for d in range(7) if _dow_agg[d]["visits"] or _dow_agg[d]["no_shows"]},
+    }
+
+    team_rebook_monthly = {
+        team_map.get(tm_id, tm_id): {
+            mk: {
+                "visits":  d["visits"],
+                "rebooked": d["rebooked"],
+                "rate":    round(d["rebooked"] / d["visits"] * 100) if d["visits"] else 0,
+            }
+            for mk, d in months.items()
+        }
+        for tm_id, months in _tm_rebook_agg.items()
+        if team_map.get(tm_id, tm_id)  # skip entries where tm_id not resolved
     }
 
     step("Fetching gift cards")
@@ -880,6 +902,9 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         tags      = tags_by_client.get(cid, [])
         tag_count = len(tags)
 
+        rebooked_count  = sum(1 for b in actual_visits if b.get("rebooked"))
+        rebooking_rate  = round(rebooked_count / n * 100) if n else 0
+
         rt_list        = retail_by_client.get(cid, [])
         retail_count   = len(rt_list)
         retail_total   = round(sum(r["price"] for r in rt_list))
@@ -995,6 +1020,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             sp=-penalty,
             score_pct=min(round(total_score), 100),
             sms=sms_msg,
+            rebooking_rate=rebooking_rate,
         ))
 
     rows.sort(key=lambda x: x["score"], reverse=True)
@@ -1066,6 +1092,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         'service_cat_monthly':   service_cat_monthly,
         'service_salon_monthly': service_salon_monthly,
         'booking_stats':         booking_stats,
+        'team_rebook_monthly':   team_rebook_monthly,
         'team_kpis':             team_kpis,
         'load_timings':          load_timings,
         'loaded_salon_name':     loaded_salon_name,
@@ -1609,6 +1636,7 @@ def build_analysis_context(question="", ctx=None):
     retail_summary       = (ctx or {}).get('retail_summary', {})
     utilisation          = (ctx or {}).get('utilisation', [])
     team_kpis            = (ctx or {}).get('team_kpis', {})
+    team_rebook_monthly  = (ctx or {}).get('team_rebook_monthly', {})
     loaded_salon_name    = (ctx or {}).get('loaded_salon_name', '')
     loaded_tenant_name   = (ctx or {}).get('loaded_tenant_name', '')
     loaded_account_code  = (ctx or {}).get('loaded_account_code', '')
@@ -1623,12 +1651,14 @@ def build_analysis_context(question="", ctx=None):
     today = date.today()
     status_counts = Counter(c.get("scls", "") for c in all_clients)
 
-    stylist_data = defaultdict(lambda: {"clients": 0, "revenue": 0, "visits": 0})
+    stylist_data = defaultdict(lambda: {"clients": 0, "revenue": 0, "visits": 0, "rebooked_clients": 0})
     for c in all_clients:
         tm = c.get("pref_tm", "?")
         stylist_data[tm]["clients"] += 1
         stylist_data[tm]["revenue"] += c.get("total_spend", 0)
         stylist_data[tm]["visits"]  += c.get("n_visits", 0)
+        if c.get("rebooking_rate", 0) > 0:
+            stylist_data[tm]["rebooked_clients"] += 1
 
     all_cats = []
     for c in all_clients:
@@ -1706,6 +1736,8 @@ def build_analysis_context(question="", ctx=None):
         f"Total 2yr service revenue: £{sum(c.get('total_spend',0) for c in all_clients):,.0f}",
         f"Total 2yr retail spend:    £{sum(c.get('retail_total',0) for c in all_clients):,.0f}",
         f"Total 2yr gift card spend: £{sum(c.get('giftcard_total',0) for c in all_clients):,.0f}",
+        f"Overall rebooking rate: {round(sum(c.get('rebooking_rate',0) for c in all_clients) / len(all_clients)) if all_clients else 0}% "
+        f"(clients who rebooked within 24hrs of their visit, avg across all clients)",
         "",
         "CLIENT STATUS BREAKDOWN:",
     ]
@@ -1721,8 +1753,10 @@ def build_analysis_context(question="", ctx=None):
     lines += ["", "STYLISTS (by revenue):"]
     for nm, d in sorted(stylist_data.items(), key=lambda x: -x[1]["revenue"])[:15]:
         avg = d["revenue"] / d["clients"] if d["clients"] else 0
+        rebook_pct = round(d["rebooked_clients"] / d["clients"] * 100) if d["clients"] else 0
         lines.append(f"  {nm}: {d['clients']} clients, {d['visits']} visits, "
-                     f"£{d['revenue']:,.0f} revenue, £{avg:.0f} avg/client")
+                     f"£{d['revenue']:,.0f} revenue, £{avg:.0f} avg/client, "
+                     f"{rebook_pct}% rebooking rate")
 
     if salon_kpis:
         lines += ["", "SALON KPI TARGETS:",
@@ -1782,6 +1816,20 @@ def build_analysis_context(question="", ctx=None):
             for day, v in by_dow.items():
                 lines.append(f"  {day},{v['visits']:,},{v['visits']/total_dow*100:.1f}%,"
                              f"{v['no_shows']},{v['revenue']:,}")
+
+    if team_rebook_monthly:
+        all_months = sorted({mk for months in team_rebook_monthly.values() for mk in months},
+                            key=lambda m: (int(m.split()[1]), ["Jan","Feb","Mar","Apr","May","Jun",
+                                           "Jul","Aug","Sep","Oct","Nov","Dec"].index(m.split()[0])))
+        lines += ["", "TEAM REBOOKING RATES BY MONTH (from HasBeenReBooked field — actual API data):",
+                  "TeamMember," + ",".join(f"{m} Visits,{m} Rebooked,{m} Rate%" for m in all_months)]
+        for name in sorted(team_rebook_monthly):
+            months = team_rebook_monthly[name]
+            row = name
+            for m in all_months:
+                d = months.get(m, {"visits": 0, "rebooked": 0, "rate": 0})
+                row += f",{d['visits']},{d['rebooked']},{d['rate']}%"
+            lines.append(f"  {row}")
 
     if service_daily:
         cutoff = (today - timedelta(days=90)).isoformat()
