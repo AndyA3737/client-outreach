@@ -1303,8 +1303,9 @@ def debug_utilisation():
 @app.route("/api/refresh", methods=["POST"])
 @require_auth
 def refresh():
-    server    = request.args.get("server", "BETA")
-    tenant_id = request.args.get("tenant_id") or None
+    server    = request.args.get("server", flask_session.get("server", "BETA"))
+    tenant_id = request.args.get("tenant_id") or flask_session.get("tenant_id") or None
+    # Clear low-level API response cache
     prefix    = f"{server}|"
     suffix    = f"|{tenant_id}" if tenant_id else None
     to_delete = [k for k in list(_cache.keys())
@@ -1312,6 +1313,11 @@ def refresh():
     for k in to_delete:
         _cache.pop(k, None)
         _cache_ts.pop(k, None)
+    # Clear the built tenant context so next /api/data does a full rebuild
+    if tenant_id:
+        ctx_key = f"{server}|{tenant_id}".upper()
+        _tenant_store.pop(ctx_key, None)
+        _build_locks.pop(ctx_key, None)
     return jsonify(ok=True)
 
 

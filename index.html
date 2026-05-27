@@ -174,7 +174,8 @@
     </div>
   </div>
   <div class="flex items-center gap-3">
-<a id="logsBtnHeader" href="/admin/logs" class="text-sm transition-colors" style="color:rgba(255,255,255,0.5);text-decoration:none" onmouseover="this.style.color='rgba(255,255,255,0.9)'" onmouseout="this.style.color='rgba(255,255,255,0.5)'">📋 Logs</a>
+    <a id="logsBtnHeader" href="/admin/logs" class="text-sm transition-colors" style="color:rgba(255,255,255,0.5);text-decoration:none" onmouseover="this.style.color='rgba(255,255,255,0.9)'" onmouseout="this.style.color='rgba(255,255,255,0.5)'">📋 Logs</a>
+    <button id="refreshBtn" onclick="refreshData()" class="text-sm transition-colors" style="color:rgba(255,255,255,0.5);background:none;border:none;cursor:pointer;padding:0" onmouseover="this.style.color='rgba(255,255,255,0.9)'" onmouseout="this.style.color='rgba(255,255,255,0.5)'">↻ Reload Data</button>
     <button onclick="logOut()" class="btn-teal text-sm">⏻ Log out</button>
   </div>
 </header>
