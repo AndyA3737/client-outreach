@@ -1208,14 +1208,19 @@ async function fetchData(force = false) {
 
     let d = null;
     if (cached) {
-      // Job already resolved — fetch immediately, skip loading UI
+      // Job already resolved — fetch immediately, skip loading UI entirely
       const pollRes = await fetch(`/api/job/${job_id}`);
       if (!pollRes.ok) throw new Error(`HTTP ${pollRes.status}`);
       const pollData = await pollRes.json();
       if (pollData.error) throw new Error(pollData.error);
       d = pollData;
     } else {
-      // Fresh build — poll with step display
+      // Fresh build — ensure overlay is visible (may already be shown by refreshData)
+      const ov = document.getElementById('loadingOverlay');
+      if (ov.style.display === 'none' || !ov.style.display) {
+        ov.style.display = 'flex';
+        initLoadingCard();
+      }
       let elapsed = 0;
       while (!d) {
         await new Promise(r => setTimeout(r, 2000));
@@ -1484,14 +1489,12 @@ async function init() {
       }
     } catch (_) {}
 
-    // Go straight to loading — no tenant selector needed
+    // Set header labels — overlay shown only if a fresh build is needed
     document.getElementById('tenantSelector').style.display   = 'none';
-    document.getElementById('loadingOverlay').style.display   = 'flex';
     document.getElementById('selectedSalonLabel').textContent = displayLabel;
     const badge = document.getElementById('serverBadge');
     badge.textContent      = selectedServer;
     badge.style.background = selectedServer === 'LIVE' ? '#059669' : 'rgba(255,255,255,0.12)';
-    initLoadingCard();
     fetchData();
   } catch (e) {
     window.location.href = '/login';
