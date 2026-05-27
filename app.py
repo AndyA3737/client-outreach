@@ -497,8 +497,8 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             _logged_booking_keys = False
             for b in chunk:
                 if not _logged_booking_keys:
-                    app.logger.info("BOOKING RECORD KEYS: %s", list(b.keys()))
-                    app.logger.info("HasBeenRebooked sample: %r", b.get("HasBeenRebooked"))
+                    print(f"[booking] keys: {list(b.keys())}", flush=True)
+                    print(f"[booking] HasBeenRebooked sample: {b.get('HasBeenRebooked')!r}", flush=True)
                     _logged_booking_keys = True
                 cid = (b.get("ClientId") or "").lower()
                 dt  = parse_dt(b.get("Start"))
@@ -708,11 +708,10 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     _all_rebook_months = sorted({mk for m in team_rebook_monthly.values() for mk in m})
     _total_rebook_v = sum(d['visits']   for m in team_rebook_monthly.values() for d in m.values())
     _total_rebook_r = sum(d['rebooked'] for m in team_rebook_monthly.values() for d in m.values())
-    app.logger.info("REBOOK_BUILD: %d team members | %d months (%s) | %d/%d rebooked (%.0f%%)",
-                    len(team_rebook_monthly), len(_all_rebook_months),
-                    ", ".join(_all_rebook_months[-3:]) if _all_rebook_months else "none",
-                    _total_rebook_r, _total_rebook_v,
-                    _total_rebook_r / _total_rebook_v * 100 if _total_rebook_v else 0)
+    print(f"[rebook] {len(team_rebook_monthly)} team members | "
+          f"{len(_all_rebook_months)} months ({', '.join(_all_rebook_months[-3:]) or 'none'}) | "
+          f"{_total_rebook_r}/{_total_rebook_v} rebooked "
+          f"({round(_total_rebook_r/_total_rebook_v*100) if _total_rebook_v else 0}%)", flush=True)
 
     step("Fetching gift cards")
     giftcard_by_client = defaultdict(list)
@@ -2211,9 +2210,8 @@ def analyse():
                     f"{prev_block}"
                     f"\n\nQUESTION: {question}\n\nOutput format: {fmt}"
                 )
-                app.logger.info("ANALYSE question=%r fmt=%s context_chars=%d followup=%s rebook_in_ctx=%s",
-                                question, fmt, len(context), bool(previous_result),
-                                "TEAM REBOOKING" in context)
+                print(f"[analyse] q={question!r} fmt={fmt} chars={len(context)} "
+                      f"rebook_in_ctx={'TEAM REBOOKING' in context}", flush=True)
 
                 _jobs[job_id]["step"] = "Asking Claude…"
                 ai  = _anthropic.Anthropic(api_key=api_key)
