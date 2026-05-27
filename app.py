@@ -703,8 +703,16 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             for mk, d in months.items()
         }
         for tm_id, months in _tm_rebook_agg.items()
-        if team_map.get(tm_id, tm_id)  # skip entries where tm_id not resolved
+        if team_map.get(tm_id, tm_id)
     }
+    _all_rebook_months = sorted({mk for m in team_rebook_monthly.values() for mk in m})
+    _total_rebook_v = sum(d['visits']   for m in team_rebook_monthly.values() for d in m.values())
+    _total_rebook_r = sum(d['rebooked'] for m in team_rebook_monthly.values() for d in m.values())
+    app.logger.info("REBOOK_BUILD: %d team members | %d months (%s) | %d/%d rebooked (%.0f%%)",
+                    len(team_rebook_monthly), len(_all_rebook_months),
+                    ", ".join(_all_rebook_months[-3:]) if _all_rebook_months else "none",
+                    _total_rebook_r, _total_rebook_v,
+                    _total_rebook_r / _total_rebook_v * 100 if _total_rebook_v else 0)
 
     step("Fetching gift cards")
     giftcard_by_client = defaultdict(list)
@@ -2199,8 +2207,9 @@ def analyse():
                     f"{prev_block}"
                     f"\n\nQUESTION: {question}\n\nOutput format: {fmt}"
                 )
-                app.logger.info("ANALYSE question=%r fmt=%s context_chars=%d followup=%s",
-                                question, fmt, len(context), bool(previous_result))
+                app.logger.info("ANALYSE question=%r fmt=%s context_chars=%d followup=%s rebook_in_ctx=%s",
+                                question, fmt, len(context), bool(previous_result),
+                                "TEAM REBOOKING" in context)
 
                 _jobs[job_id]["step"] = "Asking Claude…"
                 ai  = _anthropic.Anthropic(api_key=api_key)
