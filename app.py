@@ -360,7 +360,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     # bookings go back 2 years and their TeamMemberId must resolve to a name.
     _team_sd = (today - timedelta(days=730)).strftime(SERVERS.get(server, SERVERS["BETA"])["date_fmt"])
     _team_ed = today.strftime(SERVERS.get(server, SERVERS["BETA"])["date_fmt"])
-    team_raw    = fetch("XXX_Export_Admin_TUBR_TeamMembers", _team_sd, _team_ed, tenant_id=tenant_id, server=server)
+    team_raw    = fetch("XXX_Export_Admin_Aria_TeamMembers", _team_sd, _team_ed, tenant_id=tenant_id, server=server)
     try:
         salons_raw = fetch("XXX_Export_Admin_Aria_SalonList", "01/01/2026", "01/01/2026", tenant_id=tenant_id, server=server)
 
