@@ -494,6 +494,14 @@
   <!-- Follow-up result area -->
   <div id="followupResult"></div>
 
+  <!-- Floating ask button — visible when follow-up bar is active -->
+  <button id="floatingAskBtn" onclick="floatingAskClick()" style="
+    display:none;position:fixed;bottom:28px;right:28px;z-index:999;
+    background:var(--gold);color:#fff;border:none;border-radius:50px;
+    padding:12px 20px;font-size:14px;font-weight:600;cursor:pointer;
+    box-shadow:0 4px 16px rgba(0,0,0,0.18);gap:7px;align-items:center;
+  ">💬 Ask a follow-up</button>
+
   <!-- Follow-up bar — hidden until first result renders, always below results -->
   <div id="followupBar" style="display:none;margin-top:20px;padding:16px 20px;background:#F8FAFC;border:1px solid var(--border);border-radius:16px;gap:10px;align-items:center">
     <span style="font-size:18px">💬</span>
@@ -647,9 +655,10 @@ async function runAnalysis() {
   const question = document.getElementById('analysisInput').value.trim();
   if (!question) return;
   _lastAnalysis = null;
-  // Hide follow-up bar and clear follow-up result while main question loads
+  // Hide follow-up bar, floating button, and clear follow-up result while main question loads
   const fbar = document.getElementById('followupBar');
   if (fbar) fbar.style.display = 'none';
+  document.getElementById('floatingAskBtn').style.display = 'none';
   document.getElementById('followupResult').innerHTML = '';
   await _submitAnalysis(question, null,
     document.getElementById('analysisResults'),
@@ -660,10 +669,17 @@ function submitFollowup() {
   const q   = document.getElementById('followupInput').value.trim();
   const btn = document.getElementById('followupBtn');
   if (!q) return;
-  // Hide bar while loading, clear previous follow-up result
+  // Hide bar and floating button while loading, clear previous follow-up result
   document.getElementById('followupBar').style.display = 'none';
+  document.getElementById('floatingAskBtn').style.display = 'none';
   _submitAnalysis(q, _lastAnalysis,
     document.getElementById('followupResult'), btn);
+}
+
+function floatingAskClick() {
+  const input = document.getElementById('followupInput');
+  input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  input.focus();
 }
 
 const _thinkingMessages = [
@@ -868,11 +884,12 @@ function renderAnalysis(data, box) {
     box.innerHTML = html;
   }
 
-  // Reveal the static follow-up bar now that results are rendered
+  // Reveal the static follow-up bar and floating button now that results are rendered
   const fbar = document.getElementById('followupBar');
   if (fbar) {
     fbar.style.display = 'flex';
     document.getElementById('followupInput').value = '';
+    document.getElementById('floatingAskBtn').style.display = 'flex';
   }
 }
 
@@ -1175,6 +1192,7 @@ function loadTenant() {
   document.getElementById('followupResult').innerHTML   = '';
   const _fb = document.getElementById('followupBar');
   if (_fb) _fb.style.display = 'none';
+  document.getElementById('floatingAskBtn').style.display = 'none';
   _lastAnalysis = null;
   document.getElementById('analysisInput').value = '';
   const badge = document.getElementById('serverBadge');
