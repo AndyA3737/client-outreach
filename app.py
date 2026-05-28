@@ -876,7 +876,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         next_booking = min(fb, key=lambda x: x["dt"])["dt"].strftime("%-d %b %Y") if fb else None
 
         bkgs.sort(key=lambda x: x["dt"])
-        actual_visits = [b for b in bkgs if b.get("status") in (1, 2)]
+        actual_visits = [b for b in bkgs if b.get("status") == 2]
         if not actual_visits:
             continue  # client has only no-shows or pending bookings — skip
         last_dt, first_dt = actual_visits[-1]["dt"], actual_visits[0]["dt"]
