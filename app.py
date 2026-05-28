@@ -2485,9 +2485,12 @@ def admin_logs():
     def fmt_ts(ts):
         if not ts: return '—'
         try:
+            import zoneinfo
             from datetime import timezone
-            dt = datetime.fromisoformat(ts).replace(tzinfo=timezone.utc)
-            now = datetime.now(timezone.utc)
+            uk = zoneinfo.ZoneInfo("Europe/London")
+            dt_utc = datetime.fromisoformat(ts).replace(tzinfo=timezone.utc)
+            dt  = dt_utc.astimezone(uk)
+            now = datetime.now(uk)
             diff = now - dt
             if diff.total_seconds() < 60:
                 return 'just now'
