@@ -566,7 +566,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     _dow_agg   = defaultdict(lambda: {"visits": 0, "no_shows": 0, "revenue": 0.0})
     _seen_hr   = set()   # (bid, hour) — dedup visits per hour slot
     _seen_dow  = set()   # (bid, dow)  — dedup visits per day-of-week
-    _tm_rebook_agg = defaultdict(lambda: defaultdict(lambda: {"visits": 0, "rebooked": 0, "revenue": 0.0}))
+    _tm_rebook_agg = defaultdict(lambda: defaultdict(lambda: {"visits": 0, "rebooked": 0, "revenue": 0.0, "clients": set()}))
     _seen_tm_bid   = set()  # (tm_id, bid) — dedup booking visits per team member
     for cid, bkgs in by_client.items():
         for b in bkgs:
@@ -642,6 +642,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                 tm_id = b.get("tm", "")
                 if tm_id:
                     _tm_rebook_agg[tm_id][mk]["revenue"] += b["price"]  # sum all service lines
+                    _tm_rebook_agg[tm_id][mk]["clients"].add(cid)
                     if (tm_id, bid) not in _seen_tm_bid:
                         _seen_tm_bid.add((tm_id, bid))
                         _tm_rebook_agg[tm_id][mk]["visits"] += 1
@@ -714,6 +715,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                 "rebooked": d["rebooked"],
                 "revenue":  round(d["revenue"]),
                 "rate":     round(d["rebooked"] / d["visits"] * 100) if d["visits"] else 0,
+                "clients":  len(d["clients"]),
             }
             for mk, d in months.items()
         }
@@ -1861,14 +1863,14 @@ def build_analysis_context(question="", ctx=None):
                   f"OVERALL REBOOKING RATE (2yr, from HasBeenRebooked API field): {_overall_rebook_rate}% "
                   f"({_trm_total_r:,} rebooked out of {_trm_total_v:,} paid visits)",
                   "",
-                  "TEAM REBOOKING RATES BY MONTH (from HasBeenRebooked field — actual API data):",
-                  "TeamMember," + ",".join(f"{m} Visits,{m} Rebooked,{m} Rate%" for m in all_months)]
+                  "TEAM MONTHLY STATS (visits, unique clients, revenue, rebooking — actual API data):",
+                  "TeamMember," + ",".join(f"{m} Visits,{m} Clients,{m} Revenue,{m} Rebooked,{m} Rate%" for m in all_months)]
         for name in sorted(team_rebook_monthly):
             months = team_rebook_monthly[name]
             row = name
             for m in all_months:
-                d = months.get(m, {"visits": 0, "rebooked": 0, "rate": 0})
-                row += f",{d['visits']},{d['rebooked']},{d['rate']}%"
+                d = months.get(m, {"visits": 0, "clients": 0, "revenue": 0, "rebooked": 0, "rate": 0})
+                row += f",{d['visits']},{d['clients']},£{d['revenue']},{d['rebooked']},{d['rate']}%"
             lines.append(f"  {row}")
 
     if service_daily:
