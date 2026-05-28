@@ -708,7 +708,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
           f"{_rebook_true} rebooked=True | tm_ids sample: {_sample_tms}", flush=True)
 
     team_rebook_monthly = {
-        team_map.get(tm_id, tm_id): {
+        team_map[tm_id]: {
             mk: {
                 "visits":   d["visits"],
                 "rebooked": d["rebooked"],
@@ -718,7 +718,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             for mk, d in months.items()
         }
         for tm_id, months in _tm_rebook_agg.items()
-        if team_map.get(tm_id, tm_id)
+        if tm_id in team_map
     }
 
     _all_rebook_months = sorted({mk for m in team_rebook_monthly.values() for mk in m})
