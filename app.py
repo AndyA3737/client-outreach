@@ -263,7 +263,7 @@ def parse_dt(s):
 
 
 DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-SKIP_KEYWORDS = ("NO SHOW", "DEPOSIT", "CONSULTATION", "PATCH TEST")
+SKIP_KEYWORDS = ()
 
 
 def build_sms(cid, name, status, top_cats, pref_tm, days_since, overdue, avg_gap):
