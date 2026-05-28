@@ -2224,8 +2224,10 @@ def analyse():
                 prev_block = ""
                 if previous_result:
                     prev_block = (
-                        "\n\nPREVIOUS ANALYSIS (the result you already showed the user — "
-                        "use this as context for the follow-up question):\n"
+                        "\n\nPREVIOUS ANALYSIS (shown to the user before this question — "
+                        "use ONLY to understand what was previously discussed, e.g. to clarify or expand on a point. "
+                        "NEVER copy or reuse any figures, counts, or values from this block — "
+                        "always recalculate everything fresh from SALON DATA above):\n"
                         + json.dumps(previous_result, ensure_ascii=False)
                     )
                 user_msg = (
