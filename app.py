@@ -567,7 +567,11 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     _seen_hr   = set()   # (bid, hour) — dedup visits per hour slot
     _seen_dow  = set()   # (bid, dow)  — dedup visits per day-of-week
     _tm_rebook_agg = defaultdict(lambda: defaultdict(lambda: {"visits": 0, "rebooked": 0, "revenue": 0.0, "clients": set()}))
+    _tm_day_agg    = defaultdict(lambda: defaultdict(lambda: {"visits": 0, "rebooked": 0, "revenue": 0.0, "clients": set()}))
+    _tm_wk_agg     = defaultdict(lambda: defaultdict(lambda: {"visits": 0, "rebooked": 0, "revenue": 0.0, "clients": set()}))
     _seen_tm_bid   = set()  # (tm_id, bid) — dedup booking visits per team member
+    _seen_tm_bid_d = set()  # (tm_id, bid, day) — dedup per day
+    _seen_tm_bid_w = set()  # (tm_id, bid, wk)  — dedup per week
     for cid, bkgs in by_client.items():
         for b in bkgs:
             mk     = b["dt"].strftime("%b %Y")
@@ -641,13 +645,27 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                     _dow_agg[dow]["revenue"] += b["price"]
                 tm_id = b.get("tm", "")
                 if tm_id:
-                    _tm_rebook_agg[tm_id][mk]["revenue"] += b["price"]  # sum all service lines
+                    _tm_rebook_agg[tm_id][mk]["revenue"]  += b["price"]
                     _tm_rebook_agg[tm_id][mk]["clients"].add(cid)
+                    _tm_day_agg[tm_id][day]["revenue"]    += b["price"]
+                    _tm_day_agg[tm_id][day]["clients"].add(cid)
+                    _tm_wk_agg[tm_id][wk]["revenue"]      += b["price"]
+                    _tm_wk_agg[tm_id][wk]["clients"].add(cid)
                     if (tm_id, bid) not in _seen_tm_bid:
                         _seen_tm_bid.add((tm_id, bid))
                         _tm_rebook_agg[tm_id][mk]["visits"] += 1
                         if b.get("rebooked"):
                             _tm_rebook_agg[tm_id][mk]["rebooked"] += 1
+                    if (tm_id, bid, day) not in _seen_tm_bid_d:
+                        _seen_tm_bid_d.add((tm_id, bid, day))
+                        _tm_day_agg[tm_id][day]["visits"] += 1
+                        if b.get("rebooked"):
+                            _tm_day_agg[tm_id][day]["rebooked"] += 1
+                    if (tm_id, bid, wk) not in _seen_tm_bid_w:
+                        _seen_tm_bid_w.add((tm_id, bid, wk))
+                        _tm_wk_agg[tm_id][wk]["visits"] += 1
+                        if b.get("rebooked"):
+                            _tm_wk_agg[tm_id][wk]["rebooked"] += 1
             elif st == 3:
                 if (bid, hour) not in _seen_hr:
                     _seen_hr.add((bid, hour))
@@ -722,6 +740,25 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         for tm_id, months in _tm_rebook_agg.items()
         if tm_id in team_map
     }
+
+    def _tm_agg_to_dict(raw_agg):
+        return {
+            team_map[tm_id]: {
+                period: {
+                    "visits":   d["visits"],
+                    "rebooked": d["rebooked"],
+                    "revenue":  round(d["revenue"]),
+                    "rate":     round(d["rebooked"] / d["visits"] * 100) if d["visits"] else 0,
+                    "clients":  len(d["clients"]),
+                }
+                for period, d in periods.items()
+            }
+            for tm_id, periods in raw_agg.items()
+            if tm_id in team_map
+        }
+
+    team_day_stats  = _tm_agg_to_dict(_tm_day_agg)
+    team_week_stats = _tm_agg_to_dict(_tm_wk_agg)
 
     _all_rebook_months = sorted({mk for m in team_rebook_monthly.values() for mk in m})
     _total_rebook_v = sum(d['visits']   for m in team_rebook_monthly.values() for d in m.values())
@@ -1123,6 +1160,8 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         'service_salon_monthly': service_salon_monthly,
         'booking_stats':         booking_stats,
         'team_rebook_monthly':   team_rebook_monthly,
+        'team_day_stats':        team_day_stats,
+        'team_week_stats':       team_week_stats,
         'team_kpis':             team_kpis,
         'load_timings':          load_timings,
         'loaded_salon_name':     loaded_salon_name,
@@ -1667,6 +1706,8 @@ def build_analysis_context(question="", ctx=None):
     utilisation          = (ctx or {}).get('utilisation', [])
     team_kpis            = (ctx or {}).get('team_kpis', {})
     team_rebook_monthly  = (ctx or {}).get('team_rebook_monthly', {})
+    team_day_stats       = (ctx or {}).get('team_day_stats', {})
+    team_week_stats      = (ctx or {}).get('team_week_stats', {})
     loaded_salon_name    = (ctx or {}).get('loaded_salon_name', '')
     loaded_tenant_name   = (ctx or {}).get('loaded_tenant_name', '')
     loaded_account_code  = (ctx or {}).get('loaded_account_code', '')
@@ -1872,6 +1913,34 @@ def build_analysis_context(question="", ctx=None):
                 d = months.get(m, {"visits": 0, "clients": 0, "revenue": 0, "rebooked": 0, "rate": 0})
                 row += f",{d['visits']},{d['clients']},£{d['revenue']},{d['rebooked']},{d['rate']}%"
             lines.append(f"  {row}")
+
+    if team_week_stats:
+        cutoff_wk = (today - timedelta(weeks=26)).isoformat()
+        all_weeks = sorted({wk for periods in team_week_stats.values() for wk in periods if wk >= cutoff_wk})
+        if all_weeks:
+            lines += ["",
+                      "TEAM WEEKLY STATS (last 26 weeks — visits, unique clients, revenue, rebooked):",
+                      "TeamMember," + ",".join(f"w/c {w} Visits,Clients,Revenue,Rebooked" for w in all_weeks)]
+            for name in sorted(team_week_stats):
+                row = name
+                for wk in all_weeks:
+                    d = team_week_stats[name].get(wk, {"visits": 0, "clients": 0, "revenue": 0, "rebooked": 0})
+                    row += f",{d['visits']},{d['clients']},£{d['revenue']},{d['rebooked']}"
+                lines.append(f"  {row}")
+
+    if team_day_stats:
+        cutoff_day = (today - timedelta(days=90)).isoformat()
+        all_days = sorted({day for periods in team_day_stats.values() for day in periods if day >= cutoff_day})
+        if all_days:
+            lines += ["",
+                      "TEAM DAILY STATS (last 90 days — visits, unique clients, revenue, rebooked):",
+                      "TeamMember," + ",".join(f"{day} Visits,Clients,Revenue,Rebooked" for day in all_days)]
+            for name in sorted(team_day_stats):
+                row = name
+                for day in all_days:
+                    d = team_day_stats[name].get(day, {"visits": 0, "clients": 0, "revenue": 0, "rebooked": 0})
+                    row += f",{d['visits']},{d['clients']},£{d['revenue']},{d['rebooked']}"
+                lines.append(f"  {row}")
 
     if service_daily:
         cutoff = (today - timedelta(days=90)).isoformat()
