@@ -2579,7 +2579,7 @@ def admin_logs():
 <div class="tbl-wrap">
 <table>
 <thead><tr>
-  <th>Time (UTC)</th><th>Type</th><th>Salon</th><th>User</th><th>Question</th>
+  <th>Time (UK)</th><th>Type</th><th>Salon</th><th>User</th><th>Question</th>
   <th>Format</th><th>Response</th><th>Tokens in/out</th><th>Result title</th><th>Error</th>
 </tr></thead>
 <tbody>{rows_html}</tbody>
