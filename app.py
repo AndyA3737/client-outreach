@@ -1939,13 +1939,14 @@ def build_analysis_context(question="", ctx=None):
                   f"({_trm_total_r:,} rebooked out of {_trm_total_v:,} paid visits)",
                   "",
                   "TEAM MONTHLY STATS (visits, unique clients, revenue, rebooking, requests — actual API data):",
-                  "TeamMember," + ",".join(f"{m} Visits,{m} Clients,{m} Revenue,{m} Rebooked,{m} Rate%,{m} Requests" for m in all_months)]
+                  "TeamMember," + ",".join(f"{m} Visits,{m} Clients,{m} Revenue,{m} Rebooked,{m} RebookRate%,{m} Requests,{m} ReqRate%" for m in all_months)]
         for name in sorted(team_rebook_monthly):
             months = team_rebook_monthly[name]
             row = name
             for m in all_months:
                 d = months.get(m, {"visits": 0, "clients": 0, "revenue": 0, "rebooked": 0, "rate": 0, "requests": 0})
-                row += f",{d['visits']},{d['clients']},£{d['revenue']},{d['rebooked']},{d['rate']}%,{d.get('requests',0)}"
+                req_rate = round(d.get('requests', 0) / d['visits'] * 100, 1) if d['visits'] else 0
+                row += f",{d['visits']},{d['clients']},£{d['revenue']},{d['rebooked']},{d['rate']}%,{d.get('requests',0)},{req_rate}%"
             lines.append(f"  {row}")
 
     if team_week_stats:
@@ -1954,12 +1955,13 @@ def build_analysis_context(question="", ctx=None):
         if all_weeks:
             lines += ["",
                       "TEAM WEEKLY STATS (last 26 weeks — visits, unique clients, revenue, rebooked, requests):",
-                      "TeamMember," + ",".join(f"w/c {w} Visits,Clients,Revenue,Rebooked,Requests" for w in all_weeks)]
+                      "TeamMember," + ",".join(f"w/c {w} Visits,Clients,Revenue,Rebooked,Requests,ReqRate%" for w in all_weeks)]
             for name in sorted(team_week_stats):
                 row = name
                 for wk in all_weeks:
                     d = team_week_stats[name].get(wk, {"visits": 0, "clients": 0, "revenue": 0, "rebooked": 0, "requests": 0})
-                    row += f",{d['visits']},{d['clients']},£{d['revenue']},{d['rebooked']},{d.get('requests',0)}"
+                    req_rate = round(d.get('requests', 0) / d['visits'] * 100, 1) if d['visits'] else 0
+                    row += f",{d['visits']},{d['clients']},£{d['revenue']},{d['rebooked']},{d.get('requests',0)},{req_rate}%"
                 lines.append(f"  {row}")
 
     if team_day_stats:
@@ -1968,45 +1970,52 @@ def build_analysis_context(question="", ctx=None):
         if all_days:
             lines += ["",
                       "TEAM DAILY STATS (last 90 days — visits, unique clients, revenue, rebooked, requests):",
-                      "TeamMember," + ",".join(f"{day} Visits,Clients,Revenue,Rebooked,Requests" for day in all_days)]
+                      "TeamMember," + ",".join(f"{day} Visits,Clients,Revenue,Rebooked,Requests,ReqRate%" for day in all_days)]
             for name in sorted(team_day_stats):
                 row = name
                 for day in all_days:
                     d = team_day_stats[name].get(day, {"visits": 0, "clients": 0, "revenue": 0, "rebooked": 0, "requests": 0})
-                    row += f",{d['visits']},{d['clients']},£{d['revenue']},{d['rebooked']},{d.get('requests',0)}"
+                    req_rate = round(d.get('requests', 0) / d['visits'] * 100, 1) if d['visits'] else 0
+                    row += f",{d['visits']},{d['clients']},£{d['revenue']},{d['rebooked']},{d.get('requests',0)},{req_rate}%"
                 lines.append(f"  {row}")
 
     if service_daily:
         cutoff = (today - timedelta(days=90)).isoformat()
         recent_days = sorted(d for d in service_daily if d >= cutoff)
         lines += ["", "DAILY SERVICE DATA (last 90 days — use for specific dates, 'yesterday', 'today', daily questions):",
-                  "Date,ServiceRevenue£,Visits,NoShows,NoShowValue£,OnlineBookings,UniqueClients,RequestClients"]
+                  "Date,ServiceRevenue£(incVAT),Visits,NoShows,NoShowValue£(incVAT),OnlineBookings,UniqueClients,RequestClients,RequestRate%"]
         for day in recent_days:
             d = service_daily[day]
             day_label = date.fromisoformat(day).strftime("%a %-d %b %Y")
+            rc = d.get('request_clients', 0)
+            rr = round(rc / d['clients'] * 100, 1) if d['clients'] else 0
             lines.append(f"{day_label},£{d['revenue']:,},{d['visits']},"
                          f"{d.get('no_shows',0)},£{d.get('no_show_value',0):,},{d.get('online',0)},"
-                         f"{d['clients']},{d.get('request_clients',0)}")
+                         f"{d['clients']},{rc},{rr}%")
 
     if service_weekly:
         recent_wks = sorted(service_weekly.keys(), reverse=True)[:52]
         lines += ["", "WEEKLY SERVICE DATA (most recent 52 weeks — use this for 'last week', 'this week', weekly questions):",
-                  "WeekCommencing,ServiceRevenue£,Visits,NoShows,NoShowValue£,OnlineBookings,UniqueClients,RequestClients"]
+                  "WeekCommencing,ServiceRevenue£(incVAT),Visits,NoShows,NoShowValue£(incVAT),OnlineBookings,UniqueClients,RequestClients,RequestRate%"]
         for wk in sorted(recent_wks):
             w = service_weekly[wk]
             wk_label = date.fromisoformat(wk).strftime("%-d %b %Y")
+            rc = w.get('request_clients', 0)
+            rr = round(rc / w['clients'] * 100, 1) if w['clients'] else 0
             lines.append(f"w/c {wk_label},£{w['revenue']:,},{w['visits']},"
                          f"{w.get('no_shows',0)},£{w.get('no_show_value',0):,},{w.get('online',0)},"
-                         f"{w['clients']},{w.get('request_clients',0)}")
+                         f"{w['clients']},{rc},{rr}%")
 
     if service_monthly:
         lines += ["", "MONTHLY SERVICE REVENUE & VISITS:",
-                  "Month,ServiceRevenue£,Visits,NoShows,NoShowValue£,OnlineBookings,UniqueClients,RequestClients"]
+                  "Month,ServiceRevenue£(incVAT),Visits,NoShows,NoShowValue£(incVAT),OnlineBookings,UniqueClients,RequestClients,RequestRate%"]
         for mk in _sort_months(service_monthly)[:24]:
             m = service_monthly[mk]
+            rc = m.get('request_clients', 0)
+            rr = round(rc / m['clients'] * 100, 1) if m['clients'] else 0
             lines.append(f"{mk},£{m['revenue']:,},{m['visits']},"
                          f"{m.get('no_shows',0)},£{m.get('no_show_value',0):,},{m.get('online',0)},"
-                         f"{m['clients']},{m.get('request_clients',0)}")
+                         f"{m['clients']},{rc},{rr}%")
 
     if service_salon_monthly:
         salon_totals = {s: sum(d["revenue"] for d in months.values())
@@ -2319,17 +2328,20 @@ def analyse():
                 system = (
                     "You are an expert salon business analyst with access to live UK hair salon data. "
                     "Analyse the data carefully and answer the user's question accurately. "
-                    "All monetary values are in British Pounds (£). "
+                    "IMPORTANT: All monetary values are in British Pounds (£) and are INCLUSIVE OF VAT. "
+                    "When presenting revenue or spend figures, note they include VAT where relevant. "
                     "IMPORTANT: The data includes a section called 'TEAM REBOOKING RATES BY MONTH' "
                     "which contains actual per-stylist rebooking rates sourced directly from the "
                     "HasBeenRebooked field in the booking API. Use this table when asked about "
                     "rebooking rates — do NOT say the data is unavailable if this section is present. "
-                    "IMPORTANT: The daily, weekly, and monthly service data tables each include a "
-                    "RequestClients column. This is the count of unique clients who specifically "
-                    "requested a team member (from the RequestTeamMember field in the booking API). "
-                    "Use this column when asked about 'request clients', 'requested clients', or "
-                    "'how many clients requested'. Read the value directly from the table — "
-                    "do NOT say the data is unavailable if this column is present. "
+                    "IMPORTANT: 'Request clients' or 'request rate' means clients who specifically "
+                    "requested a team member. The daily, weekly, and monthly service tables include "
+                    "RequestClients (count) and RequestRate% (RequestClients ÷ UniqueClients × 100) columns. "
+                    "The team stats tables include a Requests column (count of requested visits per team member). "
+                    "The KPI tables include a RequestCountTarget — this is the TARGET number of requested "
+                    "clients per period (not a rate). To calculate a team member's request rate use "
+                    "Requests ÷ Visits × 100. "
+                    "Do NOT say request data is unavailable if these columns are present in the tables. "
                     "Return ONLY valid JSON — no markdown, no code blocks, no extra text. "
                     + fmt_instructions.get(fmt, fmt_instructions["dashboard"])
                 )
