@@ -505,6 +505,10 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                 if not _logged_booking_keys:
                     print(f"[booking] keys: {list(b.keys())}", flush=True)
                     print(f"[booking] HasBeenRebooked sample: {b.get('HasBeenRebooked')!r}", flush=True)
+                    print(f"[booking] RequestTeamMember sample: {b.get('RequestTeamMember')!r}", flush=True)
+                    # Log any key that looks like a request field, in case the name differs
+                    req_keys = [k for k in b.keys() if 'request' in k.lower()]
+                    print(f"[booking] request-related keys: {req_keys}", flush=True)
                     _logged_booking_keys = True
                 cid = (b.get("ClientId") or "").lower()
                 dt  = parse_dt(b.get("Start"))
@@ -2320,6 +2324,12 @@ def analyse():
                     "which contains actual per-stylist rebooking rates sourced directly from the "
                     "HasBeenRebooked field in the booking API. Use this table when asked about "
                     "rebooking rates — do NOT say the data is unavailable if this section is present. "
+                    "IMPORTANT: The daily, weekly, and monthly service data tables each include a "
+                    "RequestClients column. This is the count of unique clients who specifically "
+                    "requested a team member (from the RequestTeamMember field in the booking API). "
+                    "Use this column when asked about 'request clients', 'requested clients', or "
+                    "'how many clients requested'. Read the value directly from the table — "
+                    "do NOT say the data is unavailable if this column is present. "
                     "Return ONLY valid JSON — no markdown, no code blocks, no extra text. "
                     + fmt_instructions.get(fmt, fmt_instructions["dashboard"])
                 )
