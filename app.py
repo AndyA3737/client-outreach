@@ -515,37 +515,40 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                 bk_status = int(b.get("Status") or 0)   # 0=booked,1=arrived,2=paid,3=no-show
                 bk_source = int(b.get("Source") or 5)   # 1=online,5=in-salon
                 bk_id = str(b.get("BookingId") or "")
+                bk_requested = str(b.get("RequestTeamMember") or "").strip().lower() in ("1", "true", "yes")
                 if dt.date() > today:
                     if not any(k in svc_name.upper() for k in SKIP_KEYWORDS):
                         future_bookings[cid].append({
-                            "dt":     dt,
-                            "svc":    svc_name,
-                            "cat":    svc.get("Categoty", "").replace("HAIR - ", ""),
-                            "source": bk_source,
-                            "bid":    bk_id,
+                            "dt":        dt,
+                            "svc":       svc_name,
+                            "cat":       svc.get("Categoty", "").replace("HAIR - ", ""),
+                            "source":    bk_source,
+                            "bid":       bk_id,
+                            "requested": bk_requested,
                         })
                     continue
                 if any(k in svc_name.upper() for k in SKIP_KEYWORDS):
                     continue
                 by_client[cid].append({
-                    "dt":      dt,
-                    "price":   float(b.get("TotalSalesPrice") or 0),
-                    "tm":      b.get("TeamMemberId", ""),
-                    "cat":     svc.get("Categoty", "").replace("HAIR - ", ""),
-                    "svc":     svc_name,
-                    "sid":     str(b.get("Salonid") or b.get("SalonId") or b.get("salonid") or ""),
-                    "dept":    (svc.get("Department") or "").lower(),
-                    "status":  bk_status,
-                    "source":  bk_source,
-                    "bid":     bk_id,
-                    "rebooked": str(b.get("HasBeenRebooked") or "").strip().lower() in ("1", "true", "yes"),
+                    "dt":        dt,
+                    "price":     float(b.get("TotalSalesPrice") or 0),
+                    "tm":        b.get("TeamMemberId", ""),
+                    "cat":       svc.get("Categoty", "").replace("HAIR - ", ""),
+                    "svc":       svc_name,
+                    "sid":       str(b.get("Salonid") or b.get("SalonId") or b.get("salonid") or ""),
+                    "dept":      (svc.get("Department") or "").lower(),
+                    "status":    bk_status,
+                    "source":    bk_source,
+                    "bid":       bk_id,
+                    "rebooked":  str(b.get("HasBeenRebooked") or "").strip().lower() in ("1", "true", "yes"),
+                    "requested": bk_requested,
                 })
             del chunk  # discard as soon as processed
 
     # Aggregate service revenue by month and week; no-shows excluded from revenue/visits
     _STATUS_LABELS = {0: "Booked", 1: "Arrived", 2: "Paid", 3: "No-show"}
     _SOURCE_LABELS = {1: "Online", 5: "In-salon"}
-    _zero = lambda: {"revenue": 0.0, "visits": 0, "no_shows": 0, "no_show_value": 0.0, "online": 0, "clients": set()}
+    _zero = lambda: {"revenue": 0.0, "visits": 0, "no_shows": 0, "no_show_value": 0.0, "online": 0, "clients": set(), "request_clients": set()}
     _svc_agg      = defaultdict(_zero)
     _wk_agg       = defaultdict(_zero)
     _status_counts = defaultdict(int)
@@ -566,12 +569,15 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     _dow_agg   = defaultdict(lambda: {"visits": 0, "no_shows": 0, "revenue": 0.0})
     _seen_hr   = set()   # (bid, hour) — dedup visits per hour slot
     _seen_dow  = set()   # (bid, dow)  — dedup visits per day-of-week
-    _tm_rebook_agg = defaultdict(lambda: defaultdict(lambda: {"visits": 0, "rebooked": 0, "revenue": 0.0, "clients": set()}))
-    _tm_day_agg    = defaultdict(lambda: defaultdict(lambda: {"visits": 0, "rebooked": 0, "revenue": 0.0, "clients": set()}))
-    _tm_wk_agg     = defaultdict(lambda: defaultdict(lambda: {"visits": 0, "rebooked": 0, "revenue": 0.0, "clients": set()}))
+    _tm_rebook_agg = defaultdict(lambda: defaultdict(lambda: {"visits": 0, "rebooked": 0, "revenue": 0.0, "clients": set(), "requests": 0}))
+    _tm_day_agg    = defaultdict(lambda: defaultdict(lambda: {"visits": 0, "rebooked": 0, "revenue": 0.0, "clients": set(), "requests": 0}))
+    _tm_wk_agg     = defaultdict(lambda: defaultdict(lambda: {"visits": 0, "rebooked": 0, "revenue": 0.0, "clients": set(), "requests": 0}))
     _seen_tm_bid   = set()  # (tm_id, bid) — dedup booking visits per team member
     _seen_tm_bid_d = set()  # (tm_id, bid, day) — dedup per day
     _seen_tm_bid_w = set()  # (tm_id, bid, wk)  — dedup per week
+    _seen_tm_req_bid   = set()  # (tm_id, bid) — dedup requested visits per team member
+    _seen_tm_req_bid_d = set()  # (tm_id, bid, day) — dedup per day
+    _seen_tm_req_bid_w = set()  # (tm_id, bid, wk)  — dedup per week
     for cid, bkgs in by_client.items():
         for b in bkgs:
             mk     = b["dt"].strftime("%b %Y")
@@ -613,6 +619,10 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                     if (bid, salon, mk) not in _seen_smk:
                         _seen_smk.add((bid, salon, mk))
                         _salon_agg[salon][mk]["visits"] += 1
+                if b.get("requested"):
+                    _svc_agg[mk]["request_clients"].add(cid)
+                    _wk_agg[wk]["request_clients"].add(cid)
+                    _day_agg[day]["request_clients"].add(cid)
             elif st == 3:  # no-show — value sums all service lines; count deduplicated by booking ID
                 _svc_agg[mk]["no_show_value"]  += b["price"]
                 _wk_agg[wk]["no_show_value"]   += b["price"]
@@ -666,6 +676,16 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                         _tm_wk_agg[tm_id][wk]["visits"] += 1
                         if b.get("rebooked"):
                             _tm_wk_agg[tm_id][wk]["rebooked"] += 1
+                    if b.get("requested"):
+                        if (tm_id, bid) not in _seen_tm_req_bid:
+                            _seen_tm_req_bid.add((tm_id, bid))
+                            _tm_rebook_agg[tm_id][mk]["requests"] += 1
+                        if (tm_id, bid, day) not in _seen_tm_req_bid_d:
+                            _seen_tm_req_bid_d.add((tm_id, bid, day))
+                            _tm_day_agg[tm_id][day]["requests"] += 1
+                        if (tm_id, bid, wk) not in _seen_tm_req_bid_w:
+                            _seen_tm_req_bid_w.add((tm_id, bid, wk))
+                            _tm_wk_agg[tm_id][wk]["requests"] += 1
             elif st == 3:
                 if (bid, hour) not in _seen_hr:
                     _seen_hr.add((bid, hour))
@@ -688,7 +708,8 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     def _agg_to_dict(d):
         return {"revenue": round(d["revenue"]), "visits": d["visits"],
                 "no_shows": d["no_shows"], "no_show_value": round(d["no_show_value"]),
-                "online": d["online"], "clients": len(d["clients"])}
+                "online": d["online"], "clients": len(d["clients"]),
+                "request_clients": len(d.get("request_clients") or set())}
 
     service_monthly = {mk: _agg_to_dict(d) for mk, d in _svc_agg.items()}
     service_cat_monthly = {
@@ -734,6 +755,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                 "revenue":  round(d["revenue"]),
                 "rate":     round(d["rebooked"] / d["visits"] * 100) if d["visits"] else 0,
                 "clients":  len(d["clients"]),
+                "requests": d["requests"],
             }
             for mk, d in months.items()
         }
@@ -750,6 +772,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                     "revenue":  round(d["revenue"]),
                     "rate":     round(d["rebooked"] / d["visits"] * 100) if d["visits"] else 0,
                     "clients":  len(d["clients"]),
+                    "requests": d["requests"],
                 }
                 for period, d in periods.items()
             }
@@ -971,6 +994,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
 
         rebooked_count  = sum(1 for b in actual_visits if b.get("rebooked"))
         rebooking_rate  = round(rebooked_count / n * 100) if n else 0
+        request_count   = sum(1 for b in actual_visits if b.get("requested"))
 
         rt_list        = retail_by_client.get(cid, [])
         retail_count   = len(rt_list)
@@ -1088,6 +1112,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             score_pct=min(round(total_score), 100),
             sms=sms_msg,
             rebooking_rate=rebooking_rate,
+            request_count=request_count,
         ))
 
     rows.sort(key=lambda x: x["score"], reverse=True)
@@ -1140,6 +1165,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             account_balance=round(float(cli.get("AccountBalance") or 0), 2),
             age_group=cli.get("AgeGroup", ""), occupation=cli.get("Occupation", ""),
             how_heard=cli.get("HowHeard", ""), sr=0, so=0, sf=0, sm=0, sp=0, score_pct=0, sms="",
+            request_count=0,
         ))
     all_clients = rows + no_history
 
@@ -1512,6 +1538,7 @@ Fields available on each client record:
 - promo_dates (array of strings): ALL promotion use dates e.g. ["5 Jan 2026","3 Nov 2025"]. Use this to find promotions used in a specific month or period.
 - tags (array of strings): tags applied to the client e.g. ["New", "VIP", "Colour Client"]
 - tag_count (int): number of tags applied (0 if none)
+- request_count (int): number of past visits where the client specifically requested their team member (0 if never requested)
 """
 
     prompt = f"""You are a filter assistant for a hair salon CRM.
@@ -1592,6 +1619,9 @@ Promotion field rules:
 "clients who used promotion SAF30" → logic OR, [{{"field":"promo_codes","op":"contains_exact","value":"SAF30"}},{{"field":"promo_names","op":"contains","value":"SAF30"}}]
 IMPORTANT: always use contains_exact (not contains) for promo_codes — these are exact identifiers, not free text.
 "promotion uses in January 2026" → [{{"field":"promo_dates","op":"contains","value":"Jan 2026"}}]
+"clients who have requested their stylist" → [{{"field":"request_count","op":"gte","value":1}}]
+"request clients" → [{{"field":"request_count","op":"gte","value":1}}]
+"clients who always request" → [{{"field":"request_count","op":"gte","value":3}}]
 """
 
     try:
@@ -1904,14 +1934,14 @@ def build_analysis_context(question="", ctx=None):
                   f"OVERALL REBOOKING RATE (2yr, from HasBeenRebooked API field): {_overall_rebook_rate}% "
                   f"({_trm_total_r:,} rebooked out of {_trm_total_v:,} paid visits)",
                   "",
-                  "TEAM MONTHLY STATS (visits, unique clients, revenue, rebooking — actual API data):",
-                  "TeamMember," + ",".join(f"{m} Visits,{m} Clients,{m} Revenue,{m} Rebooked,{m} Rate%" for m in all_months)]
+                  "TEAM MONTHLY STATS (visits, unique clients, revenue, rebooking, requests — actual API data):",
+                  "TeamMember," + ",".join(f"{m} Visits,{m} Clients,{m} Revenue,{m} Rebooked,{m} Rate%,{m} Requests" for m in all_months)]
         for name in sorted(team_rebook_monthly):
             months = team_rebook_monthly[name]
             row = name
             for m in all_months:
-                d = months.get(m, {"visits": 0, "clients": 0, "revenue": 0, "rebooked": 0, "rate": 0})
-                row += f",{d['visits']},{d['clients']},£{d['revenue']},{d['rebooked']},{d['rate']}%"
+                d = months.get(m, {"visits": 0, "clients": 0, "revenue": 0, "rebooked": 0, "rate": 0, "requests": 0})
+                row += f",{d['visits']},{d['clients']},£{d['revenue']},{d['rebooked']},{d['rate']}%,{d.get('requests',0)}"
             lines.append(f"  {row}")
 
     if team_week_stats:
@@ -1919,13 +1949,13 @@ def build_analysis_context(question="", ctx=None):
         all_weeks = sorted({wk for periods in team_week_stats.values() for wk in periods if wk >= cutoff_wk})
         if all_weeks:
             lines += ["",
-                      "TEAM WEEKLY STATS (last 26 weeks — visits, unique clients, revenue, rebooked):",
-                      "TeamMember," + ",".join(f"w/c {w} Visits,Clients,Revenue,Rebooked" for w in all_weeks)]
+                      "TEAM WEEKLY STATS (last 26 weeks — visits, unique clients, revenue, rebooked, requests):",
+                      "TeamMember," + ",".join(f"w/c {w} Visits,Clients,Revenue,Rebooked,Requests" for w in all_weeks)]
             for name in sorted(team_week_stats):
                 row = name
                 for wk in all_weeks:
-                    d = team_week_stats[name].get(wk, {"visits": 0, "clients": 0, "revenue": 0, "rebooked": 0})
-                    row += f",{d['visits']},{d['clients']},£{d['revenue']},{d['rebooked']}"
+                    d = team_week_stats[name].get(wk, {"visits": 0, "clients": 0, "revenue": 0, "rebooked": 0, "requests": 0})
+                    row += f",{d['visits']},{d['clients']},£{d['revenue']},{d['rebooked']},{d.get('requests',0)}"
                 lines.append(f"  {row}")
 
     if team_day_stats:
@@ -1933,43 +1963,46 @@ def build_analysis_context(question="", ctx=None):
         all_days = sorted({day for periods in team_day_stats.values() for day in periods if day >= cutoff_day})
         if all_days:
             lines += ["",
-                      "TEAM DAILY STATS (last 90 days — visits, unique clients, revenue, rebooked):",
-                      "TeamMember," + ",".join(f"{day} Visits,Clients,Revenue,Rebooked" for day in all_days)]
+                      "TEAM DAILY STATS (last 90 days — visits, unique clients, revenue, rebooked, requests):",
+                      "TeamMember," + ",".join(f"{day} Visits,Clients,Revenue,Rebooked,Requests" for day in all_days)]
             for name in sorted(team_day_stats):
                 row = name
                 for day in all_days:
-                    d = team_day_stats[name].get(day, {"visits": 0, "clients": 0, "revenue": 0, "rebooked": 0})
-                    row += f",{d['visits']},{d['clients']},£{d['revenue']},{d['rebooked']}"
+                    d = team_day_stats[name].get(day, {"visits": 0, "clients": 0, "revenue": 0, "rebooked": 0, "requests": 0})
+                    row += f",{d['visits']},{d['clients']},£{d['revenue']},{d['rebooked']},{d.get('requests',0)}"
                 lines.append(f"  {row}")
 
     if service_daily:
         cutoff = (today - timedelta(days=90)).isoformat()
         recent_days = sorted(d for d in service_daily if d >= cutoff)
         lines += ["", "DAILY SERVICE DATA (last 90 days — use for specific dates, 'yesterday', 'today', daily questions):",
-                  "Date,ServiceRevenue£,Visits,NoShows,NoShowValue£,OnlineBookings,UniqueClients"]
+                  "Date,ServiceRevenue£,Visits,NoShows,NoShowValue£,OnlineBookings,UniqueClients,RequestClients"]
         for day in recent_days:
             d = service_daily[day]
             day_label = date.fromisoformat(day).strftime("%a %-d %b %Y")
             lines.append(f"{day_label},£{d['revenue']:,},{d['visits']},"
-                         f"{d.get('no_shows',0)},£{d.get('no_show_value',0):,},{d.get('online',0)},{d['clients']}")
+                         f"{d.get('no_shows',0)},£{d.get('no_show_value',0):,},{d.get('online',0)},"
+                         f"{d['clients']},{d.get('request_clients',0)}")
 
     if service_weekly:
         recent_wks = sorted(service_weekly.keys(), reverse=True)[:52]
         lines += ["", "WEEKLY SERVICE DATA (most recent 52 weeks — use this for 'last week', 'this week', weekly questions):",
-                  "WeekCommencing,ServiceRevenue£,Visits,NoShows,NoShowValue£,OnlineBookings,UniqueClients"]
+                  "WeekCommencing,ServiceRevenue£,Visits,NoShows,NoShowValue£,OnlineBookings,UniqueClients,RequestClients"]
         for wk in sorted(recent_wks):
             w = service_weekly[wk]
             wk_label = date.fromisoformat(wk).strftime("%-d %b %Y")
             lines.append(f"w/c {wk_label},£{w['revenue']:,},{w['visits']},"
-                         f"{w.get('no_shows',0)},£{w.get('no_show_value',0):,},{w.get('online',0)},{w['clients']}")
+                         f"{w.get('no_shows',0)},£{w.get('no_show_value',0):,},{w.get('online',0)},"
+                         f"{w['clients']},{w.get('request_clients',0)}")
 
     if service_monthly:
         lines += ["", "MONTHLY SERVICE REVENUE & VISITS:",
-                  "Month,ServiceRevenue£,Visits,NoShows,NoShowValue£,OnlineBookings,UniqueClients"]
+                  "Month,ServiceRevenue£,Visits,NoShows,NoShowValue£,OnlineBookings,UniqueClients,RequestClients"]
         for mk in _sort_months(service_monthly)[:24]:
             m = service_monthly[mk]
             lines.append(f"{mk},£{m['revenue']:,},{m['visits']},"
-                         f"{m.get('no_shows',0)},£{m.get('no_show_value',0):,},{m.get('online',0)},{m['clients']}")
+                         f"{m.get('no_shows',0)},£{m.get('no_show_value',0):,},{m.get('online',0)},"
+                         f"{m['clients']},{m.get('request_clients',0)}")
 
     if service_salon_monthly:
         salon_totals = {s: sum(d["revenue"] for d in months.values())
