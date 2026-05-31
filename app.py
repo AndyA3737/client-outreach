@@ -1870,25 +1870,25 @@ def build_analysis_context(question="", ctx=None):
 
     if salon_kpis:
         lines += ["", "SALON KPI TARGETS:",
-                  "Salon,Period,ServicesTarget,RetailTarget£,CareFactorTarget%,ReBookingsTarget%,"
-                  "ClientCountTarget,RequestCountTarget,AvgServicesTarget,UtilizationTarget%"]
+                  "Salon,Period,ServicesTarget,RetailTarget£(incVAT),CareFactorTarget%,ReBookingsTarget%,"
+                  "ClientCountTarget,RequestRateTarget%,AvgServicesTarget,UtilizationTarget%"]
         for _, k in sorted(salon_kpis.items(), key=lambda x: x[1].get('name', '')):
             lines.append(
                 f"{k['name']},{k['period']},{k['kpi_services']:.0f},£{k['kpi_retail']:.0f},"
                 f"{k['kpi_care_factor']:.1f}%,{k['kpi_rebookings']:.1f}%,"
-                f"{k['kpi_client_count']:.0f},{k['kpi_request_count']:.0f},"
+                f"{k['kpi_client_count']:.0f},{k['kpi_request_count']:.1f}%,"
                 f"{k['kpi_avg_services']:.1f},{k['kpi_utilization']:.1f}%"
             )
 
     if team_kpis:
         lines += ["", "TEAM MEMBER KPI TARGETS:",
-                  "Name,Period,RetailTarget£,CareFactorTarget%,ReBookingsTarget%,"
-                  "ClientCountTarget,RequestCountTarget,AvgServicesTarget,UtilizationTarget%"]
+                  "Name,Period,RetailTarget£(incVAT),CareFactorTarget%,ReBookingsTarget%,"
+                  "ClientCountTarget,RequestRateTarget%,AvgServicesTarget,UtilizationTarget%"]
         for name, k in sorted(team_kpis.items()):
             lines.append(
                 f"{name},{k['period']},£{k['kpi_retail']:.0f},{k['kpi_care_factor']:.1f}%,"
                 f"{k['kpi_rebookings']:.1f}%,{k['kpi_client_count']:.0f},"
-                f"{k['kpi_req_count']:.0f},{k['kpi_avg_services']:.1f},{k['kpi_utilization']:.1f}%"
+                f"{k['kpi_req_count']:.1f}%,{k['kpi_avg_services']:.1f},{k['kpi_utilization']:.1f}%"
             )
 
     lines += ["", "TOP SERVICE CATEGORIES:"]
@@ -2338,9 +2338,9 @@ def analyse():
                     "requested a team member. The daily, weekly, and monthly service tables include "
                     "RequestClients (count) and RequestRate% (RequestClients ÷ UniqueClients × 100) columns. "
                     "The team stats tables include a Requests column (count of requested visits per team member). "
-                    "The KPI tables include a RequestCountTarget — this is the TARGET number of requested "
-                    "clients per period (not a rate). To calculate a team member's request rate use "
-                    "Requests ÷ Visits × 100. "
+                    "The KPI tables include a RequestRateTarget% — this is the TARGET request rate "
+                    "as a percentage (e.g. 30% means 30% of clients should be requesting). "
+                    "Compare the actual RequestRate% from the service/team tables against this target. "
                     "Do NOT say request data is unavailable if these columns are present in the tables. "
                     "Return ONLY valid JSON — no markdown, no code blocks, no extra text. "
                     + fmt_instructions.get(fmt, fmt_instructions["dashboard"])
