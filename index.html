@@ -183,7 +183,7 @@
 <!-- Nav tabs -->
 <div style="background:#fff;border-bottom:1px solid var(--border);" class="px-6 flex gap-1">
   <button class="nav-tab" id="tabDashboard" onclick="switchPage('dashboard')" style="display:none">Client Dashboard</button>
-  <button class="nav-tab" id="tabSelections" onclick="switchPage('selections')" style="display:none">Client Selections</button>
+  <button class="nav-tab" id="tabSelections" onclick="switchPage('selections')">Client Selections</button>
   <button class="nav-tab active" id="tabAnalysis" onclick="switchPage('analysis')">Data Analysis</button>
 </div>
 
@@ -409,6 +409,7 @@
       <button class="query-chip" onclick="setQuery(this)">Saturday regulars</button>
       <button class="query-chip" onclick="setQuery(this)">Loyal clients visiting 8+ times</button>
       <button class="query-chip" onclick="setQuery(this)">All clients with a future booking</button>
+      <button class="query-chip" onclick="setQuery(this)">Clients who have requested their stylist</button>
     </div>
   </div>
 
