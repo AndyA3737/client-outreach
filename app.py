@@ -1,4 +1,4 @@
-/#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Salon SMS Marketing Dashboard — scores clients for SMS targeting."""
 
 import os
