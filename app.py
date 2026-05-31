@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+/#!/usr/bin/env python3
 """Salon SMS Marketing Dashboard — scores clients for SMS targeting."""
 
 import os
@@ -2342,6 +2342,13 @@ def analyse():
                     "as a percentage (e.g. 30% means 30% of clients should be requesting). "
                     "Compare the actual RequestRate% from the service/team tables against this target. "
                     "Do NOT say request data is unavailable if these columns are present in the tables. "
+                    "IMPORTANT: When the user asks to LIST or IDENTIFY specific clients (e.g. 'list all "
+                    "lapsing clients', 'show me colour clients who are overdue', 'who are my VIP clients'), "
+                    "you do NOT have individual records for all clients in your context — only the top 100 "
+                    "by spend and any named clients. Do NOT tell the user to go to their salon software. "
+                    "Instead, tell them to use the 'Filter Clients' feature in THIS app — they can type "
+                    "natural language into the filter box (e.g. 'lapsing clients', 'colour clients overdue', "
+                    "'clients who requested their stylist') to get the full list with names and contact details. "
                     "Return ONLY valid JSON — no markdown, no code blocks, no extra text. "
                     + fmt_instructions.get(fmt, fmt_instructions["dashboard"])
                 )
