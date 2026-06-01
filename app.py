@@ -2349,8 +2349,8 @@ def analyse():
                     "lapsing clients', 'show me colour clients who are overdue', 'who are my VIP clients'), "
                     "you do NOT have individual records for all clients in your context — only the top 100 "
                     "by spend and any named clients. Do NOT tell the user to go to their salon software. "
-                    "Instead, tell them to use the 'Filter Clients' feature in THIS app — they can type "
-                    "natural language into the filter box (e.g. 'lapsing clients', 'colour clients overdue', "
+                    "Instead, tell them to use the 'Client Selections' feature in THIS app — they can type "
+                    "natural language into the Client Selections box (e.g. 'lapsing clients', 'colour clients overdue', "
                     "'clients who requested their stylist') to get the full list with names and contact details. "
                     "Return ONLY valid JSON — no markdown, no code blocks, no extra text. "
                     + fmt_instructions.get(fmt, fmt_instructions["dashboard"])
