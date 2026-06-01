@@ -15,7 +15,10 @@ from flask import (Flask, jsonify, request, send_from_directory,
 import requests
 from datetime import datetime, date, timedelta
 from collections import defaultdict, Counter
+from zoneinfo import ZoneInfo
 import time
+
+_TZ_LONDON = ZoneInfo('Europe/London')
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(32))
@@ -1252,7 +1255,7 @@ def _build_response(tenant_id, server, set_step=None):
             n_lapsing =sum(1 for c in all_scored if c["scls"] == "lapsing"),
             n_lapsed  =sum(1 for c in all_scored if c["scls"] == "lapsed"),
             n_total=total_clients,
-            generated=datetime.now().strftime("%-d %b %Y at %H:%M"),
+            generated=datetime.now(_TZ_LONDON).strftime("%-d %b %Y at %H:%M"),
         )
         return {"status": "done", "data": result}
     except Exception as e:
@@ -1277,7 +1280,7 @@ def _response_from_cache(ctx):
         n_lapsing = sum(1 for c in all_scored if c["scls"] == "lapsing"),
         n_lapsed  = sum(1 for c in all_scored if c["scls"] == "lapsed"),
         n_total   = ctx.get('total_clients', 0),
-        generated = datetime.now().strftime("%-d %b %Y at %H:%M") + f" (cached {age_str})",
+        generated = datetime.now(_TZ_LONDON).strftime("%-d %b %Y at %H:%M") + f" (cached {age_str})",
     )}
 
 
