@@ -441,7 +441,7 @@
 
 <!-- ── Page: Client Selections ────────────────────────────── -->
 <div id="pageSelections" style="display:none">
-<div style="max-width:96rem;margin:0 auto;padding:32px 28px">
+<div style="padding:32px 32px">
 
   <div style="margin-bottom:24px">
     <div class="eyebrow" style="margin-bottom:6px">client selections</div>
@@ -502,7 +502,7 @@
 
 <!-- ── Page: Data Analysis ────────────────────────────────── -->
 <div id="pageAnalysis">
-<div style="max-width:900px;margin:0 auto;padding:36px 28px 80px">
+<div style="padding:36px 32px 80px">
 
   <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:28px">
     <div>
@@ -535,12 +535,17 @@
       <button onclick="runAnalysis()" id="analyseBtn" class="btn-teal" style="height:38px;padding:0 22px;border-radius:10px;flex-shrink:0">Analyse →</button>
     </div>
   </div>
-  <div style="font-size:11px;color:var(--muted);margin-bottom:20px;padding-left:2px">⌘ + Enter to submit</div>
+  <div style="font-size:11px;color:var(--muted);margin-bottom:24px;padding-left:2px">⌘ + Enter to submit</div>
 
-  <!-- TRY: horizontal prompt chips -->
-  <div style="display:flex;align-items:center;gap:8px;margin-bottom:24px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none">
-    <span class="eyebrow" style="white-space:nowrap;flex-shrink:0">Try</span>
-    <div id="promptChips" style="display:flex;gap:6px;flex-wrap:nowrap"></div>
+  <!-- Category tabs + 6-card prompt grid -->
+  <div style="margin-bottom:24px">
+    <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
+      <button class="prompt-cat-btn active" data-cat="Revenue"  onclick="switchPromptCat('Revenue')">Revenue</button>
+      <button class="prompt-cat-btn"        data-cat="Clients"  onclick="switchPromptCat('Clients')">Clients</button>
+      <button class="prompt-cat-btn"        data-cat="Team"     onclick="switchPromptCat('Team')">Team</button>
+      <button class="prompt-cat-btn"        data-cat="Bookings" onclick="switchPromptCat('Bookings')">Bookings</button>
+    </div>
+    <div id="promptGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px"></div>
   </div>
 
   <!-- Alert bar -->
@@ -553,9 +558,7 @@
   <div id="analysisResults"></div>
   <div id="followupResult"></div>
 
-  <!-- Hidden containers kept for compatibility -->
   <div id="analysisHistory" style="display:none"></div>
-  <div id="promptGrid" style="display:none"></div>
 
 </div>
 </div><!-- end #pageAnalysis -->
@@ -859,16 +862,11 @@ const _PROMPT_CATS = {
 function switchPromptCat(cat) {
   document.querySelectorAll('.prompt-cat-btn').forEach(btn =>
     btn.classList.toggle('active', btn.dataset.cat === cat));
-  // Populate horizontal chip row (new layout)
-  const chips = document.getElementById('promptChips');
-  if (chips) {
-    const allPrompts = Object.values(_PROMPT_CATS).flat();
-    // Show a mix: 3 from selected cat + 1 from each other cat
-    const catPrompts = _PROMPT_CATS[cat] || [];
-    chips.innerHTML = catPrompts.slice(0, 4).map(p =>
-      `<button class="query-chip" style="white-space:nowrap;flex-shrink:0" onclick="useEgPrompt(this)">${p}</button>`
-    ).join('');
-  }
+  const grid = document.getElementById('promptGrid');
+  if (!grid) return;
+  grid.innerHTML = (_PROMPT_CATS[cat] || []).map(p =>
+    `<button class="eg-chip" onclick="useEgPrompt(this)">${p}</button>`
+  ).join('');
 }
 
 function useEgPrompt(btn) {
