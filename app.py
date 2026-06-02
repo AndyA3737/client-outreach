@@ -974,6 +974,9 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         all_cats        = list(dict.fromkeys(b["cat"] for b in actual_visits if b["cat"]))
         departments     = list(dict.fromkeys(b["dept"] for b in actual_visits if b["dept"]))
         top_svcs        = [s for s, _ in Counter(b["svc"] for b in actual_visits if b["svc"]).most_common(5)]
+        recent_visits   = [b for b in actual_visits if (today - b["dt"].date()).days <= 180]
+        recent_svcs     = list(dict.fromkeys(b["svc"] for b in recent_visits if b["svc"]))
+        recent_cats     = list(dict.fromkeys(b["cat"] for b in recent_visits if b["cat"]))
         no_shows        = int(cli.get("NoShows") or 0)
         booking_noshows = len({b.get("bid") or b["dt"].date().isoformat()
                                for b in bkgs if b.get("status") == 3})
@@ -1071,6 +1074,8 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             all_cats=all_cats,
             departments=departments,
             top_svcs=top_svcs,
+            recent_svcs=recent_svcs,
+            recent_cats=recent_cats,
             has_future_booking=has_future,
             future_svcs=future_svcs,
             future_cats=future_cats,
@@ -1506,6 +1511,8 @@ Fields available on each client record:
 - all_cats (array of strings): every unique service category the client has had
 - departments (array of strings): service departments visited e.g. ["hair"], ["beauty"], ["hair","beauty"]. Values are lowercase "hair" or "beauty".
 - top_svcs (array of strings): individual service names e.g. ["Full Head Colour","Ladies Cut & Blow Dry","Balayage"]
+- recent_svcs (array of strings): service names the client has had in the last 6 months — use this for any query mentioning "last 6 months", "recently", "in the last X months" etc.
+- recent_cats (array of strings): service categories the client has had in the last 6 months — use for category-level time-windowed queries
 - has_future_booking (bool): true if client has an upcoming appointment
 - future_svcs (array of strings): service names booked for future appointments
 - future_cats (array of strings): service categories for future appointments
@@ -1572,6 +1579,11 @@ Examples:
 "loyal regulars" → [{{"field":"n_visits","op":"gte","value":10}}]
 "high value lapsing" → logic AND, [{{"field":"scls","op":"eq","value":"lapsing"}},{{"field":"avg_spend","op":"gte","value":60}}]
 "colour clients overdue" → logic AND, [{{"field":"top_cats","op":"contains","value":"Colour"}},{{"field":"overdue","op":"exists","value":true}}]
+IMPORTANT: when a query mentions a time window ("last 6 months", "recently", "in the past X months"), always use recent_svcs or recent_cats instead of top_svcs or all_cats:
+"clients that have had a colour in the last 6 months" → [{{"field":"recent_cats","op":"contains","value":"Colour"}}]
+"clients that have had a colour and a blow dry in the last 6 months" → logic AND, [{{"field":"recent_cats","op":"contains","value":"Colour"}},{{"field":"recent_svcs","op":"contains","value":"blow dry"}}]
+"clients with a cut in the last 6 months" → [{{"field":"recent_svcs","op":"contains","value":"cut"}}]
+"clients that have had a beauty treatment recently" → [{{"field":"recent_cats","op":"contains","value":"beauty"}}]
 "clients that have had a beauty service" → [{{"field":"departments","op":"contains","value":"beauty"}}]
 "clients that have had a hair service" → [{{"field":"departments","op":"contains","value":"hair"}}]
 "clients who visit both hair and beauty" → logic AND, [{{"field":"departments","op":"contains","value":"hair"}},{{"field":"departments","op":"contains","value":"beauty"}}]
