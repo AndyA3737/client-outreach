@@ -542,11 +542,7 @@
     </div>
   </div>
 
-  <!-- Recent selection history -->
-  <div id="selectionHistoryWrap" style="margin-bottom:24px">
-    <div style="margin-bottom:8px"><span class="eyebrow">Recent searches</span></div>
-    <div id="selectionHistory" style="border:1px solid var(--border);border-radius:14px;overflow:hidden;background:#fff"></div>
-  </div>
+  <div id="selectionHistory" style="display:none"></div>
 
   <!-- Status / results summary -->
   <div id="queryStatus" style="font-size:13px;color:var(--muted);min-height:22px;margin-bottom:12px"></div>
@@ -783,12 +779,15 @@ function _renderSidebarHistory(items, type) {
   sidebarEl.innerHTML = items.slice(0, 20).map(item => {
     const action = type === 'analysis' ? `replayAnalysis(${item.id})` : `replaySelection(${item.id})`;
     const label  = item.result_title || item.question;
+    const sub    = type === 'selection' && item.result_count != null
+      ? `<div style="font-size:11px;color:var(--green);margin-top:1px">${item.result_count} clients matched</div>`
+      : `<div style="font-size:11px;color:var(--muted);margin-top:1px">${_relTime(item.ts)}</div>`;
     return `<div class="sidebar-hist-item" style="display:flex;align-items:center;gap:4px;padding:8px 10px;border-radius:8px;cursor:pointer;transition:background 0.15s"
               onmouseover="this.style.background='#F6F8FB';this.querySelector('.del-btn').style.opacity='1'"
               onmouseout="this.style.background='transparent';this.querySelector('.del-btn').style.opacity='0'">
       <div onclick="${action}" title="${escHtml(item.question)}" style="flex:1;min-width:0">
         <div style="font-size:12px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(label)}</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:1px">${_relTime(item.ts)}</div>
+        ${sub}
       </div>
       <button class="del-btn" onclick="event.stopPropagation();deleteHistoryItem(${item.id},'${type}')" title="Delete"
               style="opacity:0;background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:0 2px;line-height:1;flex-shrink:0;transition:all 0.15s"
