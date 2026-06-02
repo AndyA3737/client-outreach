@@ -1287,6 +1287,22 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
 def index():
     return send_from_directory(BASE_DIR, 'index.html')
 
+@app.route("/favicon.ico")
+def favicon_ico():
+    return send_from_directory(BASE_DIR, 'favicon.ico', mimetype='image/x-icon')
+
+@app.route("/favicon.svg")
+def favicon_svg():
+    return send_from_directory(BASE_DIR, 'favicon.svg', mimetype='image/svg+xml')
+
+@app.route("/apple-touch-icon.png")
+def apple_touch_icon():
+    return send_from_directory(BASE_DIR, 'apple-touch-icon.png', mimetype='image/png')
+
+@app.route("/icon-512.png")
+def icon_512():
+    return send_from_directory(BASE_DIR, 'icon-512.png', mimetype='image/png')
+
 
 @app.route("/api/tenants")
 @require_auth
