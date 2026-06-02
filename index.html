@@ -560,15 +560,15 @@
   <div id="queryActions" style="display:none;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
     <input type="search" id="selectionSearch" placeholder="Filter results by name…"
            oninput="filterSelectionResults()" style="width:220px">
+    <button onclick="exportCSV()" class="btn-copy" style="padding:7px 14px">⬇ Export CSV</button>
     <button onclick="openSmsModal()" class="btn-teal" style="height:34px;padding:0 16px;font-size:12px;border-radius:8px;display:flex;align-items:center;gap:6px">
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
       Send SMS
     </button>
-    <button disabled title="Coming soon" style="height:34px;padding:0 16px;font-size:12px;border-radius:8px;border:1px solid var(--border);background:#F6F8FB;color:#C8D0DA;cursor:not-allowed;display:flex;align-items:center;gap:6px">
+    <button onclick="openEmailModal()" class="btn-teal" style="height:34px;padding:0 16px;font-size:12px;border-radius:8px;display:flex;align-items:center;gap:6px;background:var(--navy)" onmouseover="this.style.background='var(--green)'" onmouseout="this.style.background='var(--navy)'">
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 7L2 7"/></svg>
       Email Blast
     </button>
-    <button onclick="exportCSV()" class="btn-copy" style="padding:7px 14px;margin-left:auto">⬇ Export CSV</button>
   </div>
 
   <!-- Results table -->
@@ -788,6 +788,142 @@
   </div>
 </div>
 
+<!-- ── Email Blast Modal ───────────────────────────────────── -->
+<div id="emailModal" style="display:none;position:fixed;inset:0;background:rgba(26,35,50,0.55);z-index:300;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:18px;width:100%;max-width:860px;border:1px solid var(--border);display:flex;flex-direction:column;max-height:92vh;overflow:hidden">
+
+    <!-- Header -->
+    <div style="padding:18px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+      <div>
+        <h3 style="font-size:20px;margin-bottom:2px">Email Blast</h3>
+        <p id="emailRecipientCount" style="font-size:13px;color:var(--muted)">Sending to 0 clients</p>
+      </div>
+      <button onclick="closeEmailModal()" style="background:none;border:none;cursor:pointer;font-size:24px;color:var(--muted);line-height:1;padding:4px" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">×</button>
+    </div>
+
+    <!-- Two-column body -->
+    <div style="display:flex;flex:1;overflow:hidden;min-height:0">
+
+      <!-- LEFT: compose -->
+      <div style="flex:1;overflow-y:auto;border-right:1px solid var(--border)">
+
+        <!-- Presets -->
+        <div style="padding:16px 20px;border-bottom:1px solid var(--border);background:#F6F8FB">
+          <div class="eyebrow" style="margin-bottom:10px">Templates</div>
+          <div style="display:flex;flex-direction:column;gap:7px">
+            <button class="sms-preset" onclick="applyEmailPreset(0)">
+              <div style="font-size:12px;font-weight:600;color:var(--text)">Win-back</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px">Subject: We miss you, {first_name}! — A warm re-engagement for lapsed clients with a personal touch</div>
+            </button>
+            <button class="sms-preset" onclick="applyEmailPreset(1)">
+              <div style="font-size:12px;font-weight:600;color:var(--text)">Overdue reminder</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px">Subject: Time for a refresh, {first_name}? — Friendly nudge for clients past their usual visit interval</div>
+            </button>
+            <button class="sms-preset" onclick="applyEmailPreset(2)">
+              <div style="font-size:12px;font-weight:600;color:var(--text)">Colour refresh</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px">Subject: Your colour is calling, {first_name}! — Targeted at colour clients who are overdue</div>
+            </button>
+            <button class="sms-preset" onclick="applyEmailPreset(3)">
+              <div style="font-size:12px;font-weight:600;color:var(--text)">Loyalty reward</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px">Subject: A little thank you, {first_name} — Appreciation email for your most loyal clients</div>
+            </button>
+            <button class="sms-preset" onclick="applyEmailPreset(4)">
+              <div style="font-size:12px;font-weight:600;color:var(--text)">Prebook reminder</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px">Subject: Rebook with {stylist}, {first_name}! — Post-visit follow-up to secure the next appointment</div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Merge fields -->
+        <div style="padding:14px 20px;border-bottom:1px solid var(--border)">
+          <div class="eyebrow" style="margin-bottom:8px">Insert merge field</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            <button class="merge-btn" onclick="insertEmailMerge('{first_name}')">First name</button>
+            <button class="merge-btn" onclick="insertEmailMerge('{full_name}')">Full name</button>
+            <button class="merge-btn" onclick="insertEmailMerge('{stylist}')">Stylist</button>
+            <button class="merge-btn" onclick="insertEmailMerge('{salon}')">Salon</button>
+            <button class="merge-btn" onclick="insertEmailMerge('{last_visit}')">Last visit</button>
+            <button class="merge-btn" onclick="insertEmailMerge('{days_since}')">Days since</button>
+            <button class="merge-btn" onclick="insertEmailMerge('{overdue}')">Overdue</button>
+            <button class="merge-btn" onclick="insertEmailMerge('{avg_spend}')">Avg spend</button>
+          </div>
+        </div>
+
+        <!-- Subject + Body -->
+        <div style="padding:16px 20px">
+          <div style="margin-bottom:14px">
+            <label style="display:block;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px">Subject line</label>
+            <input id="emailSubject" type="text" oninput="updateEmailPreview()"
+                   placeholder="e.g. We'd love to see you again, {first_name}!"
+                   style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;font-family:inherit;color:var(--text);background:#F6F8FB;outline:none;transition:all 0.15s"
+                   onfocus="this.style.borderColor='var(--green)';this.style.background='#fff';this.style.boxShadow='0 0 0 3px #E6F5EB'"
+                   onblur="this.style.borderColor='var(--border)';this.style.background='#F6F8FB';this.style.boxShadow='none'">
+          </div>
+          <div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+              <label style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px">Email body</label>
+              <span id="emailCharCount" style="font-size:11px;color:var(--muted)">0 chars</span>
+            </div>
+            <textarea id="emailBody" maxlength="2000" rows="8"
+                      placeholder="Choose a template above or write your own…"
+                      oninput="updateEmailPreview()"
+                      style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:11px;font-size:13px;font-family:inherit;color:var(--text);background:#F6F8FB;outline:none;resize:vertical;line-height:1.7;transition:all 0.15s"
+                      onfocus="this.style.borderColor='var(--green)';this.style.background='#fff';this.style.boxShadow='0 0 0 3px #E6F5EB'"
+                      onblur="this.style.borderColor='var(--border)';this.style.background='#F6F8FB';this.style.boxShadow='none'"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: email preview -->
+      <div style="width:300px;flex-shrink:0;overflow-y:auto;padding:20px 16px;background:#F6F8FB">
+        <div class="eyebrow" style="margin-bottom:14px">Preview</div>
+
+        <!-- Email client mockup -->
+        <div style="background:#fff;border-radius:12px;border:1px solid #E2E6EC;overflow:hidden;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,0.08)">
+          <!-- Top bar -->
+          <div style="background:#F2F2F7;padding:8px 12px;border-bottom:1px solid #E2E6EC;display:flex;align-items:center;gap:6px">
+            <div style="width:10px;height:10px;border-radius:50%;background:#FF5F57"></div>
+            <div style="width:10px;height:10px;border-radius:50%;background:#FFBD2E"></div>
+            <div style="width:10px;height:10px;border-radius:50%;background:#28C840"></div>
+          </div>
+          <!-- Email meta -->
+          <div style="padding:14px 16px;border-bottom:1px solid #F0F0F5">
+            <div style="font-size:15px;font-weight:600;color:#1A2332;margin-bottom:10px;line-height:1.3" id="emailPreviewSubject">Your subject line</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+              <div style="width:28px;height:28px;background:var(--green);border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                <span style="color:#fff;font-size:11px;font-weight:700">S</span>
+              </div>
+              <div>
+                <div style="font-size:11px;font-weight:600;color:#1A2332">SalonIQ</div>
+                <div style="font-size:10px;color:#8E8E93">noreply@saloniq.com</div>
+              </div>
+            </div>
+            <div style="font-size:11px;color:#8E8E93">To: <span id="emailPreviewTo">Client Name</span></div>
+          </div>
+          <!-- Email body -->
+          <div style="padding:16px;font-size:13px;color:#1A2332;line-height:1.75;min-height:80px;white-space:pre-wrap;word-break:break-word" id="emailPreviewBody">Your message will appear here.</div>
+          <!-- Footer -->
+          <div style="padding:10px 16px;border-top:1px solid #F0F0F5;font-size:10px;color:#A0AEBC;line-height:1.5">
+            You're receiving this because you're a valued client of {salon}.<br>To unsubscribe reply STOP.
+          </div>
+        </div>
+
+        <div id="emailPreviewMeta" style="font-size:11px;color:var(--muted);margin-top:10px;text-align:center;line-height:1.5"></div>
+      </div>
+
+    </div><!-- end two-column -->
+
+    <!-- Footer -->
+    <div style="padding:14px 24px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:#fff">
+      <div id="emailSendNote" style="font-size:12px;color:var(--muted)">Only clients with an email address will receive the message.</div>
+      <div style="display:flex;gap:10px">
+        <button onclick="closeEmailModal()" style="height:36px;padding:0 18px;font-size:13px;border-radius:9px;border:1px solid var(--border);background:#fff;color:var(--text);cursor:pointer;font-family:inherit">Cancel</button>
+        <button id="emailSendBtn" onclick="sendEmailBlast()" class="btn-teal" style="height:36px;padding:0 20px;border-radius:9px;font-size:13px;background:var(--navy)" onmouseover="this.style.background='var(--green)'" onmouseout="this.style.background='var(--navy)'">Send Email →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 </div><!-- end #mainContent -->
 
 <script>
@@ -906,11 +1042,141 @@ function sendSmsBlast() {
   }, 800);
 }
 
-// Close modal on backdrop click
+// Close modals on backdrop click
 document.addEventListener('click', e => {
-  const modal = document.getElementById('smsModal');
-  if (modal && modal.style.display === 'flex' && e.target === modal) closeSmsModal();
+  const sms   = document.getElementById('smsModal');
+  const email = document.getElementById('emailModal');
+  if (sms   && sms.style.display   === 'flex' && e.target === sms)   closeSmsModal();
+  if (email && email.style.display === 'flex' && e.target === email) closeEmailModal();
 });
+
+// ── Email Blast ───────────────────────────────────────────────
+const _EMAIL_PRESETS = [
+  {
+    subject: "We miss you, {first_name}!",
+    body: "Hi {first_name},\n\nIt's been {days_since} since we last saw you at {salon} and we'd love to have you back.\n\n{stylist} has availability and we'd love to catch up on your hair. Whether it's a quick trim or a full transformation, we're here for you.\n\nGive us a call or book online — we can't wait to see you! 😊\n\nWarm regards,\nThe team at {salon}",
+  },
+  {
+    subject: "Time for a refresh, {first_name}?",
+    body: "Hi {first_name},\n\nYour hair is {overdue} — which means it's the perfect time to book in for a little TLC!\n\n{stylist} would love to work their magic at {salon}. Don't leave it too long!\n\nCall us or book online today 💇‍♀️\n\nSee you soon,\nThe team at {salon}",
+  },
+  {
+    subject: "Your colour is calling, {first_name}!",
+    body: "Hi {first_name},\n\nYour colour is ready for a refresh — and {stylist} at {salon} is here to make it gorgeous again.\n\nWhether it's a root touch-up, balayage refresh or a brand new look, now is the perfect time.\n\nBook your colour appointment today 🎨\n\nSpeak soon,\nThe team at {salon}",
+  },
+  {
+    subject: "A little thank you, {first_name}",
+    body: "Hi {first_name},\n\nWe just wanted to say a huge thank you for being such a loyal client at {salon}. Your support means the world to us.\n\nAs one of our most valued guests (averaging £{avg_spend} per visit!), we'd love to make sure your next visit is just as special.\n\nWe look forward to seeing you soon.\n\nWith gratitude,\nThe team at {salon}",
+  },
+  {
+    subject: "Rebook with {stylist}, {first_name}!",
+    body: "Hi {first_name},\n\nWe loved having you in on {last_visit} and we'd love to see you again soon!\n\nPrebook your next appointment with {stylist} at {salon} before the diary fills up — it's the best way to guarantee your preferred time. 📅\n\nGive us a call or pop in to book.\n\nSee you soon,\nThe team at {salon}",
+  },
+];
+
+function applyEmailPreset(index) {
+  const preset = _EMAIL_PRESETS[index];
+  if (!preset) return;
+  document.getElementById('emailSubject').value = preset.subject;
+  document.getElementById('emailBody').value    = preset.body;
+  updateEmailPreview();
+}
+
+function _resolveEmailMerge(template, client) {
+  if (!client) return template;
+  const first = (client.name || '').split(' ')[0] || '';
+  return template
+    .replace(/\{first_name\}/gi, first)
+    .replace(/\{full_name\}/gi,  client.name        || '')
+    .replace(/\{stylist\}/gi,    client.pref_tm      || '')
+    .replace(/\{salon\}/gi,      client.pref_salon   || '')
+    .replace(/\{last_visit\}/gi, client.last_visit   || '')
+    .replace(/\{days_since\}/gi, client.days_since != null ? client.days_since + ' days' : '')
+    .replace(/\{overdue\}/gi,    client.overdue       ? client.overdue + ' days overdue' : '')
+    .replace(/\{avg_spend\}/gi,  client.avg_spend != null ? client.avg_spend : '');
+}
+
+function openEmailModal() {
+  const recipients = _selectionResults.filter(c => c.email);
+  const total      = _selectionResults.length;
+  document.getElementById('emailModal').style.display = 'flex';
+  document.getElementById('emailRecipientCount').textContent =
+    `Sending to ${recipients.length} of ${total} client${total !== 1 ? 's' : ''} (${total - recipients.length} have no email address)`;
+  document.getElementById('emailSendNote').textContent =
+    recipients.length === total
+      ? 'All selected clients have an email address.'
+      : `${total - recipients.length} client${total - recipients.length !== 1 ? 's' : ''} without an email will be skipped.`;
+  document.getElementById('emailSendBtn').textContent = `Send to ${recipients.length} client${recipients.length !== 1 ? 's' : ''} →`;
+  updateEmailPreview();
+}
+
+function closeEmailModal() {
+  document.getElementById('emailModal').style.display = 'none';
+}
+
+function insertEmailMerge(field) {
+  const inputs = ['emailSubject', 'emailBody'];
+  let ta = document.getElementById('emailBody');
+  // Use whichever was focused last; default to body
+  if (document.activeElement && inputs.includes(document.activeElement.id)) {
+    ta = document.activeElement;
+  }
+  const s = ta.selectionStart, e = ta.selectionEnd;
+  ta.value = ta.value.slice(0, s) + field + ta.value.slice(e);
+  ta.selectionStart = ta.selectionEnd = s + field.length;
+  ta.focus();
+  updateEmailPreview();
+}
+
+function updateEmailPreview() {
+  const subject = document.getElementById('emailSubject').value;
+  const body    = document.getElementById('emailBody').value;
+  const sample  = _selectionResults.find(c => c.email) || _selectionResults[0];
+  const counter = document.getElementById('emailCharCount');
+
+  counter.textContent = `${body.length} chars`;
+
+  const rSubject = sample ? _resolveEmailMerge(subject, sample) : subject;
+  const rBody    = sample ? _resolveEmailMerge(body,    sample) : body;
+  const rTo      = sample ? (sample.name || sample.email || 'Client') : 'Client';
+
+  document.getElementById('emailPreviewSubject').textContent = rSubject || 'Your subject line';
+  document.getElementById('emailPreviewBody').textContent    = rBody    || 'Your message will appear here.';
+  document.getElementById('emailPreviewTo').textContent      = rTo;
+  document.getElementById('emailPreviewMeta').textContent    = sample   ? `Preview using: ${sample.name}` : '';
+}
+
+function sendEmailBlast() {
+  const subject = document.getElementById('emailSubject').value.trim();
+  const body    = document.getElementById('emailBody').value.trim();
+  if (!subject) { alert('Please enter a subject line.'); return; }
+  if (!body)    { alert('Please enter an email body.'); return; }
+  const recipients = _selectionResults.filter(c => c.email);
+  if (!recipients.length) { alert('No clients with email addresses in this selection.'); return; }
+
+  const messages = recipients.map(c => ({
+    client_id: c.id,
+    name:      c.name,
+    email:     c.email,
+    subject:   _resolveEmailMerge(subject, c),
+    body:      _resolveEmailMerge(body,    c),
+  }));
+
+  // TODO: POST to SalonIQ email API
+  // fetch('/api/email/send', { method:'POST', headers:{'Content-Type':'application/json'},
+  //   body: JSON.stringify({ messages, tenant_id: selectedTenantId, server: selectedServer }) })
+
+  const btn = document.getElementById('emailSendBtn');
+  btn.disabled    = true;
+  btn.textContent = 'Sending…';
+  setTimeout(() => {
+    closeEmailModal();
+    document.getElementById('queryStatus').innerHTML =
+      `<span style="color:var(--green);font-weight:600">✓ Email prepared for ${recipients.length} client${recipients.length !== 1 ? 's' : ''}</span> — API integration coming soon.`;
+    btn.disabled    = false;
+    btn.textContent = `Send to ${recipients.length} client${recipients.length !== 1 ? 's' : ''} →`;
+  }, 800);
+}
 
 function escHtml(s) {
   return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
