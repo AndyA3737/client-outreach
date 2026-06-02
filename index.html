@@ -144,6 +144,10 @@
   .sidebar-hist-item { padding:8px 10px;border-radius:8px;cursor:pointer;transition:background 0.15s; }
   .sidebar-hist-item:hover { background:#F6F8FB; }
 
+  .merge-btn { background:#fff;border:1px solid var(--border);border-radius:20px;padding:5px 12px;
+               font-size:12px;color:var(--text);cursor:pointer;font-family:inherit;transition:all 0.15s; }
+  .merge-btn:hover { background:var(--green);color:#fff;border-color:var(--green); }
+
   /* ── Mobile ──────────────────────────────────────────────── */
   @media (max-width: 768px) {
     #menuBtn { display:flex !important; }
@@ -547,11 +551,19 @@
   <!-- Status / results summary -->
   <div id="queryStatus" style="font-size:13px;color:var(--muted);min-height:22px;margin-bottom:12px"></div>
 
-  <!-- Export + filter (hidden until results) -->
-  <div id="queryActions" style="display:none;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+  <!-- Export + actions (hidden until results) -->
+  <div id="queryActions" style="display:none;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
     <input type="search" id="selectionSearch" placeholder="Filter results by name…"
-           oninput="filterSelectionResults()" style="width:240px">
-    <button onclick="exportCSV()" class="btn-copy" style="padding:7px 14px">⬇ Export CSV</button>
+           oninput="filterSelectionResults()" style="width:220px">
+    <button onclick="openSmsModal()" class="btn-teal" style="height:34px;padding:0 16px;font-size:12px;border-radius:8px;display:flex;align-items:center;gap:6px">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      Send SMS
+    </button>
+    <button disabled title="Coming soon" style="height:34px;padding:0 16px;font-size:12px;border-radius:8px;border:1px solid var(--border);background:#F6F8FB;color:#C8D0DA;cursor:not-allowed;display:flex;align-items:center;gap:6px">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 7L2 7"/></svg>
+      Email Blast
+    </button>
+    <button onclick="exportCSV()" class="btn-copy" style="padding:7px 14px;margin-left:auto">⬇ Export CSV</button>
   </div>
 
   <!-- Results table -->
@@ -639,9 +651,179 @@
 
 </div><!-- end right column -->
 </div><!-- end flex wrapper -->
+
+<!-- ── SMS Blast Modal ─────────────────────────────────────── -->
+<div id="smsModal" style="display:none;position:fixed;inset:0;background:rgba(26,35,50,0.55);z-index:300;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:18px;width:100%;max-width:640px;border:1px solid var(--border);display:flex;flex-direction:column;max-height:90vh;overflow:hidden">
+
+    <!-- Header -->
+    <div style="padding:20px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+      <div>
+        <h3 style="font-size:20px;margin-bottom:2px">SMS Message</h3>
+        <p id="smsRecipientCount" style="font-size:13px;color:var(--muted)">Sending to 0 clients</p>
+      </div>
+      <button onclick="closeSmsModal()" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--muted);line-height:1;padding:4px" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">×</button>
+    </div>
+
+    <div style="overflow-y:auto;flex:1">
+      <!-- Merge fields -->
+      <div style="padding:16px 24px;border-bottom:1px solid var(--border);background:#F6F8FB">
+        <div class="eyebrow" style="margin-bottom:10px">Insert merge field</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <button class="merge-btn" onclick="insertMerge('{first_name}')">First name</button>
+          <button class="merge-btn" onclick="insertMerge('{stylist}')">Preferred stylist</button>
+          <button class="merge-btn" onclick="insertMerge('{salon}')">Salon</button>
+          <button class="merge-btn" onclick="insertMerge('{last_visit}')">Last visit date</button>
+          <button class="merge-btn" onclick="insertMerge('{days_since}')">Days since visit</button>
+          <button class="merge-btn" onclick="insertMerge('{overdue}')">Days overdue</button>
+        </div>
+      </div>
+
+      <!-- Textarea -->
+      <div style="padding:20px 24px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <label style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px">Message</label>
+          <span id="smsCharCount" style="font-size:11px;color:var(--muted)">0 / 160 chars</span>
+        </div>
+        <textarea id="smsTemplate" maxlength="480" rows="5"
+                  placeholder="Hi {first_name}, we'd love to see you again! Book with {stylist} at {salon} — give us a call 😊"
+                  oninput="updateSmsPreview()"
+                  style="width:100%;padding:12px 15px;border:1.5px solid var(--border);border-radius:11px;font-size:14px;font-family:inherit;color:var(--text);background:#F6F8FB;outline:none;resize:vertical;line-height:1.55;transition:all 0.15s"
+                  onfocus="this.style.borderColor='var(--green)';this.style.background='#fff';this.style.boxShadow='0 0 0 3px #E6F5EB'"
+                  onblur="this.style.borderColor='var(--border)';this.style.background='#F6F8FB';this.style.boxShadow='none'"></textarea>
+        <div id="smsMsgWarning" style="display:none;font-size:11px;color:var(--risk);margin-top:6px"></div>
+      </div>
+
+      <!-- Live preview -->
+      <div style="padding:0 24px 20px">
+        <div class="eyebrow" style="margin-bottom:8px">Preview — first client</div>
+        <div id="smsPreview" style="background:#F6F8FB;border:1px solid var(--border);border-radius:11px;padding:14px 16px;font-size:14px;color:var(--text);line-height:1.6;min-height:44px;white-space:pre-wrap"></div>
+        <div id="smsPreviewMeta" style="font-size:11px;color:var(--muted);margin-top:6px"></div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div style="padding:16px 24px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:#fff">
+      <div id="smsSendNote" style="font-size:12px;color:var(--muted)">
+        Only clients with a mobile number will receive the message.
+      </div>
+      <div style="display:flex;gap:10px">
+        <button onclick="closeSmsModal()" style="height:38px;padding:0 18px;font-size:13px;border-radius:9px;border:1px solid var(--border);background:#fff;color:var(--text);cursor:pointer;font-family:inherit">Cancel</button>
+        <button id="smsSendBtn" onclick="sendSmsBlast()" class="btn-teal" style="height:38px;padding:0 20px;border-radius:9px;font-size:13px">Send SMS →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 </div><!-- end #mainContent -->
 
 <script>
+// ── SMS Blast ─────────────────────────────────────────────────
+function _resolveMerge(template, client) {
+  if (!client) return template;
+  const first = (client.name || '').split(' ')[0] || '';
+  return template
+    .replace(/\{first_name\}/gi, first)
+    .replace(/\{stylist\}/gi,    client.pref_tm   || '')
+    .replace(/\{salon\}/gi,      client.pref_salon || '')
+    .replace(/\{last_visit\}/gi, client.last_visit || '')
+    .replace(/\{days_since\}/gi, client.days_since != null ? client.days_since + ' days' : '')
+    .replace(/\{overdue\}/gi,    client.overdue    ? client.overdue + ' days overdue' : '');
+}
+
+function openSmsModal() {
+  const recipients = _selectionResults.filter(c => c.mobile);
+  const total      = _selectionResults.length;
+  document.getElementById('smsModal').style.display      = 'flex';
+  document.getElementById('smsRecipientCount').textContent =
+    `Sending to ${recipients.length} of ${total} client${total !== 1 ? 's' : ''} (${total - recipients.length} have no mobile number)`;
+  document.getElementById('smsSendNote').textContent =
+    recipients.length === total
+      ? 'All selected clients have a mobile number.'
+      : `${total - recipients.length} client${total - recipients.length !== 1 ? 's' : ''} without a mobile will be skipped.`;
+  document.getElementById('smsSendBtn').textContent = `Send to ${recipients.length} client${recipients.length !== 1 ? 's' : ''} →`;
+  updateSmsPreview();
+}
+
+function closeSmsModal() {
+  document.getElementById('smsModal').style.display = 'none';
+}
+
+function insertMerge(field) {
+  const ta  = document.getElementById('smsTemplate');
+  const s   = ta.selectionStart;
+  const e   = ta.selectionEnd;
+  ta.value  = ta.value.slice(0, s) + field + ta.value.slice(e);
+  ta.selectionStart = ta.selectionEnd = s + field.length;
+  ta.focus();
+  updateSmsPreview();
+}
+
+function updateSmsPreview() {
+  const tmpl    = document.getElementById('smsTemplate').value;
+  const sample  = _selectionResults.find(c => c.mobile) || _selectionResults[0];
+  const preview = document.getElementById('smsPreview');
+  const meta    = document.getElementById('smsPreviewMeta');
+  const counter = document.getElementById('smsCharCount');
+  const warning = document.getElementById('smsMsgWarning');
+
+  // Character count based on resolved preview
+  const resolved = sample ? _resolveMerge(tmpl, sample) : tmpl;
+  const len      = resolved.length;
+  const smsCount = Math.ceil(len / 160) || 1;
+
+  counter.textContent = `${len} / 160 chars`;
+  counter.style.color  = len > 160 ? 'var(--risk)' : len > 130 ? '#F59E0B' : 'var(--muted)';
+
+  if (len > 160) {
+    warning.style.display  = '';
+    warning.textContent    = `Message is ${len} characters — will send as ${smsCount} SMS parts (charged as ${smsCount} messages per recipient).`;
+  } else {
+    warning.style.display  = 'none';
+  }
+
+  if (!tmpl) { preview.textContent = ''; meta.textContent = ''; return; }
+  preview.textContent = sample ? resolved : tmpl;
+  meta.textContent    = sample ? `Preview using: ${sample.name}` : '';
+}
+
+function sendSmsBlast() {
+  const tmpl      = document.getElementById('smsTemplate').value.trim();
+  if (!tmpl) { alert('Please enter a message.'); return; }
+  const recipients = _selectionResults.filter(c => c.mobile);
+  if (!recipients.length) { alert('No clients with mobile numbers in this selection.'); return; }
+
+  // Build payload — one resolved message per recipient
+  const messages = recipients.map(c => ({
+    client_id:  c.id,
+    name:       c.name,
+    mobile:     c.mobile,
+    message:    _resolveMerge(tmpl, c),
+  }));
+
+  // TODO: POST to SalonIQ SMS API
+  // fetch('/api/sms/send', { method:'POST', headers:{'Content-Type':'application/json'},
+  //   body: JSON.stringify({ messages, tenant_id: selectedTenantId, server: selectedServer }) })
+
+  // Placeholder confirmation
+  const btn = document.getElementById('smsSendBtn');
+  btn.disabled    = true;
+  btn.textContent = 'Sending…';
+  setTimeout(() => {
+    closeSmsModal();
+    document.getElementById('queryStatus').innerHTML =
+      `<span style="color:var(--green);font-weight:600">✓ SMS prepared for ${recipients.length} client${recipients.length !== 1 ? 's' : ''}</span> — API integration coming soon.`;
+    btn.disabled    = false;
+    btn.textContent = `Send to ${recipients.length} client${recipients.length !== 1 ? 's' : ''} →`;
+  }, 800);
+}
+
+// Close modal on backdrop click
+document.addEventListener('click', e => {
+  const modal = document.getElementById('smsModal');
+  if (modal && modal.style.display === 'flex' && e.target === modal) closeSmsModal();
+});
+
 function escHtml(s) {
   return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
