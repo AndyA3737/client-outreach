@@ -2642,59 +2642,107 @@ def client_log():
 
 
 _LOGIN_PAGE = """<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+<meta charset="UTF-8">
 <title>SalonIQ Aria — Sign in</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@700&display=swap" rel="stylesheet">
 <style>
-*{{box-sizing:border-box;margin:0;padding:0}}
-body{{background:#F0F4F8;font-family:system-ui,-apple-system,sans-serif;
-      display:flex;align-items:center;justify-content:center;min-height:100vh}}
-.card{{background:#fff;border-radius:16px;padding:40px;width:380px;
-       box-shadow:0 4px 32px rgba(0,0,0,0.10);border:1px solid #D8E2EC}}
-h1{{color:#1C2B3A;font-size:1.5rem;margin-bottom:4px}}
-.sub{{color:#64748B;font-size:.875rem;margin-bottom:28px}}
-label{{display:block;font-size:.75rem;font-weight:600;color:#64748B;
-       text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}}
-input{{width:100%;padding:10px 14px;border:1.5px solid #D8E2EC;border-radius:8px;
-       font-size:.95rem;color:#1C2B3A;background:#fff;outline:none}}
-input:focus{{border-color:#C9A84C}}
-.field{{margin-bottom:18px}}
-.btn{{width:100%;padding:12px;background:#C9A84C;color:#fff;border:none;
-      border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;margin-top:4px}}
-.btn:hover{{background:#A8883A}}
-.btn:disabled{{opacity:0.6;cursor:not-allowed}}
-.err{{background:#FEF2F2;border:1px solid #FECACA;color:#DC2626;
-      padding:10px 14px;border-radius:8px;font-size:.875rem;margin-bottom:20px}}
-.divider{{border:none;border-top:1px solid #E2E8F0;margin:20px 0}}
+  *{{box-sizing:border-box;margin:0;padding:0}}
+  body{{background:#ECEEF2;font-family:'Helvetica Neue',Helvetica,Arial,system-ui,sans-serif;
+        display:flex;align-items:center;justify-content:center;min-height:100svh;padding:24px}}
+  .card{{background:#fff;border-radius:18px;padding:40px;width:100%;max-width:400px;
+         border:1px solid #E2E6EC}}
+  .logo-wrap{{display:flex;align-items:center;gap:12px;margin-bottom:32px}}
+  .iq-mark{{width:36px;height:36px;background:#3A7A50;border-radius:9px;display:flex;
+            align-items:center;justify-content:center;flex-shrink:0}}
+  .iq-mark span{{font-family:'Cormorant Garamond',Georgia,serif;font-weight:700;font-size:17px;color:#fff;line-height:1}}
+  .logo-right{{display:flex;flex-direction:column;gap:3px}}
+  .logo-name{{font-family:'Cormorant Garamond',Georgia,serif;font-weight:700;font-size:20px;
+              color:#1A2332;letter-spacing:-0.01em;line-height:1}}
+  .beta{{display:inline-block;background:#E6F5EB;color:#3A7A50;border:1px solid #C0DECA;
+         border-radius:20px;padding:2px 8px;font-size:10px;text-transform:uppercase;
+         letter-spacing:0.6px;font-weight:600;width:fit-content}}
+  h2{{font-family:'Cormorant Garamond',Georgia,serif;font-weight:700;font-size:24px;
+      color:#1A2332;margin-bottom:4px}}
+  .sub{{color:#A0AEBC;font-size:13px;margin-bottom:28px}}
+  label{{display:block;font-size:10px;font-weight:600;color:#A0AEBC;text-transform:uppercase;
+         letter-spacing:0.6px;margin-bottom:6px}}
+  input{{width:100%;padding:11px 14px;border:1.5px solid #E2E6EC;border-radius:9px;
+         font-size:14px;color:#3A4A5A;background:#F6F8FB;outline:none;font-family:inherit;
+         transition:all 0.15s}}
+  input:focus{{border-color:#3A7A50;background:#fff;box-shadow:0 0 0 3px #E6F5EB}}
+  input::placeholder{{color:#A0AEBC}}
+  .field{{margin-bottom:16px}}
+  .divider{{border:none;border-top:1px solid #E2E6EC;margin:22px 0}}
+  .btn{{width:100%;padding:13px;background:#1A2332;color:#fff;border:none;border-radius:11px;
+        font-size:14px;font-weight:600;cursor:pointer;margin-top:6px;font-family:inherit;
+        transition:background 0.15s;letter-spacing:0.01em}}
+  .btn:hover{{background:#3A7A50}}
+  .btn:disabled{{opacity:0.5;cursor:not-allowed}}
+  .err{{display:flex;align-items:flex-start;gap:10px;padding:12px 16px;border-radius:11px;
+        font-size:13px;margin-bottom:20px;line-height:1.5}}
+  .err-icon{{width:22px;height:22px;border-radius:6px;display:flex;align-items:center;
+             justify-content:center;flex-shrink:0;font-size:12px}}
+  .err-red{{background:#FFF0F0;border:1px solid #FECACA;color:#C0392B}}
+  .err-red .err-icon{{background:#FFE0E0}}
+  .err-warn{{background:#FFFBEB;border:1px solid #FDE68A;color:#854D0E}}
+  .err-warn .err-icon{{background:#FEF3C7}}
+  .pwd-wrap{{position:relative}}
+  .pwd-wrap input{{padding-right:44px}}
+  .toggle-btn{{position:absolute;right:12px;top:50%;transform:translateY(-50%);
+               background:none;border:none;cursor:pointer;color:#A0AEBC;font-size:15px;
+               padding:0;line-height:1;transition:color 0.15s}}
+  .toggle-btn:hover{{color:#3A4A5A}}
 </style>
 </head>
-<body><div class="card">
-  <h1>SalonIQ <span style="color:#C9A84C">Aria</span></h1>
-  <p class="sub">Sign in to continue</p>
+<body>
+<div class="card">
+  <div class="logo-wrap">
+    <div class="iq-mark"><span>iQ</span></div>
+    <div class="logo-right">
+      <span class="logo-name">SalonIQ Aria</span>
+      <span class="beta">Beta</span>
+    </div>
+  </div>
+  <h2>Welcome back</h2>
+  <p class="sub">Sign in to your salon account</p>
   {error_html}
   <form method="POST" action="/login" id="loginForm">
     <input type="hidden" name="next" value="{next_url}">
-    <div class="field"><label>Account Code</label>
-      <input type="text" name="account_code" id="account_code" autofocus autocomplete="organization"
-             placeholder=""></div>
+    <div class="field">
+      <label>Account Code</label>
+      <input type="text" name="account_code" id="account_code" autofocus
+             autocomplete="organization" placeholder="e.g. GRT001" autocapitalize="characters">
+    </div>
     <hr class="divider">
-    <div class="field"><label>Username</label>
-      <input type="text" name="username" autocomplete="username"></div>
-    <div class="field"><label>Password</label>
-      <div style="position:relative">
-        <input type="password" name="password" id="passwordInput" autocomplete="current-password" style="width:100%;padding-right:44px;box-sizing:border-box">
-        <button type="button" id="togglePwd" onclick="var i=document.getElementById('passwordInput');var b=document.getElementById('togglePwd');i.type=i.type==='password'?'text':'password';b.textContent=i.type==='password'?'👁':'🙈';" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;padding:0;line-height:1">👁</button>
-      </div></div>
+    <div class="field">
+      <label>Username</label>
+      <input type="text" name="username" autocomplete="username">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <div class="pwd-wrap">
+        <input type="password" name="password" id="passwordInput" autocomplete="current-password">
+        <button type="button" class="toggle-btn" id="togglePwd"
+                onclick="var i=document.getElementById('passwordInput');i.type=i.type==='password'?'text':'password';this.textContent=i.type==='password'?'👁':'🙈'">👁</button>
+      </div>
+    </div>
     <button type="submit" class="btn" id="submitBtn">Sign in →</button>
   </form>
   <script>
     document.getElementById('loginForm').addEventListener('submit', function(){{
-      document.getElementById('submitBtn').disabled = true;
-      document.getElementById('submitBtn').textContent = 'Signing in…';
+      var b = document.getElementById('submitBtn');
+      b.disabled = true; b.textContent = 'Signing in…';
     }});
   </script>
-</div></body></html>"""
+</div>
+</body>
+</html>"""
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -2705,7 +2753,7 @@ def login():
         username     = request.form.get('username', '').strip()
         password     = request.form.get('password', '').strip()
         if not account_code or not username or not password:
-            return _login_page(next_url, '<div class="err">Please fill in all fields.</div>'), 401
+            return _login_page(next_url, '<div class="err err-warn"><div class="err-icon">⚠</div>Please fill in all fields.</div>'), 401
 
         # ── Env-var fallback (used while SalonIQ LogOn endpoint is confirmed) ──
         _fb_user   = os.environ.get('ADMIN_USER', '').strip()
@@ -2733,7 +2781,7 @@ def login():
             flask_session['server']       = server
             flask_session['account_code'] = account_code
             return redirect(next_url)
-        return _login_page(next_url, '<div class="err">Invalid account code, username, or password.</div>'), 401
+        return _login_page(next_url, '<div class="err err-red"><div class="err-icon">✕</div>Invalid account code, username, or password.</div>'), 401
     return _login_page(next_url, '')
 
 
