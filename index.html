@@ -1005,6 +1005,7 @@ async function _submitAnalysis(question, previousResult, resultBox, triggerBtn) 
         _lastAnalysis = pollData;
         try {
           renderAnalysis(pollData, resultBox);
+          loadHistory('analysis');
         } catch (renderErr) {
           showError('Render error: ' + renderErr.message);
         }
@@ -1227,6 +1228,7 @@ async function runQuery() {
       document.getElementById('queryActions').style.display = 'flex';
       document.getElementById('selectionSearch').value = '';
     }
+    loadHistory('selection');
   } catch (err) {
     document.getElementById('queryStatus').innerHTML =
       `<span style="color:#EF4444">Error: ${escHtml(err.message)}</span>`;
