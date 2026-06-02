@@ -140,6 +140,57 @@
 
   .sidebar-hist-item { padding:8px 10px;border-radius:8px;cursor:pointer;transition:background 0.15s; }
   .sidebar-hist-item:hover { background:#F6F8FB; }
+
+  /* ── Mobile ──────────────────────────────────────────────── */
+  @media (max-width: 768px) {
+    #menuBtn { display:flex !important; }
+
+    #sidebar {
+      position:fixed; top:0; left:0; height:100%; z-index:100;
+      transform:translateX(-100%);
+      transition:transform 0.25s ease;
+      box-shadow:none;
+    }
+    #sidebar.open {
+      transform:translateX(0);
+      box-shadow:4px 0 24px rgba(0,0,0,0.18);
+    }
+    #sidebarOverlay.open { display:block !important; }
+
+    #layoutWrapper { height:auto !important; overflow:visible !important; }
+    #rightColumn   { overflow:visible !important; min-height:100svh; }
+    #pagesScroller { overflow:visible !important; flex:none !important; height:auto !important; }
+    #followupBar   { position:fixed !important; bottom:0; left:0; right:0; }
+    #slimTopbar    { padding:0 14px !important; position:sticky; top:0; z-index:50; }
+
+    #pageAnalysis > div  { padding:20px 16px 90px !important; }
+    #pageSelections > div { padding:20px 16px 40px !important; }
+
+    #promptGrid { grid-template-columns:1fr 1fr !important; }
+
+    .fmt-btn { padding:6px 10px !important; font-size:11px !important; margin-right:3px !important; }
+
+    /* Tables scroll horizontally */
+    .overflow-x-auto, [style*="overflow-x:auto"] { -webkit-overflow-scrolling:touch; }
+
+    /* Bigger touch targets for chips */
+    .query-chip, .prompt-cat-btn { padding:8px 14px !important; }
+
+    /* Stat cards 2-col on mobile */
+    .grid-cols-2 { grid-template-columns:repeat(2,1fr) !important; }
+
+    /* Topbar utility links hidden on mobile to save space */
+    #logsBtnHeader, #refreshBtn { display:none !important; }
+
+    /* Follow-up bar compact on mobile */
+    #followupBar { padding:10px 12px !important; }
+    #followupBar span { display:none; } /* hide "Ask a follow-up" label */
+  }
+
+  @media (max-width: 480px) {
+    #promptGrid { grid-template-columns:1fr !important; }
+    .fmt-btn { padding:5px 8px !important; font-size:10px !important; }
+  }
 </style>
 </head>
 <body>
@@ -184,10 +235,13 @@
 
 <!-- Main content (hidden until data loads) -->
 <div id="mainContent" style="display:none">
-<div style="display:flex;height:100vh;overflow:hidden">
+<!-- Sidebar overlay (mobile tap-to-close) -->
+<div id="sidebarOverlay" onclick="closeSidebar()" style="display:none;position:fixed;inset:0;background:rgba(26,35,50,0.45);z-index:99"></div>
+
+<div id="layoutWrapper" style="display:flex;height:100vh;overflow:hidden">
 
 <!-- ── Sidebar ─────────────────────────────────────────────── -->
-<aside style="width:260px;min-width:260px;background:#fff;border-right:1px solid var(--border);display:flex;flex-direction:column;height:100vh;overflow:hidden">
+<aside id="sidebar" style="width:260px;min-width:260px;background:#fff;border-right:1px solid var(--border);display:flex;flex-direction:column;height:100vh;overflow:hidden">
 
   <!-- Logo -->
   <div style="padding:0 18px;height:56px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);flex-shrink:0">
@@ -229,14 +283,21 @@
 </aside>
 
 <!-- ── Right column ─────────────────────────────────────────── -->
-<div style="flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0">
+<div id="rightColumn" style="flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0">
 
   <!-- Slim topbar -->
-  <div style="height:44px;background:#fff;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 28px;flex-shrink:0">
-    <div style="font-size:12px;display:flex;align-items:center;gap:7px;min-width:0">
-      <span id="serverBadge" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:4px;background:var(--border);color:var(--text);letter-spacing:0.06em;text-transform:uppercase;flex-shrink:0">BETA</span>
-      <span id="selectedSalonLabel" style="color:var(--text);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></span>
-      <span id="generatedTs-wrap" style="display:none;color:var(--muted);white-space:nowrap"> · Generated <span id="generatedTs"></span></span>
+  <div id="slimTopbar" style="height:44px;background:#fff;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 28px;flex-shrink:0">
+    <div style="display:flex;align-items:center;gap:10px;min-width:0">
+      <!-- Hamburger (mobile only) -->
+      <button id="menuBtn" onclick="openSidebar()" aria-label="Menu"
+              style="display:none;background:none;border:none;cursor:pointer;padding:4px;color:var(--text);flex-shrink:0">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <div style="font-size:12px;display:flex;align-items:center;gap:7px;min-width:0">
+        <span id="serverBadge" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:4px;background:var(--border);color:var(--text);letter-spacing:0.06em;text-transform:uppercase;flex-shrink:0">BETA</span>
+        <span id="selectedSalonLabel" style="color:var(--text);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></span>
+        <span id="generatedTs-wrap" style="display:none;color:var(--muted);white-space:nowrap"> · Generated <span id="generatedTs"></span></span>
+      </div>
     </div>
     <div style="display:flex;align-items:center;gap:14px;flex-shrink:0">
       <a id="logsBtnHeader" href="/admin/logs" style="color:var(--muted);text-decoration:none;font-size:12px;transition:color 0.15s" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">Logs</a>
@@ -664,6 +725,16 @@ function renderRow(c) {
   </tr>`;
 }
 
+// ── Mobile sidebar ────────────────────────────────────────────
+function openSidebar() {
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('sidebarOverlay').classList.add('open');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('open');
+}
+
 // ── Page navigation ───────────────────────────────────────────
 function switchPage(page) {
   document.getElementById('pageDashboard').style.display  = page === 'dashboard'  ? '' : 'none';
@@ -678,6 +749,7 @@ function switchPage(page) {
   if (anaS) anaS.style.display = page === 'analysis'   ? '' : 'none';
   if (selS) selS.style.display = page === 'selections' ? '' : 'none';
   // Scroll page area to top on switch
+  closeSidebar();
   const scroller = document.getElementById('pagesScroller');
   if (scroller) scroller.scrollTop = 0;
   const fbar = document.getElementById('followupBar');
