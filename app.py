@@ -2659,6 +2659,11 @@ def admin_logs():
         tok = f"{r['input_tokens'] or 0:,} / {r['output_tokens'] or 0:,}" if (r['input_tokens'] or r['output_tokens']) else '—'
         err_cell = f'<td style="color:#EF4444;font-size:11px">{esc(r["error"])}</td>' if r['error'] else '<td style="color:#94A3B8">—</td>'
         followup = '↩ follow-up' if r['is_followup'] else ''
+        count_cell = (
+            f'<td style="font-size:13px;font-weight:700;color:#8B5CF6;text-align:center">{r["result_count"]}</td>'
+            if r['event_type'] == 'query' and r['result_count'] is not None
+            else '<td style="color:#94A3B8;text-align:center">—</td>'
+        )
         rows_html += f"""<tr style="border-bottom:1px solid #F1F5F9">
             <td style="white-space:nowrap;color:#64748B;font-size:12px" title="{esc(r['ts'])}">{fmt_ts(r['ts'])}</td>
             <td>{badge(r['event_type'])}</td>
@@ -2668,6 +2673,7 @@ def admin_logs():
             <td style="font-size:12px;color:#64748B">{esc(r['format'] or '')} <span style="color:#94A3B8;font-size:11px">{followup}</span></td>
             {ms_cell(r['response_ms'])}
             <td style="font-size:12px;color:#64748B">{tok}</td>
+            {count_cell}
             <td style="max-width:260px;font-size:12px;color:#334155" title="{esc(r['result_title'])}">{esc((r['result_title'] or '')[:60])}{'…' if len(r['result_title'] or '')>60 else ''}</td>
             {err_cell}
         </tr>"""
@@ -2730,7 +2736,7 @@ def admin_logs():
 <table>
 <thead><tr>
   <th>Time (UK)</th><th>Type</th><th>Salon</th><th>User</th><th>Question</th>
-  <th>Format</th><th>Response</th><th>Tokens in/out</th><th>Result title</th><th>Error</th>
+  <th>Format</th><th>Response</th><th>Tokens in/out</th><th style="text-align:center">Clients</th><th>Result title</th><th>Error</th>
 </tr></thead>
 <tbody>{rows_html}</tbody>
 </table></div>
