@@ -2717,7 +2717,7 @@ _LOGIN_PAGE = """<!DOCTYPE html>
     <div class="field">
       <label>Account Code</label>
       <input type="text" name="account_code" id="account_code" autofocus
-             autocomplete="organization" placeholder="e.g. GRT001" autocapitalize="characters">
+             autocomplete="organization" placeholder="" autocapitalize="characters">
     </div>
     <hr class="divider">
     <div class="field">
