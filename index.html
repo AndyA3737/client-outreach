@@ -5,42 +5,45 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Salon IQ Aria</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <style>
   :root {
-    --navy:   #1C2B3A;
-    --teal:   #C9A84C;
-    --teal-d: #A8883A;
-    --bg:     #F0F4F8;
+    --navy:   #535456;
+    --teal:   #129793;
+    --teal-d: #0d7a77;
+    --green:  #52926c;
+    --coral:  #f85c70;
+    --bg:     #eef4f5;
     --card:   #FFFFFF;
-    --border: #D8E2EC;
-    --text:   #1C2B3A;
-    --muted:  #64748B;
+    --border: #cfdddf;
+    --text:   #535456;
+    --muted:  #6b8183;
   }
   * { box-sizing: border-box; }
-  body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; }
+  body { background: var(--bg); color: var(--text); font-family: Calibri, 'Gill Sans', 'Gill Sans MT', 'Trebuchet MS', system-ui, sans-serif; }
+  h1, h2, h3, h4 { font-family: 'Poppins', Calibri, system-ui, sans-serif; letter-spacing: -0.01em; }
 
-  .badge-active  { background:#D1FAF5; color:#007A6D; }
+  .badge-active  { background:#d4eddf; color:#2d7a54; }
   .badge-due     { background:#FEF9C3; color:#854D0E; }
   .badge-lapsing { background:#FFEDD5; color:#9A3412; }
   .badge-lapsed  { background:#FEE2E2; color:#991B1B; }
 
   table { border-collapse:collapse; width:100%; }
-  thead th { position:sticky; top:0; z-index:10; background:#F8FAFC;
+  thead th { position:sticky; top:0; z-index:10; background:#f2f8f9;
              border-bottom:2px solid var(--border);
              cursor:pointer; user-select:none; white-space:nowrap; color:var(--muted); font-weight:600; }
-  thead th:hover { background:#EEF2F7; }
+  thead th:hover { background:#e8f1f3; }
   tbody tr { border-bottom:1px solid var(--border); }
-  tbody tr:hover td { background:rgba(201,168,76,0.05); }
+  tbody tr:hover td { background:rgba(18,151,147,0.05); }
 
-  .score-bar  { width:56px; height:5px; background:#E2E8EF; border-radius:3px; overflow:hidden; display:inline-block; vertical-align:middle; }
-  .score-fill { height:100%; border-radius:3px; background:linear-gradient(90deg, var(--teal), #F0C060); }
+  .score-bar  { width:56px; height:5px; background:#cfdddf; border-radius:3px; overflow:hidden; display:inline-block; vertical-align:middle; }
+  .score-fill { height:100%; border-radius:3px; background:linear-gradient(90deg, var(--teal), var(--green)); }
 
   .tip-wrap { position:relative; display:inline-block; }
   .tip-box  { display:none; position:absolute; bottom:calc(100% + 8px); left:50%;
-              transform:translateX(-50%); background:var(--navy); color:#E2E8F0;
+              transform:translateX(-50%); background:var(--navy); color:#cfdddf;
               padding:10px 14px; border-radius:10px; white-space:nowrap; z-index:200;
               font-size:12px; box-shadow:0 8px 30px rgba(0,0,0,0.2); }
   .tip-box::after { content:''; position:absolute; top:100%; left:50%; transform:translateX(-50%);
@@ -52,11 +55,11 @@
   input, select { background:#fff; border:1px solid var(--border); color:var(--text);
                   border-radius:8px; padding:7px 12px; font-size:14px; font-family:inherit; }
   input:focus, select:focus { outline:2px solid var(--teal); outline-offset:0; border-color:var(--teal); }
-  input::placeholder { color:#94A3B8; }
+  input::placeholder { color:#9ab3b8; }
 
   ::-webkit-scrollbar { width:6px; height:6px; }
-  ::-webkit-scrollbar-track { background:#F0F4F8; }
-  ::-webkit-scrollbar-thumb { background:#CBD5E1; border-radius:3px; }
+  ::-webkit-scrollbar-track { background:#eef4f5; }
+  ::-webkit-scrollbar-thumb { background:#b0c4c8; border-radius:3px; }
 
   .sort-asc::after  { content:" ▲"; font-size:9px; color:var(--teal); }
   .sort-desc::after { content:" ▼"; font-size:9px; color:var(--teal); }
@@ -81,23 +84,23 @@
   .nav-tab:hover { color:var(--navy); }
   .nav-tab.active { color:var(--teal); border-bottom-color:var(--teal); }
 
-  .query-chip { background:rgba(201,168,76,0.08); color:var(--teal-d); border:1px solid rgba(201,168,76,0.25);
+  .query-chip { background:rgba(18,151,147,0.08); color:var(--teal); border:1px solid rgba(18,151,147,0.25);
                 border-radius:20px; padding:5px 14px; font-size:12px; font-weight:500;
                 cursor:pointer; transition:all 0.15s; white-space:nowrap; }
   .query-chip:hover { background:var(--teal); color:#fff; border-color:var(--teal); }
 
   .fmt-btn { padding:8px 18px; font-size:13px; font-weight:600; border:none; cursor:pointer;
-             background:#F1F5F9; color:var(--muted); transition:all 0.15s; font-family:inherit; }
+             background:#e8f1f3; color:var(--muted); transition:all 0.15s; font-family:inherit; }
   .fmt-btn:first-child { border-radius:10px 0 0 10px; }
   .fmt-btn:last-child  { border-radius:0 10px 10px 0; }
-  .fmt-btn:hover  { background:#E2E8EF; }
+  .fmt-btn:hover  { background:#d6e6e9; }
   .fmt-btn.active { background:var(--teal); color:#fff; }
-  .eg-chip { background:#F1F5F9; color:var(--navy); border:1px solid var(--border);
+  .eg-chip { background:#e8f1f3; color:var(--navy); border:1px solid var(--border);
              border-radius:20px; padding:5px 14px; font-size:12px; cursor:pointer;
              font-family:inherit; transition:all 0.15s; }
   .eg-chip:hover { background:var(--teal); color:#fff; border-color:var(--teal); }
 
-  .btn-copy { background:#F1F5F9; color:var(--muted); border:1px solid var(--border);
+  .btn-copy { background:#e8f1f3; color:var(--muted); border:1px solid var(--border);
               border-radius:6px; padding:4px 10px; font-size:12px; cursor:pointer; transition:all 0.15s; white-space:nowrap; }
   .btn-copy:hover { background:var(--teal); color:#fff; border-color:var(--teal); }
   .btn-copy.copied { background:#10B981; color:#fff; border-color:#10B981; }
@@ -107,9 +110,9 @@
 
   .lookup-card { background:#fff; border:1px solid var(--border); border-radius:16px; padding:24px;
                  margin-bottom:16px; box-shadow:0 1px 4px rgba(0,0,0,0.06); }
-  .mini-stat { background:#F8FAFC; border:1px solid var(--border); border-radius:10px; padding:12px; }
+  .mini-stat { background:#f4f9fa; border:1px solid var(--border); border-radius:10px; padding:12px; }
 
-  #loadingOverlay { position:fixed; inset:0; background:rgba(240,244,248,0.97); display:flex; flex-direction:column;
+  #loadingOverlay { position:fixed; inset:0; background:rgba(238,244,245,0.97); display:flex; flex-direction:column;
                     align-items:center; justify-content:center; z-index:100; }
   .spinner { width:48px; height:48px; border:4px solid var(--border); border-top-color:var(--teal);
              border-radius:50%; animation:spin 0.8s linear infinite; }
@@ -149,7 +152,7 @@
 </div>
 
 <!-- Loading overlay (shown during data fetch) -->
-<div id="loadingOverlay" style="position:fixed;inset:0;background:rgba(240,244,248,0.97);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:100;">
+<div id="loadingOverlay" style="position:fixed;inset:0;background:rgba(238,244,245,0.97);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:100;">
   <div id="loadingCard" style="background:#fff;border-radius:16px;padding:32px 40px;min-width:360px;max-width:440px;box-shadow:0 4px 32px rgba(0,0,0,0.12);border:1px solid var(--border)">
     <div style="font-size:1rem;font-weight:700;color:var(--navy);margin-bottom:2px">Loading salon data</div>
     <div id="loadingSalonName" style="font-size:0.82rem;color:var(--teal);margin-bottom:22px"></div>
@@ -162,7 +165,7 @@
 <div id="mainContent" style="display:none">
 
 <!-- Header -->
-<header style="background:#0F1923;border-bottom:1px solid rgba(255,255,255,0.08);" class="px-6 py-4 flex items-center justify-between">
+<header style="background:#3a3c3e;border-bottom:1px solid rgba(255,255,255,0.1);" class="px-6 py-4 flex items-center justify-between">
   <div class="flex items-center gap-4">
     <img src="https://www.saloniq.com/img/logo.svg" alt="SalonIQ" class="h-7" style="filter:brightness(0) invert(1);opacity:0.65">
     <div class="w-px h-7" style="background:rgba(255,255,255,0.15)"></div>
@@ -202,9 +205,9 @@
     <div class="text-4xl font-extrabold" style="color:var(--navy)">500</div>
     <div class="text-xs mt-1" style="color:var(--muted)">ranked by SMS score</div>
   </div>
-  <div class="stat-card" style="border-top:3px solid var(--teal)">
-    <div class="text-xs font-semibold uppercase tracking-widest mb-2" style="color:var(--teal-d)">Active</div>
-    <div class="text-4xl font-extrabold" style="color:var(--teal)" id="statActive">—</div>
+  <div class="stat-card" style="border-top:3px solid var(--green)">
+    <div class="text-xs font-semibold uppercase tracking-widest mb-2" style="color:var(--green)">Active</div>
+    <div class="text-4xl font-extrabold" style="color:var(--green)" id="statActive">—</div>
     <div class="text-xs mt-1" style="color:var(--muted)">visited in last 60 days</div>
   </div>
   <div class="stat-card" style="border-top:3px solid #F59E0B">
@@ -212,9 +215,9 @@
     <div class="text-4xl font-extrabold text-amber-500" id="statDueLapsing">—</div>
     <div class="text-xs mt-1" style="color:var(--muted)">prime SMS targets</div>
   </div>
-  <div class="stat-card" style="border-top:3px solid #EF4444">
-    <div class="text-xs font-semibold uppercase tracking-widest mb-2 text-red-500">Lapsed</div>
-    <div class="text-4xl font-extrabold text-red-500" id="statLapsed">—</div>
+  <div class="stat-card" style="border-top:3px solid var(--coral)">
+    <div class="text-xs font-semibold uppercase tracking-widest mb-2" style="color:var(--coral)">Lapsed</div>
+    <div class="text-4xl font-extrabold" style="color:var(--coral)" id="statLapsed">—</div>
     <div class="text-xs mt-1" style="color:var(--muted)">not seen in over a year</div>
   </div>
 </div>
@@ -238,17 +241,17 @@
         Clients who visited very recently score lower on purpose.
       </p>
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
-        <div class="rounded-xl p-4" style="background:#F0FBF9; border:1px solid #C8EEEB">
+        <div class="rounded-xl p-4" style="background:#e6f5f5; border:1px solid #a8d8d7">
           <div class="flex items-center gap-2 mb-2">
             <div class="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold" style="background:var(--teal)">R</div>
             <div class="font-bold" style="color:var(--navy)">Recency <span class="font-normal text-xs" style="color:var(--muted)">max 40 pts</span></div>
           </div>
           <p class="text-xs mb-3" style="color:#475569">How long ago the client last visited. The sweet spot is 30–180 days.</p>
           <table class="w-full text-xs" style="border-collapse:collapse">
-            <tr style="border-bottom:1px solid #C8EEEB"><td class="py-1" style="color:#475569">Just visited (≤30 days)</td><td class="py-1 text-right font-semibold" style="color:var(--teal)">10 pts</td></tr>
-            <tr style="border-bottom:1px solid #C8EEEB"><td class="py-1" style="color:#475569">30–90 days</td><td class="py-1 text-right font-semibold" style="color:var(--teal)">40 pts</td></tr>
-            <tr style="border-bottom:1px solid #C8EEEB"><td class="py-1" style="color:#475569">90–180 days</td><td class="py-1 text-right font-semibold" style="color:var(--teal)">30 pts</td></tr>
-            <tr style="border-bottom:1px solid #C8EEEB"><td class="py-1" style="color:#475569">180 days – 1 year</td><td class="py-1 text-right font-semibold" style="color:var(--teal)">15 pts</td></tr>
+            <tr style="border-bottom:1px solid #a8d8d7"><td class="py-1" style="color:#475569">Just visited (≤30 days)</td><td class="py-1 text-right font-semibold" style="color:var(--teal)">10 pts</td></tr>
+            <tr style="border-bottom:1px solid #a8d8d7"><td class="py-1" style="color:#475569">30–90 days</td><td class="py-1 text-right font-semibold" style="color:var(--teal)">40 pts</td></tr>
+            <tr style="border-bottom:1px solid #a8d8d7"><td class="py-1" style="color:#475569">90–180 days</td><td class="py-1 text-right font-semibold" style="color:var(--teal)">30 pts</td></tr>
+            <tr style="border-bottom:1px solid #a8d8d7"><td class="py-1" style="color:#475569">180 days – 1 year</td><td class="py-1 text-right font-semibold" style="color:var(--teal)">15 pts</td></tr>
             <tr><td class="py-1" style="color:#475569">Over 1 year</td><td class="py-1 text-right font-semibold" style="color:var(--teal)">5 pts</td></tr>
           </table>
         </div>
@@ -283,11 +286,11 @@
           </p>
         </div>
       </div>
-      <div class="rounded-xl p-4 flex gap-4 items-start" style="background:#FFF1F2; border:1px solid #FECDD3">
-        <div class="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold bg-red-400 flex-shrink-0">!</div>
+      <div class="rounded-xl p-4 flex gap-4 items-start" style="background:#fef0f2; border:1px solid #f9b8c1">
+        <div class="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold flex-shrink-0" style="background:var(--coral)">!</div>
         <div>
-          <div class="font-bold mb-1" style="color:#991B1B">No-show Penalty <span class="font-normal text-xs text-red-400">up to −15 pts</span></div>
-          <p class="text-xs" style="color:#7F1D1D">Each recorded no-show deducts 3 points (capped at −15).</p>
+          <div class="font-bold mb-1" style="color:#c0394a">No-show Penalty <span class="font-normal text-xs" style="color:var(--coral)">up to −15 pts</span></div>
+          <p class="text-xs" style="color:#7a1526">Each recorded no-show deducts 3 points (capped at −15).</p>
         </div>
       </div>
     </div>
@@ -498,14 +501,14 @@
   <!-- Floating ask button — visible when follow-up bar is active -->
   <button id="floatingAskBtn" onclick="floatingAskClick()" style="
     display:none;position:fixed;bottom:28px;right:28px;z-index:999;
-    background:#1a3353;color:#fff;border:none;border-radius:50px;
+    background:#129793;color:#fff;border:none;border-radius:50px;
     padding:14px 24px;font-size:15px;font-weight:700;cursor:pointer;
     box-shadow:0 6px 24px rgba(0,0,0,0.28);gap:8px;align-items:center;
     letter-spacing:0.01em;
   ">💬 Ask a follow-up</button>
 
   <!-- Follow-up bar — hidden until first result renders, always below results -->
-  <div id="followupBar" style="display:none;margin-top:20px;padding:16px 20px;background:#F8FAFC;border:1px solid var(--border);border-radius:16px;gap:10px;align-items:center">
+  <div id="followupBar" style="display:none;margin-top:20px;padding:16px 20px;background:#f2f8f9;border:1px solid var(--border);border-radius:16px;gap:10px;align-items:center">
     <span style="font-size:18px">💬</span>
     <input id="followupInput" type="text" placeholder="Ask a follow-up question…"
            style="flex:1;border-radius:8px;padding:8px 12px;font-size:14px;border:1px solid var(--border)"
@@ -534,14 +537,14 @@ function renderRow(c) {
     ? `<span class="text-amber-500 font-semibold text-sm">${c.overdue}d late</span>${c.avg_gap ? `<div class="text-xs" style="color:var(--muted)">avg gap ${c.avg_gap}d</div>` : ''}`
     : c.avg_gap
     ? `<span class="text-xs" style="color:var(--muted)">gap ${c.avg_gap}d</span>`
-    : `<span style="color:#CBD5E1">—</span>`;
+    : `<span style="color:#b0c4c8">—</span>`;
 
   const penaltyRow = c.sp < 0
     ? `<div class="flex justify-between gap-6"><span>No-show penalty</span><span class="text-red-400">${c.sp}</span></div>`
     : '';
 
   const cats = (c.top_cats || []).map(cat =>
-    `<span class="inline-block text-xs px-2 py-0.5 rounded-md mr-1 mb-0.5 whitespace-nowrap font-medium" style="background:rgba(201,168,76,0.1);color:var(--teal);border:1px solid rgba(201,168,76,0.25)">${escHtml(cat)}</span>`
+    `<span class="inline-block text-xs px-2 py-0.5 rounded-md mr-1 mb-0.5 whitespace-nowrap font-medium" style="background:rgba(18,151,147,0.1);color:var(--teal);border:1px solid rgba(18,151,147,0.25)">${escHtml(cat)}</span>`
   ).join('');
 
   return `
@@ -589,15 +592,15 @@ function renderRow(c) {
     </td>
     <td class="py-3 px-3">${cats}</td>
     <td class="py-3 px-3 text-sm" style="color:var(--text)">${escHtml(c.mobile || '—')}</td>
-    <td class="py-3 px-3 text-center">${c.sms_optout ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#FEE2E2;color:#991B1B">Opted out</span>' : '<span style="color:#94A3B8;font-size:12px">—</span>'}</td>
-    <td class="py-3 px-3 text-center">${c.email_optout ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#FEE2E2;color:#991B1B">Opted out</span>' : '<span style="color:#94A3B8;font-size:12px">—</span>'}</td>
-    <td class="py-3 px-3 text-center">${c.salonspy_optin ? '<span style="color:#94A3B8;font-size:12px">—</span>' : '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#FEE2E2;color:#991B1B">Opted out</span>'}</td>
+    <td class="py-3 px-3 text-center">${c.sms_optout ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#fde8eb;color:#c0394a">Opted out</span>' : '<span style="color:#9ab3b8;font-size:12px">—</span>'}</td>
+    <td class="py-3 px-3 text-center">${c.email_optout ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#fde8eb;color:#c0394a">Opted out</span>' : '<span style="color:#9ab3b8;font-size:12px">—</span>'}</td>
+    <td class="py-3 px-3 text-center">${c.salonspy_optin ? '<span style="color:#9ab3b8;font-size:12px">—</span>' : '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#fde8eb;color:#c0394a">Opted out</span>'}</td>
     <td class="py-3 px-3 min-w-[340px] max-w-[420px]">
       <div class="flex items-start gap-2">
         <span class="text-sm leading-relaxed flex-1 sms-text" style="color:var(--text)">${escHtml(c.sms)}</span>
         <button onclick="copySMS(this)" class="btn-copy flex-shrink-0 mt-0.5">Copy</button>
       </div>
-      <div class="text-xs mt-1" style="color:#94A3B8">${c.sms.length} chars</div>
+      <div class="text-xs mt-1" style="color:#9ab3b8">${c.sms.length} chars</div>
     </td>
   </tr>`;
 }
@@ -852,13 +855,13 @@ function renderAnalysis(data, box) {
     } else if (data.format === 'list') {
       if (data.columns && data.rows) {
         html += '<div class="rounded-2xl border overflow-hidden mb-4" style="border-color:var(--border);background:#fff"><div class="overflow-x-auto"><table style="width:100%;border-collapse:collapse">';
-        html += '<thead><tr class="text-xs uppercase tracking-wider" style="background:#F8FAFC">';
+        html += '<thead><tr class="text-xs uppercase tracking-wider" style="background:#f2f8f9">';
         data.columns.forEach(col => {
           html += `<th class="text-left py-3 px-4 font-semibold" style="color:var(--muted);border-bottom:2px solid var(--border)">${escHtml(col)}</th>`;
         });
         html += '</tr></thead><tbody>';
         data.rows.forEach((row, i) => {
-          html += `<tr style="${i % 2 ? 'background:#F8FAFC' : ''}">`;
+          html += `<tr style="${i % 2 ? 'background:#f2f8f9' : ''}">`;
           row.forEach(cell => {
             html += `<td class="py-3 px-4 text-sm" style="color:var(--text);border-bottom:1px solid var(--border)">${escHtml(String(cell))}</td>`;
           });
@@ -874,7 +877,7 @@ function renderAnalysis(data, box) {
         if (sec.body)    html += `<p class="text-sm mb-4" style="color:var(--text);line-height:1.85">${escHtml(sec.body)}</p>`;
       });
       if (data.conclusion) {
-        html += `<div class="mt-6 p-4 rounded-xl" style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.3)">
+        html += `<div class="mt-6 p-4 rounded-xl" style="background:rgba(18,151,147,0.08);border:1px solid rgba(18,151,147,0.3)">
           <div class="font-bold mb-2" style="color:var(--teal-d)">Conclusion</div>
           <p class="text-sm" style="color:var(--text);line-height:1.75">${escHtml(data.conclusion)}</p>
         </div>`;
@@ -899,9 +902,9 @@ function renderAnalysis(data, box) {
 let _chartSeq = 0;   // ever-increasing counter — guarantees unique canvas IDs across all renders
 
 const _chartPalette = [
-  '#C9A84C','#4A9EBF','#F59E0B','#8B5CF6','#EF4444',
-  '#10B981','#60A5FA','#F97316','#EC4899','#7A93A8',
-  '#06B6D4','#84CC16','#A855F7','#F43F5E','#E0C070',
+  '#129793','#52926c','#f85c70','#8B5CF6','#F59E0B',
+  '#535456','#4A9EBF','#F97316','#EC4899','#cfdddf',
+  '#06B6D4','#84CC16','#A855F7','#0d7a77','#b0c4c8',
 ];
 
 function _drawChart(chart, uid) {
@@ -943,7 +946,7 @@ function _drawChart(chart, uid) {
         legend: {
           display:  isPie || datasets.length > 1,
           position: isPie ? 'right' : 'top',
-          labels:   { font: { family: 'Inter, sans-serif', size: 12 }, color: '#1C2B3A' },
+          labels:   { font: { family: 'Calibri, Poppins, sans-serif', size: 12 }, color: '#535456' },
         },
         tooltip: {
           callbacks: {
@@ -958,8 +961,8 @@ function _drawChart(chart, uid) {
         },
       },
       scales: isPie ? {} : {
-        x: { grid: { display: isHoriz }, ticks: { font: { family: 'Inter' }, color: '#64748B' } },
-        y: { beginAtZero: true, grid: { color: '#E2E8EF' }, ticks: { font: { family: 'Inter' }, color: '#64748B' } },
+        x: { grid: { display: isHoriz }, ticks: { font: { family: 'Calibri, Poppins, sans-serif' }, color: '#6b8183' } },
+        y: { beginAtZero: true, grid: { color: '#cfdddf' }, ticks: { font: { family: 'Calibri, Poppins, sans-serif' }, color: '#6b8183' } },
       },
     },
   });
@@ -1023,7 +1026,7 @@ function renderSelectionResults(clients) {
   }
   const rows = clients.map(c => {
     const cats = (c.top_cats || []).map(cat =>
-      `<span class="inline-block text-xs px-2 py-0.5 rounded-md mr-0.5 font-medium" style="background:rgba(201,168,76,0.1);color:var(--teal);border:1px solid rgba(201,168,76,0.25)">${escHtml(cat)}</span>`
+      `<span class="inline-block text-xs px-2 py-0.5 rounded-md mr-0.5 font-medium" style="background:rgba(18,151,147,0.1);color:var(--teal);border:1px solid rgba(18,151,147,0.25)">${escHtml(cat)}</span>`
     ).join('');
     return `<tr data-name="${escHtml(c.name.toLowerCase())}">
       <td class="py-3 px-3 font-semibold" style="color:var(--navy)">${escHtml(c.name)}</td>
@@ -1036,9 +1039,9 @@ function renderSelectionResults(clients) {
       <td class="py-3 px-3 text-sm" style="color:var(--muted)">${c.n_stylists} stylist${c.n_stylists !== 1 ? 's' : ''}</td>
       <td class="py-3 px-3">${cats}</td>
       <td class="py-3 px-3 text-sm" style="color:var(--text)">${escHtml(c.mobile || '—')}</td>
-      <td class="py-3 px-3 text-center">${c.sms_optout ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#FEE2E2;color:#991B1B">Opted out</span>' : '<span style="color:#94A3B8;font-size:12px">—</span>'}</td>
-      <td class="py-3 px-3 text-center">${c.email_optout ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#FEE2E2;color:#991B1B">Opted out</span>' : '<span style="color:#94A3B8;font-size:12px">—</span>'}</td>
-      <td class="py-3 px-3 text-center">${c.salonspy_optin ? '<span style="color:#94A3B8;font-size:12px">—</span>' : '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#FEE2E2;color:#991B1B">Opted out</span>'}</td>
+      <td class="py-3 px-3 text-center">${c.sms_optout ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#fde8eb;color:#c0394a">Opted out</span>' : '<span style="color:#9ab3b8;font-size:12px">—</span>'}</td>
+      <td class="py-3 px-3 text-center">${c.email_optout ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#fde8eb;color:#c0394a">Opted out</span>' : '<span style="color:#9ab3b8;font-size:12px">—</span>'}</td>
+      <td class="py-3 px-3 text-center">${c.salonspy_optin ? '<span style="color:#9ab3b8;font-size:12px">—</span>' : '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#fde8eb;color:#c0394a">Opted out</span>'}</td>
     </tr>`;
   }).join('');
 
@@ -1048,19 +1051,19 @@ function renderSelectionResults(clients) {
     <table>
       <thead>
         <tr class="text-xs uppercase tracking-wider">
-          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Client</th>
-          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600"><span class="tip-wrap">Status<span class="tip-box tip-box-down" style="white-space:normal;width:220px;text-align:left;line-height:1.6"><b>Active</b> — visited within 60 days<br><b>Due Soon</b> — 60–120 days ago<br><b>Lapsing</b> — 120–365 days ago<br><b>Lapsed</b> — over 365 days ago<br><b>No Visit (2yrs)</b> — no visit in last 2 years</span></span></th>
-          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Last Visit</th>
-          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Days Since</th>
-          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Visits</th>
-          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Avg Spend</th>
-          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Stylist</th>
-          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Stylists Seen</th>
-          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Services</th>
-          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Mobile</th>
-          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">SMS Opt-out</th>
-          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Email Opt-out</th>
-          <th class="text-left py-3 px-3" style="background:#F8FAFC;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Salon Spy Opt-out</th>
+          <th class="text-left py-3 px-3" style="background:#f2f8f9;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Client</th>
+          <th class="text-left py-3 px-3" style="background:#f2f8f9;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600"><span class="tip-wrap">Status<span class="tip-box tip-box-down" style="white-space:normal;width:220px;text-align:left;line-height:1.6"><b>Active</b> — visited within 60 days<br><b>Due Soon</b> — 60–120 days ago<br><b>Lapsing</b> — 120–365 days ago<br><b>Lapsed</b> — over 365 days ago<br><b>No Visit (2yrs)</b> — no visit in last 2 years</span></span></th>
+          <th class="text-left py-3 px-3" style="background:#f2f8f9;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Last Visit</th>
+          <th class="text-left py-3 px-3" style="background:#f2f8f9;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Days Since</th>
+          <th class="text-left py-3 px-3" style="background:#f2f8f9;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Visits</th>
+          <th class="text-left py-3 px-3" style="background:#f2f8f9;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Avg Spend</th>
+          <th class="text-left py-3 px-3" style="background:#f2f8f9;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Stylist</th>
+          <th class="text-left py-3 px-3" style="background:#f2f8f9;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Stylists Seen</th>
+          <th class="text-left py-3 px-3" style="background:#f2f8f9;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Services</th>
+          <th class="text-left py-3 px-3" style="background:#f2f8f9;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Mobile</th>
+          <th class="text-left py-3 px-3" style="background:#f2f8f9;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">SMS Opt-out</th>
+          <th class="text-left py-3 px-3" style="background:#f2f8f9;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Email Opt-out</th>
+          <th class="text-left py-3 px-3" style="background:#f2f8f9;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Salon Spy Opt-out</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
@@ -1095,7 +1098,7 @@ function setServer(s) {
   document.getElementById('btnBeta').style.cssText =
     `flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;transition:all 0.15s;background:${isLive ? 'transparent' : 'var(--navy)'};color:${isLive ? 'var(--muted)' : '#fff'}`;
   document.getElementById('btnLive').style.cssText =
-    `flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;transition:all 0.15s;background:${isLive ? '#059669' : 'transparent'};color:${isLive ? '#fff' : 'var(--muted)'}`;
+    `flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;transition:all 0.15s;background:${isLive ? '#52926c' : 'transparent'};color:${isLive ? '#fff' : 'var(--muted)'}`;
   initTenants();
 }
 
@@ -1159,14 +1162,14 @@ function renderLoadingSteps(activeIdx) {
   list.innerHTML = LOAD_STEPS.map((s, i) => {
     let icon, labelStyle;
     if (i < activeIdx) {
-      icon = `<svg width="20" height="20" viewBox="0 0 20 20" style="flex-shrink:0"><circle cx="10" cy="10" r="10" fill="#C9A84C"/><path d="M6 10.5l2.5 2.5 5-5" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
-      labelStyle = 'color:#94A3B8';
+      icon = `<svg width="20" height="20" viewBox="0 0 20 20" style="flex-shrink:0"><circle cx="10" cy="10" r="10" fill="#129793"/><path d="M6 10.5l2.5 2.5 5-5" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
+      labelStyle = 'color:#9ab3b8';
     } else if (i === activeIdx) {
       icon = `<div class="step-spinner"></div>`;
       labelStyle = 'color:var(--navy);font-weight:600';
     } else {
-      icon = `<svg width="20" height="20" viewBox="0 0 20 20" style="flex-shrink:0"><circle cx="10" cy="10" r="9" stroke="#E2E8EF" stroke-width="2" fill="none"/></svg>`;
-      labelStyle = 'color:#CBD5E1';
+      icon = `<svg width="20" height="20" viewBox="0 0 20 20" style="flex-shrink:0"><circle cx="10" cy="10" r="9" stroke="#cfdddf" stroke-width="2" fill="none"/></svg>`;
+      labelStyle = 'color:#b0c4c8';
     }
     const border = i < LOAD_STEPS.length - 1 ? 'border-bottom:1px solid var(--border)' : '';
     return `<div style="display:flex;align-items:center;gap:12px;padding:9px 0;${border}">
@@ -1199,7 +1202,7 @@ function loadTenant() {
   document.getElementById('analysisInput').value = '';
   const badge = document.getElementById('serverBadge');
   badge.textContent   = selectedServer;
-  badge.style.background = selectedServer === 'LIVE' ? '#059669' : 'rgba(255,255,255,0.12)';
+  badge.style.background = selectedServer === 'LIVE' ? '#52926c' : 'rgba(255,255,255,0.12)';
   initLoadingCard();
   fetchData();
 }
@@ -1288,7 +1291,7 @@ async function fetchData(force = false) {
     if (card) {
       card.innerHTML = `
         <div style="color:#991B1B;font-weight:700;font-size:1rem;margin-bottom:8px">Failed to load data</div>
-        <div style="color:#64748B;font-size:13px">${escHtml(err.message)}</div>
+        <div style="color:#6b8183;font-size:13px">${escHtml(err.message)}</div>
         <button onclick="document.getElementById('loadingOverlay').style.display='none';document.getElementById('tenantSelector').style.display='flex';" class="btn-teal mt-6">← Back to Salon List</button>`;
     }
   }
@@ -1388,38 +1391,38 @@ async function runLookup() {
   const q   = document.getElementById('lookupInput').value.trim();
   const box = document.getElementById('lookupResults');
   if (q.length < 2) { box.innerHTML = ''; return; }
-  box.innerHTML = '<p style="color:#64748B" class="text-sm p-2">Searching…</p>';
+  box.innerHTML = '<p style="color:#6b8183" class="text-sm p-2">Searching…</p>';
   const searchParams = new URLSearchParams({ q, server: selectedServer });
   if (selectedTenantId) searchParams.set('tenant_id', selectedTenantId);
   const res  = await fetch('/api/search?' + searchParams);
   const data = await res.json();
   if (!data.length) {
-    box.innerHTML = `<p style="color:#64748B" class="text-sm p-2">No clients found matching "${escHtml(q)}".</p>`;
+    box.innerHTML = `<p style="color:#6b8183" class="text-sm p-2">No clients found matching "${escHtml(q)}".</p>`;
     return;
   }
   box.innerHTML = data.map(c => {
     const bCls = {active:'badge-active',due:'badge-due',lapsing:'badge-lapsing',lapsed:'badge-lapsed'}[c.scls] || '';
     const rankBadge = c.rank
-      ? `<span style="background:rgba(201,168,76,0.12);color:var(--teal);border:1px solid rgba(201,168,76,0.3)" class="text-xs px-2 py-0.5 rounded-full font-bold">#${c.rank} in Top 500</span>`
+      ? `<span style="background:rgba(18,151,147,0.12);color:var(--teal);border:1px solid rgba(18,151,147,0.3)" class="text-xs px-2 py-0.5 rounded-full font-bold">#${c.rank} in Top 500</span>`
       : `<span style="background:var(--card);color:var(--muted);border:1px solid var(--border)" class="text-xs px-2 py-0.5 rounded-full">Not in Top 500</span>`;
     const overdueTxt = c.overdue
       ? `<span class="text-amber-500 font-semibold">${c.overdue}d overdue</span>`
-      : `<span style="color:#64748B">Not overdue</span>`;
+      : `<span style="color:#6b8183">Not overdue</span>`;
     const cats = (c.top_cats||[]).map(cat =>
-      `<span style="background:rgba(201,168,76,0.1);color:var(--teal);border:1px solid rgba(201,168,76,0.25)" class="text-xs px-2 py-0.5 rounded-md font-medium">${escHtml(cat)}</span>`
+      `<span style="background:rgba(18,151,147,0.1);color:var(--teal);border:1px solid rgba(18,151,147,0.25)" class="text-xs px-2 py-0.5 rounded-md font-medium">${escHtml(cat)}</span>`
     ).join(' ');
     return `
     <div class="lookup-card">
       <div class="flex flex-wrap items-start justify-between gap-3 mb-5">
         <div>
           <div class="flex items-center gap-2 flex-wrap mb-1">
-            <h3 class="text-xl font-bold" style="color:#1C2B3A">${escHtml(c.name)}</h3>
+            <h3 class="text-xl font-bold" style="color:#535456">${escHtml(c.name)}</h3>
             ${rankBadge}
             <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold ${bCls}">${c.status}</span>
             ${c.no_shows > 0 ? `<span class="text-red-400 text-xs">⚠ ${c.no_shows} no-show(s)</span>` : ''}
           </div>
-          <div class="text-sm" style="color:#64748B">Last visit: <strong style="color:#1C2B3A">${escHtml(c.last_visit)}</strong> &nbsp;·&nbsp; ${c.days_since} days ago</div>
-          <div class="text-sm mt-1" style="color:#64748B">
+          <div class="text-sm" style="color:#6b8183">Last visit: <strong style="color:#535456">${escHtml(c.last_visit)}</strong> &nbsp;·&nbsp; ${c.days_since} days ago</div>
+          <div class="text-sm mt-1" style="color:#6b8183">
             ${c.mobile ? `📱 ${escHtml(c.mobile)}` : ''}
             ${c.mobile && c.email ? '&nbsp;·&nbsp;' : ''}
             ${c.email ? `✉ ${escHtml(c.email)}` : ''}
@@ -1427,36 +1430,36 @@ async function runLookup() {
         </div>
         <div class="text-right">
           <div class="text-4xl font-extrabold" style="color:var(--teal)">${c.score}</div>
-          <div class="text-xs font-medium" style="color:#64748B">SMS score</div>
+          <div class="text-xs font-medium" style="color:#6b8183">SMS score</div>
         </div>
       </div>
       <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-        <div class="mini-stat"><div class="text-xs font-semibold mb-1" style="color:#64748B">Visits (2yr)</div><div class="font-bold" style="color:#1C2B3A">${c.n_visits}</div></div>
-        <div class="mini-stat"><div class="text-xs font-semibold mb-1" style="color:#64748B">Avg Spend</div><div class="font-bold" style="color:#1C2B3A">£${c.avg_spend}</div></div>
-        <div class="mini-stat"><div class="text-xs font-semibold mb-1" style="color:#64748B">Total Spend</div><div class="font-bold" style="color:#1C2B3A">£${c.total_spend}</div></div>
-        <div class="mini-stat"><div class="text-xs font-semibold mb-1" style="color:#64748B">Visit Gap</div><div class="font-bold" style="color:#1C2B3A">${c.avg_gap ? c.avg_gap + 'd' : '—'}</div></div>
+        <div class="mini-stat"><div class="text-xs font-semibold mb-1" style="color:#6b8183">Visits (2yr)</div><div class="font-bold" style="color:#535456">${c.n_visits}</div></div>
+        <div class="mini-stat"><div class="text-xs font-semibold mb-1" style="color:#6b8183">Avg Spend</div><div class="font-bold" style="color:#535456">£${c.avg_spend}</div></div>
+        <div class="mini-stat"><div class="text-xs font-semibold mb-1" style="color:#6b8183">Total Spend</div><div class="font-bold" style="color:#535456">£${c.total_spend}</div></div>
+        <div class="mini-stat"><div class="text-xs font-semibold mb-1" style="color:#6b8183">Visit Gap</div><div class="font-bold" style="color:#535456">${c.avg_gap ? c.avg_gap + 'd' : '—'}</div></div>
       </div>
       <div class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4 text-sm">
-        <div><span style="color:#64748B">Salon: </span><span class="font-semibold" style="color:#1C2B3A">${escHtml(c.pref_salon || '—')}</span></div>
-        <div><span style="color:#64748B">Preferred stylist: </span><span class="font-semibold" style="color:#1C2B3A">${escHtml(c.pref_tm)}</span></div>
-        <div><span style="color:#64748B">Best day: </span><span class="font-semibold" style="color:#1C2B3A">${c.pref_day} ${c.pref_time}</span></div>
-        <div><span style="color:#64748B">Overdue: </span>${overdueTxt}</div>
+        <div><span style="color:#6b8183">Salon: </span><span class="font-semibold" style="color:#535456">${escHtml(c.pref_salon || '—')}</span></div>
+        <div><span style="color:#6b8183">Preferred stylist: </span><span class="font-semibold" style="color:#535456">${escHtml(c.pref_tm)}</span></div>
+        <div><span style="color:#6b8183">Best day: </span><span class="font-semibold" style="color:#535456">${c.pref_day} ${c.pref_time}</span></div>
+        <div><span style="color:#6b8183">Overdue: </span>${overdueTxt}</div>
       </div>
       ${cats ? `<div class="flex flex-wrap gap-1 mb-4">${cats}</div>` : ''}
-      <div class="rounded-xl p-4 mb-4" style="background:#F8FAFC;border:1px solid #E2E8EF">
-        <div class="text-xs font-semibold uppercase tracking-widest mb-2" style="color:#64748B">Suggested SMS</div>
+      <div class="rounded-xl p-4 mb-4" style="background:#f2f8f9;border:1px solid #cfdddf">
+        <div class="text-xs font-semibold uppercase tracking-widest mb-2" style="color:#6b8183">Suggested SMS</div>
         <div class="flex items-start gap-3">
-          <p class="text-sm leading-relaxed flex-1" style="color:#1C2B3A" id="sms-lookup-${escHtml(c.id)}">${escHtml(c.sms)}</p>
+          <p class="text-sm leading-relaxed flex-1" style="color:#535456" id="sms-lookup-${escHtml(c.id)}">${escHtml(c.sms)}</p>
           <button onclick="copyLookupSMS('${escHtml(c.id)}')" class="btn-copy flex-shrink-0">Copy</button>
         </div>
-        <div class="text-xs mt-1" style="color:#94A3B8">${c.sms.length} chars</div>
+        <div class="text-xs mt-1" style="color:#9ab3b8">${c.sms.length} chars</div>
       </div>
       <div class="grid grid-cols-5 gap-2 text-xs text-center">
-        <div class="mini-stat"><div style="color:#64748B" class="mb-1">Recency</div><div class="font-bold" style="color:var(--teal)">+${c.sr}</div></div>
-        <div class="mini-stat"><div style="color:#64748B" class="mb-1">Overdue</div><div class="font-bold" style="color:var(--teal)">+${c.so}</div></div>
-        <div class="mini-stat"><div style="color:#64748B" class="mb-1">Frequency</div><div class="font-bold" style="color:var(--teal)">+${c.sf}</div></div>
-        <div class="mini-stat"><div style="color:#64748B" class="mb-1">Spend</div><div class="font-bold" style="color:var(--teal)">+${c.sm}</div></div>
-        <div class="mini-stat"><div style="color:#64748B" class="mb-1">Penalty</div><div class="font-bold ${c.sp < 0 ? 'text-red-400' : ''}">${c.sp}</div></div>
+        <div class="mini-stat"><div style="color:#6b8183" class="mb-1">Recency</div><div class="font-bold" style="color:var(--teal)">+${c.sr}</div></div>
+        <div class="mini-stat"><div style="color:#6b8183" class="mb-1">Overdue</div><div class="font-bold" style="color:var(--teal)">+${c.so}</div></div>
+        <div class="mini-stat"><div style="color:#6b8183" class="mb-1">Frequency</div><div class="font-bold" style="color:var(--teal)">+${c.sf}</div></div>
+        <div class="mini-stat"><div style="color:#6b8183" class="mb-1">Spend</div><div class="font-bold" style="color:var(--teal)">+${c.sm}</div></div>
+        <div class="mini-stat"><div style="color:#6b8183" class="mb-1">Penalty</div><div class="font-bold ${c.sp < 0 ? 'text-red-400' : ''}">${c.sp}</div></div>
       </div>
     </div>`;
   }).join('');
@@ -1515,7 +1518,7 @@ async function init() {
     document.getElementById('selectedSalonLabel').textContent = displayLabel;
     const badge = document.getElementById('serverBadge');
     badge.textContent      = selectedServer;
-    badge.style.background = selectedServer === 'LIVE' ? '#059669' : 'rgba(255,255,255,0.12)';
+    badge.style.background = selectedServer === 'LIVE' ? '#52926c' : 'rgba(255,255,255,0.12)';
     fetchData();
   } catch (e) {
     window.location.href = '/login';
