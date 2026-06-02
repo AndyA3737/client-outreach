@@ -2623,9 +2623,9 @@ def admin_logs():
         return f'<span style="background:{bg};color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600">{event_type}</span>'
 
     def ms_cell(ms):
-        if ms is None: return '<td style="color:#94A3B8">—</td>'
+        if ms is None: return '<td style="color:#9ab3b8">—</td>'
         s = ms / 1000
-        colour = '#10B981' if s < 5 else ('#F59E0B' if s < 15 else '#EF4444')
+        colour = '#52926c' if s < 5 else ('#F59E0B' if s < 15 else '#f85c70')
         return f'<td style="color:{colour};font-weight:600">{s:.1f}s</td>'
 
     def esc(v):
@@ -2657,24 +2657,24 @@ def admin_logs():
     rows_html = ''
     for r in rows:
         tok = f"{r['input_tokens'] or 0:,} / {r['output_tokens'] or 0:,}" if (r['input_tokens'] or r['output_tokens']) else '—'
-        err_cell = f'<td style="color:#EF4444;font-size:11px">{esc(r["error"])}</td>' if r['error'] else '<td style="color:#94A3B8">—</td>'
+        err_cell = f'<td style="color:#f85c70;font-size:11px">{esc(r["error"])}</td>' if r['error'] else '<td style="color:#9ab3b8">—</td>'
         followup = '↩ follow-up' if r['is_followup'] else ''
         count_cell = (
             f'<td style="font-size:13px;font-weight:700;color:#8B5CF6;text-align:center">{r["result_count"]}</td>'
             if r['event_type'] == 'query' and r['result_count'] is not None
             else '<td style="color:#94A3B8;text-align:center">—</td>'
         )
-        rows_html += f"""<tr style="border-bottom:1px solid #F1F5F9">
-            <td style="white-space:nowrap;color:#64748B;font-size:12px" title="{esc(r['ts'])}">{fmt_ts(r['ts'])}</td>
+        rows_html += f"""<tr style="border-bottom:1px solid #cfdddf">
+            <td style="white-space:nowrap;color:#6b8183;font-size:12px" title="{esc(r['ts'])}">{fmt_ts(r['ts'])}</td>
             <td>{badge(r['event_type'])}</td>
-            <td style="font-size:12px;color:#475569">{esc(r['salon'])}</td>
-            <td style="font-size:12px;color:#475569;font-weight:600">{esc(r.get('username') or '—')}</td>
+            <td style="font-size:12px;color:#535456">{esc(r['salon'])}</td>
+            <td style="font-size:12px;color:#535456;font-weight:600">{esc(r.get('username') or '—')}</td>
             <td style="max-width:320px;font-size:13px" title="{esc(r['question'])}">{esc((r['question'] or '')[:80])}{'…' if len(r['question'] or '')>80 else ''}</td>
-            <td style="font-size:12px;color:#64748B">{esc(r['format'] or '')} <span style="color:#94A3B8;font-size:11px">{followup}</span></td>
+            <td style="font-size:12px;color:#6b8183">{esc(r['format'] or '')} <span style="color:#9ab3b8;font-size:11px">{followup}</span></td>
             {ms_cell(r['response_ms'])}
-            <td style="font-size:12px;color:#64748B">{tok}</td>
+            <td style="font-size:12px;color:#6b8183">{tok}</td>
             {count_cell}
-            <td style="max-width:260px;font-size:12px;color:#334155" title="{esc(r['result_title'])}">{esc((r['result_title'] or '')[:60])}{'…' if len(r['result_title'] or '')>60 else ''}</td>
+            <td style="max-width:260px;font-size:12px;color:#535456" title="{esc(r['result_title'])}">{esc((r['result_title'] or '')[:60])}{'…' if len(r['result_title'] or '')>60 else ''}</td>
             {err_cell}
         </tr>"""
 
@@ -2690,31 +2690,34 @@ def admin_logs():
             pgn_parts.append(f'<a href="/admin/logs?page={p}">{p}</a>')
     if page < total_pages:
         pgn_parts.append(f'<a href="/admin/logs?page={page+1}">Next →</a>')
-    pagination_html = f'<div class="pgn"><span style="font-size:13px;color:#64748B;margin-right:8px">Showing {offset+1}–{min(offset+per_page, total_rows)} of {total_rows:,}</span>{"".join(pgn_parts)}</div>' if total_pages > 1 else ''
+    pagination_html = f'<div class="pgn"><span style="font-size:13px;color:#6b8183;margin-right:8px">Showing {offset+1}–{min(offset+per_page, total_rows)} of {total_rows:,}</span>{"".join(pgn_parts)}</div>' if total_pages > 1 else ''
 
     html = f"""<!doctype html><html><head><meta charset="utf-8">
 <title>Activity Log — SalonIQ AI</title>
 <meta http-equiv="refresh" content="30">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
-  body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0;background:#F8FAFC;color:#1E293B}}
-  .hdr{{background:#0F1923;color:#fff;padding:18px 32px;display:flex;align-items:center;gap:24px;justify-content:space-between}}
-  .hdr h1{{margin:0;font-size:20px;font-weight:700}}
+  body{{font-family:Calibri,'Gill Sans','Trebuchet MS',system-ui,sans-serif;margin:0;background:#eef4f5;color:#535456}}
+  h1,h2,h3{{font-family:'Poppins',Calibri,system-ui,sans-serif}}
+  .hdr{{background:#3a3c3e;color:#fff;padding:18px 32px;display:flex;align-items:center;gap:24px;justify-content:space-between}}
+  .hdr h1{{margin:0;font-size:20px;font-weight:700;font-family:'Poppins',Calibri,sans-serif}}
   .hdr span{{font-size:13px;opacity:.7}}
-  .btn-back{{background:#C9A84C;color:#0F1923;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-block}}
+  .btn-back{{background:#129793;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-block}}
+  .btn-back:hover{{background:#0d7a77}}
   .stat-row{{display:flex;gap:16px;padding:20px 32px;flex-wrap:wrap}}
-  .stat{{background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:14px 22px;min-width:120px}}
-  .stat .val{{font-size:28px;font-weight:700;color:#1C2B3A}}
-  .stat .lbl{{font-size:12px;color:#64748B;margin-top:2px}}
+  .stat{{background:#fff;border:1px solid #cfdddf;border-radius:12px;padding:14px 22px;min-width:120px}}
+  .stat .val{{font-size:28px;font-weight:700;color:#535456}}
+  .stat .lbl{{font-size:12px;color:#6b8183;margin-top:2px}}
   .tbl-wrap{{padding:0 32px 40px}}
-  table{{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #E2E8F0}}
-  th{{background:#F1F5F9;padding:10px 12px;text-align:left;font-size:12px;font-weight:600;color:#475569;white-space:nowrap}}
+  table{{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #cfdddf}}
+  th{{background:#f2f8f9;padding:10px 12px;text-align:left;font-size:12px;font-weight:600;color:#6b8183;white-space:nowrap}}
   td{{padding:9px 12px;vertical-align:top}}
-  tr:hover td{{background:#FAFBFF}}
-  .refresh{{font-size:12px;opacity:.6}}
+  tr:hover td{{background:#f7fbfc}}
   .pgn{{display:flex;align-items:center;gap:10px;padding:16px 32px 32px;justify-content:flex-end}}
-  .pgn a{{background:#fff;border:1px solid #E2E8F0;border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;color:#1C2B3A;text-decoration:none}}
-  .pgn a:hover{{background:#F1F5F9}}
-  .pgn .cur{{background:#0F1923;color:#fff;border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600}}
+  .pgn a{{background:#fff;border:1px solid #cfdddf;border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;color:#535456;text-decoration:none}}
+  .pgn a:hover{{background:#e8f1f3}}
+  .pgn .cur{{background:#129793;color:#fff;border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600}}
 </style></head><body>
 <div class="hdr">
   <div style="display:flex;align-items:center;gap:24px">
@@ -2730,7 +2733,7 @@ def admin_logs():
   <div class="stat"><div class="val">{totals['queries']}</div><div class="lbl">Client queries</div></div>
   <div class="stat"><div class="val">{int(avg_ms) // 1000}.{(int(avg_ms) % 1000) // 100}s</div><div class="lbl">Avg response</div></div>
   <div class="stat"><div class="val">${cost_usd:.2f}</div><div class="lbl">Est. API cost (USD)</div></div>
-  <div class="stat"><div class="val" style="color:{'#EF4444' if totals['errors'] else '#10B981'}">{totals['errors']}</div><div class="lbl">Errors</div></div>
+  <div class="stat"><div class="val" style="color:{'#f85c70' if totals['errors'] else '#52926c'}">{totals['errors']}</div><div class="lbl">Errors</div></div>
 </div>
 <div class="tbl-wrap">
 <table>
