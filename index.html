@@ -780,7 +780,7 @@ function _renderSidebarHistory(items, type) {
     const action = type === 'analysis' ? `replayAnalysis(${item.id})` : `replaySelection(${item.id})`;
     const label  = item.result_title || item.question;
     const sub    = type === 'selection' && item.result_count != null
-      ? `<div style="font-size:11px;color:var(--green);margin-top:1px">${item.result_count} clients matched</div>`
+      ? `<div style="font-size:11px;color:var(--muted);margin-top:1px"><span style="color:var(--green)">${item.result_count} clients matched</span> · ${_relTime(item.ts)}</div>`
       : `<div style="font-size:11px;color:var(--muted);margin-top:1px">${_relTime(item.ts)}</div>`;
     return `<div class="sidebar-hist-item" style="display:flex;align-items:center;gap:4px;padding:8px 10px;border-radius:8px;cursor:pointer;transition:background 0.15s"
               onmouseover="this.style.background='#F6F8FB';this.querySelector('.del-btn').style.opacity='1'"
