@@ -988,6 +988,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
 
     load_timings['t_fetch_done'] = time.time()
     step("Building client profiles")
+    new_clients_by_month = defaultdict(int)  # month → count of clients whose first paid visit was in that month
     rows = []
     for cid, bkgs in by_client.items():
         cli = cli_map.get(cid)
@@ -1005,6 +1006,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             continue  # client has only no-shows or pending bookings — skip
         last_dt, first_dt = actual_visits[-1]["dt"], actual_visits[0]["dt"]
         days_since = (today - last_dt.date()).days
+        new_clients_by_month[first_dt.strftime("%b %Y")] += 1
 
         visit_dates = sorted(set(b["dt"].date() for b in actual_visits))
         n = len(visit_dates)
@@ -1181,6 +1183,15 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             rebooking_rate=rebooking_rate,
             request_count=request_count,
         ))
+
+    # Merge new-client counts into service_monthly
+    for mk, count in new_clients_by_month.items():
+        if mk in service_monthly:
+            service_monthly[mk]['new_clients'] = count
+        else:
+            service_monthly[mk] = {'revenue': 0, 'visits': 0, 'no_shows': 0,
+                                    'no_show_value': 0, 'online': 0, 'clients': 0,
+                                    'request_clients': 0, 'new_clients': count}
 
     rows.sort(key=lambda x: x["score"], reverse=True)
     all_scored = [r for r in rows if not r["has_future_booking"]]
@@ -2085,14 +2096,16 @@ def build_analysis_context(question="", ctx=None):
 
     if service_monthly:
         lines += ["", "MONTHLY SERVICE REVENUE & VISITS:",
-                  "Month,ServiceRevenue£(incVAT),Visits,NoShows,NoShowValue£(incVAT),OnlineBookings,UniqueClients,RequestClients,RequestRate%"]
+                  "Month,ServiceRevenue£(incVAT),Visits,NoShows,NoShowValue£(incVAT),OnlineBookings,UniqueClients,NewClients,RequestClients,RequestRate%",
+                  "NOTE: NewClients = clients whose first ever recorded paid visit was in that month (first-time salon clients within the 2-year booking window)"]
         for mk in _sort_months(service_monthly)[:24]:
             m = service_monthly[mk]
             rc = m.get('request_clients', 0)
             rr = round(rc / m['clients'] * 100, 1) if m['clients'] else 0
+            nc = m.get('new_clients', 0)
             lines.append(f"{mk},£{m['revenue']:,},{m['visits']},"
                          f"{m.get('no_shows',0)},£{m.get('no_show_value',0):,},{m.get('online',0)},"
-                         f"{m['clients']},{rc},{rr}%")
+                         f"{m['clients']},{nc},{rc},{rr}%")
 
     if service_salon_monthly:
         salon_totals = {s: sum(d["revenue"] for d in months.values())
