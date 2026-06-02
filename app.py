@@ -2587,6 +2587,12 @@ def delete_history(history_id):
     try:
         con = _get_db()
         cur = con.cursor()
+        # Fetch the record before deleting so we can log what was removed
+        cur.execute(
+            "SELECT type, question FROM history WHERE id=%s AND account_code=%s",
+            (history_id, account_code)
+        )
+        row = cur.fetchone()
         cur.execute(
             "DELETE FROM history WHERE id=%s AND account_code=%s",
             (history_id, account_code)
@@ -2594,6 +2600,10 @@ def delete_history(history_id):
         con.commit()
         cur.close()
         con.close()
+        if row:
+            _log('history_delete',
+                 salon=account_code,
+                 question=f"[{row[0]}] {row[1][:400]}")
         return jsonify(ok=True)
     except Exception as e:
         return jsonify(error=str(e)), 500

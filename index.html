@@ -706,11 +706,18 @@ function _renderSidebarHistory(items, type) {
   if (!items.length) { if (sectionEl) sectionEl.style.display = 'none'; sidebarEl.innerHTML = ''; return; }
   if (sectionEl) sectionEl.style.display = '';
   sidebarEl.innerHTML = items.slice(0, 20).map(item => {
-    const action  = type === 'analysis' ? `replayAnalysis(${item.id})` : `replaySelection(${item.id})`;
-    const label   = item.result_title || item.question;
-    return `<div class="sidebar-hist-item" onclick="${action}" title="${escHtml(item.question)}">
-      <div style="font-size:12px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(label)}</div>
-      <div style="font-size:11px;color:var(--muted);margin-top:1px">${_relTime(item.ts)}</div>
+    const action = type === 'analysis' ? `replayAnalysis(${item.id})` : `replaySelection(${item.id})`;
+    const label  = item.result_title || item.question;
+    return `<div class="sidebar-hist-item" style="display:flex;align-items:center;gap:4px;padding:8px 10px;border-radius:8px;cursor:pointer;transition:background 0.15s"
+              onmouseover="this.style.background='#F6F8FB';this.querySelector('.del-btn').style.opacity='1'"
+              onmouseout="this.style.background='transparent';this.querySelector('.del-btn').style.opacity='0'">
+      <div onclick="${action}" title="${escHtml(item.question)}" style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(label)}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:1px">${_relTime(item.ts)}</div>
+      </div>
+      <button class="del-btn" onclick="event.stopPropagation();deleteHistoryItem(${item.id},'${type}')" title="Delete"
+              style="opacity:0;background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:0 2px;line-height:1;flex-shrink:0;transition:all 0.15s"
+              onmouseover="this.style.color='var(--risk)'" onmouseout="this.style.color='var(--muted)'">×</button>
     </div>`;
   }).join('');
 }
