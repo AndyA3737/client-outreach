@@ -5,45 +5,47 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Salon IQ Aria</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@700&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <style>
   :root {
-    --navy:   #535456;
-    --teal:   #129793;
-    --teal-d: #0d7a77;
-    --green:  #52926c;
-    --coral:  #f85c70;
-    --bg:     #eef4f5;
+    --navy:   #1A2332;
+    --green:  #3A7A50;
+    --green-d:#2D6A4F;
+    --bg:     #ECEEF2;
     --card:   #FFFFFF;
-    --border: #cfdddf;
-    --text:   #535456;
-    --muted:  #6b8183;
+    --border: #E2E6EC;
+    --text:   #3A4A5A;
+    --muted:  #A0AEBC;
+    --heading:#1A2332;
+    --risk:   #C0392B;
   }
   * { box-sizing: border-box; }
-  body { background: var(--bg); color: var(--text); font-family: Calibri, 'Gill Sans', 'Gill Sans MT', 'Trebuchet MS', system-ui, sans-serif; }
-  h1, h2, h3, h4 { font-family: 'Poppins', Calibri, system-ui, sans-serif; letter-spacing: -0.01em; }
+  body { background: var(--bg); color: var(--text); font-family: 'Helvetica Neue', Helvetica, Arial, system-ui, sans-serif; font-size: 13px; line-height: 1.5; }
+  h1, h2, h3, h4 { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 700; color: var(--heading); letter-spacing: -0.01em; margin: 0; }
 
-  .badge-active  { background:#d4eddf; color:#2d7a54; }
+  .badge-active  { background:#E6F5EB; color:#2D6A4F; }
   .badge-due     { background:#FEF9C3; color:#854D0E; }
   .badge-lapsing { background:#FFEDD5; color:#9A3412; }
-  .badge-lapsed  { background:#FEE2E2; color:#991B1B; }
+  .badge-lapsed  { background:#FEE2E2; color:#C0392B; }
 
   table { border-collapse:collapse; width:100%; }
-  thead th { position:sticky; top:0; z-index:10; background:#f2f8f9;
-             border-bottom:2px solid var(--border);
-             cursor:pointer; user-select:none; white-space:nowrap; color:var(--muted); font-weight:600; }
-  thead th:hover { background:#e8f1f3; }
+  thead th { position:sticky; top:0; z-index:10; background:#F6F8FB;
+             border-bottom:1px solid var(--border);
+             cursor:pointer; user-select:none; white-space:nowrap; color:var(--muted); font-weight:600;
+             font-size:11px; text-transform:uppercase; letter-spacing:0.5px;
+             font-family:'Helvetica Neue',Helvetica,system-ui,sans-serif; }
+  thead th:hover { background:#EEF1F5; }
   tbody tr { border-bottom:1px solid var(--border); }
-  tbody tr:hover td { background:rgba(18,151,147,0.05); }
+  tbody tr:hover td { background:rgba(58,122,80,0.04); }
 
-  .score-bar  { width:56px; height:5px; background:#cfdddf; border-radius:3px; overflow:hidden; display:inline-block; vertical-align:middle; }
-  .score-fill { height:100%; border-radius:3px; background:linear-gradient(90deg, var(--teal), var(--green)); }
+  .score-bar  { width:56px; height:5px; background:#E2E6EC; border-radius:3px; overflow:hidden; display:inline-block; vertical-align:middle; }
+  .score-fill { height:100%; border-radius:3px; background:linear-gradient(90deg, var(--green), var(--navy)); }
 
   .tip-wrap { position:relative; display:inline-block; }
   .tip-box  { display:none; position:absolute; bottom:calc(100% + 8px); left:50%;
-              transform:translateX(-50%); background:var(--navy); color:#cfdddf;
+              transform:translateX(-50%); background:var(--navy); color:#E2E6EC;
               padding:10px 14px; border-radius:10px; white-space:nowrap; z-index:200;
               font-size:12px; box-shadow:0 8px 30px rgba(0,0,0,0.2); }
   .tip-box::after { content:''; position:absolute; top:100%; left:50%; transform:translateX(-50%);
@@ -52,17 +54,17 @@
   .tip-box-down { bottom:auto; top:calc(100% + 6px); }
   .tip-box-down::after { top:auto; bottom:100%; border-top-color:transparent; border-bottom-color:var(--navy); }
 
-  input, select { background:#fff; border:1px solid var(--border); color:var(--text);
-                  border-radius:8px; padding:7px 12px; font-size:14px; font-family:inherit; }
-  input:focus, select:focus { outline:2px solid var(--teal); outline-offset:0; border-color:var(--teal); }
-  input::placeholder { color:#9ab3b8; }
+  input, select { background:#F6F8FB; border:1.5px solid var(--border); color:var(--text);
+                  border-radius:8px; padding:7px 12px; font-size:13px; font-family:inherit; transition:all 0.15s; }
+  input:focus, select:focus { outline:none; border-color:var(--green); background:#fff; box-shadow:0 0 0 3px #E6F5EB; }
+  input::placeholder { color:var(--muted); }
 
-  ::-webkit-scrollbar { width:6px; height:6px; }
-  ::-webkit-scrollbar-track { background:#eef4f5; }
-  ::-webkit-scrollbar-thumb { background:#b0c4c8; border-radius:3px; }
+  ::-webkit-scrollbar { width:5px; height:5px; }
+  ::-webkit-scrollbar-track { background:var(--bg); }
+  ::-webkit-scrollbar-thumb { background:#C8D0DA; border-radius:3px; }
 
-  .sort-asc::after  { content:" ▲"; font-size:9px; color:var(--teal); }
-  .sort-desc::after { content:" ▼"; font-size:9px; color:var(--teal); }
+  .sort-asc::after  { content:" ▲"; font-size:9px; color:var(--green); }
+  .sort-desc::after { content:" ▼"; font-size:9px; color:var(--green); }
 
   @keyframes ai-pulse { 0%,100%{opacity:.35;transform:scale(.92)} 50%{opacity:1;transform:scale(1)} }
   @keyframes ai-fade  { 0%{opacity:0;transform:translateY(6px)} 100%{opacity:1;transform:translateY(0)} }
@@ -73,52 +75,60 @@
   .ai-dot:nth-child(2){ animation-delay:.15s; }
   .ai-dot:nth-child(3){ animation-delay:.30s; }
 
-  .btn-teal { background:var(--teal); color:#fff; border:none; border-radius:8px;
-              padding:8px 18px; font-size:14px; font-weight:700; cursor:pointer; transition:background 0.15s; }
-  .btn-teal:hover { background:var(--teal-d); }
+  .btn-teal { background:var(--navy); color:#fff; border:none; border-radius:11px;
+              padding:8px 20px; font-size:13px; font-weight:600; cursor:pointer; transition:background 0.15s; font-family:inherit; }
+  .btn-teal:hover { background:var(--green); }
   .btn-teal:disabled { opacity:0.35; cursor:not-allowed; }
 
-  .nav-tab { padding:12px 20px; font-size:14px; font-weight:600; cursor:pointer;
-             border:none; background:transparent; color:var(--muted); border-bottom:3px solid transparent;
-             transition:all 0.15s; white-space:nowrap; }
-  .nav-tab:hover { color:var(--navy); }
-  .nav-tab.active { color:var(--teal); border-bottom-color:var(--teal); }
+  .nav-tab { padding:14px 22px; font-size:13px; font-weight:400; cursor:pointer;
+             border:none; background:transparent; color:var(--muted); border-bottom:2px solid transparent;
+             transition:all 0.15s; white-space:nowrap; font-family:inherit; }
+  .nav-tab:hover { color:var(--heading); }
+  .nav-tab.active { color:var(--heading); border-bottom-color:var(--green); font-weight:500; }
 
-  .query-chip { background:rgba(18,151,147,0.08); color:var(--teal); border:1px solid rgba(18,151,147,0.25);
-                border-radius:20px; padding:5px 14px; font-size:12px; font-weight:500;
-                cursor:pointer; transition:all 0.15s; white-space:nowrap; }
-  .query-chip:hover { background:var(--teal); color:#fff; border-color:var(--teal); }
+  .query-chip { background:#F6F8FB; color:#6A7A8A; border:1px solid var(--border);
+                border-radius:20px; padding:6px 14px; font-size:12px; font-weight:400;
+                cursor:pointer; transition:all 0.15s; white-space:nowrap; font-family:inherit; }
+  .query-chip:hover { background:#F2F8F4; border-color:#B0C8B8; color:var(--green-d); }
+  .query-chip.active { background:var(--navy); border-color:var(--navy); color:#fff; font-weight:500; }
 
-  .fmt-btn { padding:8px 18px; font-size:13px; font-weight:600; border:none; cursor:pointer;
-             background:#e8f1f3; color:var(--muted); transition:all 0.15s; font-family:inherit; }
-  .fmt-btn:first-child { border-radius:10px 0 0 10px; }
-  .fmt-btn:last-child  { border-radius:0 10px 10px 0; }
-  .fmt-btn:hover  { background:#d6e6e9; }
-  .fmt-btn.active { background:var(--teal); color:#fff; }
-  .eg-chip { background:#e8f1f3; color:var(--navy); border:1px solid var(--border);
-             border-radius:20px; padding:5px 14px; font-size:12px; cursor:pointer;
-             font-family:inherit; transition:all 0.15s; }
-  .eg-chip:hover { background:var(--teal); color:#fff; border-color:var(--teal); }
+  .fmt-btn { padding:7px 15px; font-size:12px; font-weight:400; border:1px solid var(--border);
+             cursor:pointer; background:#fff; color:#6A7A8A; transition:all 0.15s; font-family:inherit;
+             border-radius:8px; margin-right:4px; }
+  .fmt-btn:hover  { border-color:#B0C8B8; color:var(--green-d); }
+  .fmt-btn.active { background:#F2F8F4; border-color:var(--green); color:var(--green-d); font-weight:500; }
 
-  .btn-copy { background:#e8f1f3; color:var(--muted); border:1px solid var(--border);
-              border-radius:6px; padding:4px 10px; font-size:12px; cursor:pointer; transition:all 0.15s; white-space:nowrap; }
-  .btn-copy:hover { background:var(--teal); color:#fff; border-color:var(--teal); }
-  .btn-copy.copied { background:#10B981; color:#fff; border-color:#10B981; }
+  .eg-chip { background:#F6F8FB; color:var(--text); border:1.5px solid var(--border);
+             border-radius:11px; padding:12px 14px; font-size:12px; cursor:pointer;
+             font-family:inherit; transition:all 0.15s; text-align:left; display:block; line-height:1.45; }
+  .eg-chip:hover { background:#F2F8F4; border-color:var(--green); transform:translateY(-1px); }
 
-  .stat-card { background:#fff; border-radius:16px; padding:20px 24px;
-               box-shadow:0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04); border:1px solid var(--border); }
+  .btn-copy { background:#F6F8FB; color:var(--muted); border:1px solid var(--border);
+              border-radius:8px; padding:4px 10px; font-size:12px; cursor:pointer; transition:all 0.15s; white-space:nowrap; font-family:inherit; }
+  .btn-copy:hover { background:var(--green); color:#fff; border-color:var(--green); }
+  .btn-copy.copied { background:var(--green); color:#fff; border-color:var(--green); }
 
-  .lookup-card { background:#fff; border:1px solid var(--border); border-radius:16px; padding:24px;
-                 margin-bottom:16px; box-shadow:0 1px 4px rgba(0,0,0,0.06); }
-  .mini-stat { background:#f4f9fa; border:1px solid var(--border); border-radius:10px; padding:12px; }
+  .stat-card { background:#fff; border-radius:14px; padding:18px 20px; border:1px solid var(--border); }
 
-  #loadingOverlay { position:fixed; inset:0; background:rgba(238,244,245,0.97); display:flex; flex-direction:column;
+  .lookup-card { background:#fff; border:1px solid var(--border); border-radius:18px; padding:24px 28px; margin-bottom:16px; }
+  .mini-stat { background:#F6F8FB; border:1px solid var(--border); border-radius:10px; padding:12px; }
+
+  #loadingOverlay { position:fixed; inset:0; background:rgba(236,238,242,0.97); display:flex; flex-direction:column;
                     align-items:center; justify-content:center; z-index:100; }
-  .spinner { width:48px; height:48px; border:4px solid var(--border); border-top-color:var(--teal);
+  .spinner { width:40px; height:40px; border:3px solid var(--border); border-top-color:var(--green);
              border-radius:50%; animation:spin 0.8s linear infinite; }
-  .step-spinner { width:20px; height:20px; border:2.5px solid var(--border); border-top-color:var(--teal);
+  .step-spinner { width:18px; height:18px; border:2px solid var(--border); border-top-color:var(--green);
                   border-radius:50%; animation:spin 0.7s linear infinite; flex-shrink:0; }
   @keyframes spin { to { transform:rotate(360deg); } }
+
+  .eyebrow { font-size:10px; text-transform:uppercase; letter-spacing:0.6px; color:var(--muted);
+             font-weight:600; font-family:'Helvetica Neue',Helvetica,system-ui,sans-serif; }
+
+  .prompt-cat-btn { background:#F6F8FB; border:1px solid var(--border); border-radius:20px;
+                    padding:6px 14px; font-size:12px; color:#6A7A8A; cursor:pointer;
+                    transition:all 0.15s; white-space:nowrap; font-family:inherit; font-weight:400; }
+  .prompt-cat-btn:hover { background:#F2F8F4; border-color:#B0C8B8; color:var(--green-d); }
+  .prompt-cat-btn.active { background:var(--navy); border-color:var(--navy); color:#fff; font-weight:500; }
 </style>
 </head>
 <body>
@@ -126,7 +136,7 @@
 <!-- Tenant selector (shown first) -->
 <div id="tenantSelector" style="position:fixed;inset:0;background:var(--bg);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:110;">
   <img src="https://www.saloniq.com/img/logo.svg" alt="SalonIQ" class="h-9 mb-5">
-  <div class="text-3xl font-extrabold mb-1" style="color:var(--navy);letter-spacing:-0.02em">SalonIQ <span style="color:var(--teal)">Aria</span></div>
+  <div class="text-3xl font-extrabold mb-1" style="color:var(--heading);letter-spacing:-0.02em">SalonIQ <span style="color:var(--green)">Aria</span></div>
   <div class="text-sm mb-8" style="color:var(--muted)">Select a server and tenant to load your data</div>
 
   <!-- Server toggle -->
@@ -155,7 +165,7 @@
 <div id="loadingOverlay" style="position:fixed;inset:0;background:rgba(238,244,245,0.97);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:100;">
   <div id="loadingCard" style="background:#fff;border-radius:16px;padding:32px 40px;min-width:360px;max-width:440px;box-shadow:0 4px 32px rgba(0,0,0,0.12);border:1px solid var(--border)">
     <div style="font-size:1rem;font-weight:700;color:var(--navy);margin-bottom:2px">Loading salon data</div>
-    <div id="loadingSalonName" style="font-size:0.82rem;color:var(--teal);margin-bottom:22px"></div>
+    <div id="loadingSalonName" style="font-size:0.82rem;color:var(--green);margin-bottom:22px"></div>
     <div id="loadingStepsList"></div>
     <div id="loadingTimer" style="color:var(--muted);font-size:0.78rem;margin-top:18px;text-align:center">Starting…</div>
   </div>
@@ -165,26 +175,31 @@
 <div id="mainContent" style="display:none">
 
 <!-- Header -->
-<header style="background:#3a3c3e;border-bottom:1px solid rgba(255,255,255,0.1);" class="px-6 py-4 flex items-center justify-between">
-  <div class="flex items-center gap-4">
-    <img src="https://www.saloniq.com/img/logo.svg" alt="SalonIQ" class="h-7" style="filter:brightness(0) invert(1);opacity:0.65">
-    <div class="w-px h-7" style="background:rgba(255,255,255,0.15)"></div>
-    <div>
-      <div class="font-bold text-base leading-tight" style="color:rgba(255,255,255,0.92);letter-spacing:-0.01em">SalonIQ <span style="color:var(--teal)">Aria</span></div>
-      <div class="text-xs" style="color:rgba(255,255,255,0.45)">
-        <span id="serverBadge" style="font-size:10px;font-weight:800;padding:1px 6px;border-radius:4px;margin-right:6px;background:rgba(255,255,255,0.12);color:rgba(255,255,255,0.85);letter-spacing:0.05em">BETA</span><span id="selectedSalonLabel"></span> · Generated <span id="generatedTs"></span>
+<header style="background:#1A2332;height:56px;display:flex;align-items:center;padding:0 28px;justify-content:space-between;flex-shrink:0">
+  <div style="display:flex;align-items:center;gap:14px">
+    <div style="width:32px;height:32px;background:#3A7A50;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+      <span style="font-family:'Cormorant Garamond',Georgia,serif;font-weight:700;font-size:15px;color:#fff;line-height:1">iQ</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:2px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-family:'Cormorant Garamond',Georgia,serif;font-weight:700;font-size:18px;color:#fff;letter-spacing:-0.01em">SalonIQ Aria</span>
+        <span style="background:#1C3028;color:#5DBF85;border:1px solid #2A4A36;border-radius:20px;padding:3px 9px;font-size:10px;text-transform:uppercase;letter-spacing:0.6px;font-weight:600">Beta</span>
+      </div>
+      <div style="font-size:11px;color:rgba(255,255,255,0.4);display:flex;align-items:center;gap:5px">
+        <span id="serverBadge" style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.65);letter-spacing:0.05em;text-transform:uppercase">BETA</span>
+        <span id="selectedSalonLabel"></span><span id="generatedTs-wrap" style="display:none"> · Generated <span id="generatedTs"></span></span>
       </div>
     </div>
   </div>
-  <div class="flex items-center gap-3">
-    <a id="logsBtnHeader" href="/admin/logs" class="text-sm transition-colors" style="color:rgba(255,255,255,0.5);text-decoration:none" onmouseover="this.style.color='rgba(255,255,255,0.9)'" onmouseout="this.style.color='rgba(255,255,255,0.5)'">📋 Logs</a>
-    <button id="refreshBtn" onclick="refreshData()" class="text-sm transition-colors" style="color:rgba(255,255,255,0.5);background:none;border:none;cursor:pointer;padding:0" onmouseover="this.style.color='rgba(255,255,255,0.9)'" onmouseout="this.style.color='rgba(255,255,255,0.5)'">↻ Reload Data</button>
-    <button onclick="logOut()" class="btn-teal text-sm">⏻ Log out</button>
+  <div style="display:flex;align-items:center;gap:16px">
+    <a id="logsBtnHeader" href="/admin/logs" style="color:rgba(255,255,255,0.4);text-decoration:none;font-size:12px;transition:color 0.15s" onmouseover="this.style.color='rgba(255,255,255,0.85)'" onmouseout="this.style.color='rgba(255,255,255,0.4)'">Logs</a>
+    <button id="refreshBtn" onclick="refreshData()" style="color:rgba(255,255,255,0.4);background:none;border:none;cursor:pointer;padding:0;font-size:12px;font-family:inherit;transition:color 0.15s" onmouseover="this.style.color='rgba(255,255,255,0.85)'" onmouseout="this.style.color='rgba(255,255,255,0.4)'">↻ Reload</button>
+    <button onclick="logOut()" style="background:#3A7A50;color:#fff;border:none;border-radius:8px;padding:6px 16px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:background 0.15s" onmouseover="this.style.background='#2D6A4F'" onmouseout="this.style.background='#3A7A50'">Log out</button>
   </div>
 </header>
 
 <!-- Nav tabs -->
-<div style="background:#fff;border-bottom:1px solid var(--border);" class="px-6 flex gap-1">
+<div style="background:#fff;border-bottom:1px solid var(--border);padding:0 28px;display:flex;flex-shrink:0">
   <button class="nav-tab" id="tabDashboard" onclick="switchPage('dashboard')" style="display:none">Client Dashboard</button>
   <button class="nav-tab" id="tabSelections" onclick="switchPage('selections')">Client Selections</button>
   <button class="nav-tab active" id="tabAnalysis" onclick="switchPage('analysis')">Data Analysis</button>
@@ -215,9 +230,9 @@
     <div class="text-4xl font-extrabold text-amber-500" id="statDueLapsing">—</div>
     <div class="text-xs mt-1" style="color:var(--muted)">prime SMS targets</div>
   </div>
-  <div class="stat-card" style="border-top:3px solid var(--coral)">
-    <div class="text-xs font-semibold uppercase tracking-widest mb-2" style="color:var(--coral)">Lapsed</div>
-    <div class="text-4xl font-extrabold" style="color:var(--coral)" id="statLapsed">—</div>
+  <div class="stat-card" style="border-top:3px solid var(--risk)">
+    <div class="text-xs font-semibold uppercase tracking-widest mb-2" style="color:var(--risk)">Lapsed</div>
+    <div class="text-4xl font-extrabold" style="color:var(--risk)" id="statLapsed">—</div>
     <div class="text-xs mt-1" style="color:var(--muted)">not seen in over a year</div>
   </div>
 </div>
@@ -228,7 +243,7 @@
     <summary class="flex items-center justify-between px-6 py-4 cursor-pointer select-none font-semibold"
              style="color:var(--navy); list-style:none;">
       <div class="flex items-center gap-2">
-        <span style="color:var(--teal)">&#9432;</span>
+        <span style="color:var(--green)">&#9432;</span>
         How the SMS score is calculated
       </div>
       <span class="text-sm font-normal" style="color:var(--muted)">Click to expand ▾</span>
@@ -243,16 +258,16 @@
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
         <div class="rounded-xl p-4" style="background:#e6f5f5; border:1px solid #a8d8d7">
           <div class="flex items-center gap-2 mb-2">
-            <div class="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold" style="background:var(--teal)">R</div>
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold" style="background:var(--green)">R</div>
             <div class="font-bold" style="color:var(--navy)">Recency <span class="font-normal text-xs" style="color:var(--muted)">max 40 pts</span></div>
           </div>
           <p class="text-xs mb-3" style="color:#475569">How long ago the client last visited. The sweet spot is 30–180 days.</p>
           <table class="w-full text-xs" style="border-collapse:collapse">
-            <tr style="border-bottom:1px solid #a8d8d7"><td class="py-1" style="color:#475569">Just visited (≤30 days)</td><td class="py-1 text-right font-semibold" style="color:var(--teal)">10 pts</td></tr>
-            <tr style="border-bottom:1px solid #a8d8d7"><td class="py-1" style="color:#475569">30–90 days</td><td class="py-1 text-right font-semibold" style="color:var(--teal)">40 pts</td></tr>
-            <tr style="border-bottom:1px solid #a8d8d7"><td class="py-1" style="color:#475569">90–180 days</td><td class="py-1 text-right font-semibold" style="color:var(--teal)">30 pts</td></tr>
-            <tr style="border-bottom:1px solid #a8d8d7"><td class="py-1" style="color:#475569">180 days – 1 year</td><td class="py-1 text-right font-semibold" style="color:var(--teal)">15 pts</td></tr>
-            <tr><td class="py-1" style="color:#475569">Over 1 year</td><td class="py-1 text-right font-semibold" style="color:var(--teal)">5 pts</td></tr>
+            <tr style="border-bottom:1px solid #a8d8d7"><td class="py-1" style="color:#475569">Just visited (≤30 days)</td><td class="py-1 text-right font-semibold" style="color:var(--green)">10 pts</td></tr>
+            <tr style="border-bottom:1px solid #a8d8d7"><td class="py-1" style="color:#475569">30–90 days</td><td class="py-1 text-right font-semibold" style="color:var(--green)">40 pts</td></tr>
+            <tr style="border-bottom:1px solid #a8d8d7"><td class="py-1" style="color:#475569">90–180 days</td><td class="py-1 text-right font-semibold" style="color:var(--green)">30 pts</td></tr>
+            <tr style="border-bottom:1px solid #a8d8d7"><td class="py-1" style="color:#475569">180 days – 1 year</td><td class="py-1 text-right font-semibold" style="color:var(--green)">15 pts</td></tr>
+            <tr><td class="py-1" style="color:#475569">Over 1 year</td><td class="py-1 text-right font-semibold" style="color:var(--green)">5 pts</td></tr>
           </table>
         </div>
         <div class="rounded-xl p-4" style="background:#FFFBEB; border:1px solid #FDE68A">
@@ -287,9 +302,9 @@
         </div>
       </div>
       <div class="rounded-xl p-4 flex gap-4 items-start" style="background:#fef0f2; border:1px solid #f9b8c1">
-        <div class="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold flex-shrink-0" style="background:var(--coral)">!</div>
+        <div class="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold flex-shrink-0" style="background:var(--risk)">!</div>
         <div>
-          <div class="font-bold mb-1" style="color:#c0394a">No-show Penalty <span class="font-normal text-xs" style="color:var(--coral)">up to −15 pts</span></div>
+          <div class="font-bold mb-1" style="color:var(--risk)">No-show Penalty <span class="font-normal text-xs" style="color:var(--risk)">up to −15 pts</span></div>
           <p class="text-xs" style="color:#7a1526">Each recorded no-show deducts 3 points (capped at −15).</p>
         </div>
       </div>
@@ -383,27 +398,31 @@
 
 <!-- ── Page: Client Selections ────────────────────────────── -->
 <div id="pageSelections" style="display:none">
-<div class="px-6 py-8" style="max-width:96rem;margin:0 auto">
+<div style="max-width:96rem;margin:0 auto;padding:32px 28px">
 
-  <h2 class="text-2xl font-bold mb-1" style="color:var(--navy)">Client Selections</h2>
-  <p class="text-sm mb-2" style="color:var(--muted)">Describe the clients you want in plain English — Claude will build the segment from your full client database.</p>
-  <div class="text-xs mb-6 px-3 py-2 rounded-lg inline-flex items-center gap-1.5" style="background:#FEF9C3;color:#854D0E;border:1px solid #FDE68A">
-    <span>⚠</span> Booking history, gift cards, and promotions cover the last 2 years only. Client records, tags, and opt-out status are current.
+  <div style="margin-bottom:24px">
+    <div class="eyebrow" style="margin-bottom:6px">client selections</div>
+    <h2 style="font-size:26px;margin-bottom:4px">Client Selections</h2>
+    <p style="color:var(--muted);font-size:13px">Describe the clients you want in plain English — Claude will build the segment from your full client database.</p>
+  </div>
+
+  <div style="background:#F4FAF5;border:1px solid #C0DECA;border-radius:11px;padding:12px 16px;display:flex;align-items:flex-start;gap:12px;margin-bottom:24px">
+    <div style="width:28px;height:28px;background:#E6F5EB;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px">⚠️</div>
+    <span style="font-size:12px;color:#4A6A52;line-height:1.6">Booking history, gift cards, and promotions cover the last 2 years only. Client records, tags, and opt-out status are current.</span>
   </div>
 
   <!-- Query input -->
-  <div class="rounded-2xl border p-6 mb-4" style="background:#fff;border-color:var(--border);box-shadow:0 1px 4px rgba(0,0,0,0.06)">
-    <label class="block text-sm font-semibold mb-2" style="color:var(--navy)">Describe your segment</label>
-    <div class="flex gap-3">
+  <div style="background:#fff;border:1px solid var(--border);border-radius:18px;padding:22px;margin-bottom:16px">
+    <div style="display:flex;gap:12px;align-items:center">
       <input id="queryInput" type="text" placeholder="e.g. lapsing clients who spend over £50 on average…"
-             class="flex-1" style="border-radius:10px;padding:10px 14px;font-size:14px"
+             style="flex:1;border-radius:11px;padding:12px 15px;font-size:14px"
              onkeydown="if(event.key==='Enter')runQuery()">
-      <button onclick="runQuery()" id="queryBtn" class="btn-teal px-6">Find Clients</button>
+      <button onclick="runQuery()" id="queryBtn" class="btn-teal" style="flex-shrink:0;height:46px;border-radius:11px;padding:0 22px">Find Clients</button>
     </div>
 
     <!-- Example chips -->
-    <div class="flex flex-wrap gap-2 mt-4">
-      <span class="text-xs font-semibold mr-1" style="color:var(--muted);line-height:28px">Try:</span>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:14px">
+      <span class="eyebrow" style="line-height:28px;margin-right:4px">Try</span>
       <button class="query-chip" onclick="setQuery(this)">Clients who have never returned</button>
       <button class="query-chip" onclick="setQuery(this)">Only ever seen one stylist</button>
       <button class="query-chip" onclick="setQuery(this)">High value lapsed clients</button>
@@ -434,93 +453,80 @@
 
 <!-- ── Page: Data Analysis ────────────────────────────────── -->
 <div id="pageAnalysis">
-<div class="px-6 py-8" style="max-width:96rem;margin:0 auto">
+<div style="max-width:96rem;margin:0 auto;padding:32px 28px 120px">
 
-  <div class="flex items-start justify-between gap-4 mb-6">
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:24px">
     <div>
-      <h2 class="text-2xl font-bold mb-1" style="color:var(--navy)">Data Analysis</h2>
-      <p class="text-sm" style="color:var(--muted)">Ask the AI anything about your salon data. Choose how you want the answer presented.</p>
+      <div class="eyebrow" style="margin-bottom:6px">data analysis</div>
+      <h2 style="font-size:26px;margin-bottom:4px">Data Analysis</h2>
+      <p style="color:var(--muted);font-size:13px">Ask the AI anything about your salon data.</p>
     </div>
-    <!-- Session usage strip -->
     <div id="usageBar" style="display:none;flex-shrink:0;text-align:right">
-      <div class="text-xs font-semibold mb-0.5" style="color:var(--muted)">Session usage</div>
-      <div id="usageDetails" class="text-xs" style="color:var(--navy)"></div>
-      <div id="usageCost" class="text-xs font-semibold mt-0.5" style="color:var(--teal)"></div>
+      <div class="eyebrow" style="margin-bottom:3px">Session usage</div>
+      <div id="usageDetails" style="font-size:12px;color:var(--text)"></div>
+      <div id="usageCost" style="font-size:12px;font-weight:600;color:var(--green);margin-top:2px"></div>
     </div>
   </div>
 
-  <!-- AI disclaimer -->
-  <div class="flex items-start gap-2 rounded-xl px-4 py-3 mb-5 text-xs" style="background:#FFFBEB;border:1px solid #FDE68A;color:#92400E">
-    <span style="flex-shrink:0;font-size:14px">⚠️</span>
-    <span><strong>AI results are indicative, not definitive.</strong> Aria analyses your data and highlights patterns, but figures may not match your back-office reports exactly — always verify important numbers before acting on them.</span>
+  <!-- Alert bar -->
+  <div style="background:#F4FAF5;border:1px solid #C0DECA;border-radius:11px;padding:12px 16px;display:flex;align-items:flex-start;gap:12px;margin-bottom:24px">
+    <div style="width:28px;height:28px;background:#E6F5EB;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px">⚠️</div>
+    <span style="font-size:12px;color:#4A6A52;line-height:1.6"><strong style="color:#2A5A3A">Results are indicative, not definitive.</strong> Aria analyses your data and highlights patterns, but figures may not match your back-office reports exactly — always verify important numbers before acting on them.</span>
   </div>
 
   <!-- Format toggle -->
-  <div class="flex items-center gap-4 mb-5">
-    <span class="text-sm font-semibold" style="color:var(--muted)">Output as:</span>
-    <div class="flex rounded-xl overflow-hidden border" style="border-color:var(--border)">
-      <button onclick="setAnalysisFmt('dashboard')" id="fmtDashboard" class="fmt-btn active">📊 Dashboard</button>
-      <button onclick="setAnalysisFmt('list')"      id="fmtList"      class="fmt-btn">📋 List / Grid</button>
-      <button onclick="setAnalysisFmt('report')"    id="fmtReport"    class="fmt-btn">📄 Report</button>
-      <button onclick="setAnalysisFmt('chart')"     id="fmtChart"     class="fmt-btn">📈 Chart</button>
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:24px">
+    <span class="eyebrow" style="margin-right:4px">Output as</span>
+    <button onclick="setAnalysisFmt('dashboard')" id="fmtDashboard" class="fmt-btn active">Dashboard</button>
+    <button onclick="setAnalysisFmt('list')"      id="fmtList"      class="fmt-btn">List / Grid</button>
+    <button onclick="setAnalysisFmt('report')"    id="fmtReport"    class="fmt-btn">Report</button>
+    <button onclick="setAnalysisFmt('chart')"     id="fmtChart"     class="fmt-btn">Chart</button>
+  </div>
+
+  <!-- Category tabs + prompt cards -->
+  <div style="margin-bottom:24px">
+    <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
+      <button class="prompt-cat-btn active" data-cat="Revenue"  onclick="switchPromptCat('Revenue')">Revenue</button>
+      <button class="prompt-cat-btn"        data-cat="Clients"  onclick="switchPromptCat('Clients')">Clients</button>
+      <button class="prompt-cat-btn"        data-cat="Team"     onclick="switchPromptCat('Team')">Team</button>
+      <button class="prompt-cat-btn"        data-cat="Bookings" onclick="switchPromptCat('Bookings')">Bookings</button>
     </div>
+    <div id="promptGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px"></div>
   </div>
 
-  <!-- Example prompts -->
-  <div class="flex flex-wrap items-center gap-2 mb-5">
-    <span class="text-xs font-semibold mr-1" style="color:var(--muted)">Try:</span>
-    <button class="eg-chip" onclick="useEgPrompt(this)">Total retail sales for March this year</button>
-    <button class="eg-chip" onclick="useEgPrompt(this)">Personal dashboard for [team member name] — strengths, weaknesses, opportunities</button>
-    <button class="eg-chip" onclick="useEgPrompt(this)">Top 10 clients by revenue</button>
-    <button class="eg-chip" onclick="useEgPrompt(this)">Which stylist has the highest average spend per client?</button>
-    <button class="eg-chip" onclick="useEgPrompt(this)">Lapsing clients and potential revenue recovery</button>
-    <button class="eg-chip" onclick="useEgPrompt(this)">Monthly appointment trends for the last 12 months</button>
-  </div>
-
-  <!-- Question input -->
-  <div class="rounded-2xl border p-6 mb-6" style="background:#fff;border-color:var(--border);box-shadow:0 1px 4px rgba(0,0,0,0.06)">
-    <label class="block text-sm font-semibold mb-2" style="color:var(--navy)">Your question</label>
-    <div class="flex gap-3">
+  <!-- Question input card -->
+  <div style="background:#fff;border:1px solid var(--border);border-radius:18px;padding:22px;margin-bottom:24px">
+    <div style="display:flex;gap:12px;align-items:flex-end">
       <textarea id="analysisInput" placeholder="Ask anything about your salon data…"
-                class="flex-1 rounded-xl p-3 text-sm resize-none"
-                style="height:80px;border:1px solid var(--border);background:#fff;font-family:inherit;color:var(--text);outline:none;transition:border-color 0.15s"
-                onfocus="this.style.borderColor='var(--teal)'"
-                onblur="this.style.borderColor='var(--border)'"
+                style="flex:1;border-radius:11px;padding:12px 15px;font-size:14px;border:1.5px solid var(--border);background:#F6F8FB;font-family:inherit;color:var(--text);outline:none;transition:all 0.15s;resize:none;height:72px;line-height:1.5"
+                onfocus="this.style.borderColor='#3A7A50';this.style.background='#fff';this.style.boxShadow='0 0 0 3px #E6F5EB'"
+                onblur="this.style.borderColor='var(--border)';this.style.background='#F6F8FB';this.style.boxShadow='none'"
                 onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey))runAnalysis()"></textarea>
-      <button onclick="runAnalysis()" id="analyseBtn" class="btn-teal self-end px-8" style="height:46px">Analyse →</button>
+      <button onclick="runAnalysis()" id="analyseBtn" class="btn-teal" style="height:52px;padding:0 24px;border-radius:11px;flex-shrink:0">Analyse →</button>
     </div>
-    <div class="text-xs mt-2" style="color:var(--muted)">Ctrl + Enter to submit</div>
+    <div style="font-size:11px;color:var(--muted);margin-top:8px">Ctrl + Enter to submit</div>
   </div>
 
   <!-- Results -->
   <div id="analysisResults"></div>
-
-  <!-- Follow-up result area -->
   <div id="followupResult"></div>
-
-  <!-- Floating ask button — visible when follow-up bar is active -->
-  <button id="floatingAskBtn" onclick="floatingAskClick()" style="
-    display:none;position:fixed;bottom:28px;right:28px;z-index:999;
-    background:#129793;color:#fff;border:none;border-radius:50px;
-    padding:14px 24px;font-size:15px;font-weight:700;cursor:pointer;
-    box-shadow:0 6px 24px rgba(0,0,0,0.28);gap:8px;align-items:center;
-    letter-spacing:0.01em;
-  ">💬 Ask a follow-up</button>
-
-  <!-- Follow-up bar — hidden until first result renders, always below results -->
-  <div id="followupBar" style="display:none;margin-top:20px;padding:16px 20px;background:#f2f8f9;border:1px solid var(--border);border-radius:16px;gap:10px;align-items:center">
-    <span style="font-size:18px">💬</span>
-    <input id="followupInput" type="text" placeholder="Ask a follow-up question…"
-           style="flex:1;border-radius:8px;padding:8px 12px;font-size:14px;border:1px solid var(--border)"
-           onkeydown="if(event.key==='Enter')submitFollowup()">
-    <button id="followupBtn" data-label="Ask →" class="btn-teal" style="height:38px;font-size:13px;padding:0 16px"
-            onclick="submitFollowup()">Ask →</button>
-  </div>
 
 </div>
 </div><!-- end #pageAnalysis -->
 
 </div><!-- end #mainContent -->
+
+<!-- Sticky follow-up bar — shown after first result -->
+<div id="followupBar" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:50;background:#1A2332;padding:12px 28px;border-top:1px solid #243040;gap:14px;align-items:center">
+  <span style="color:#5DBF85;font-size:12px;font-weight:500;white-space:nowrap;flex-shrink:0">Ask a follow-up</span>
+  <input id="followupInput" type="text" placeholder="e.g. Which products drove the decline in March?"
+         style="flex:1;border-radius:9px;padding:10px 15px;font-size:13px;border:1px solid #2E3F52;background:#243040;color:#E8EBF0;font-family:inherit;outline:none;transition:border-color 0.15s"
+         onfocus="this.style.borderColor='#3A7A50'" onblur="this.style.borderColor='#2E3F52'"
+         onkeydown="if(event.key==='Enter')submitFollowup()">
+  <button id="followupBtn" data-label="Ask →" onclick="submitFollowup()"
+          style="background:#3A7A50;color:#fff;border:none;border-radius:9px;padding:10px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;transition:background 0.15s"
+          onmouseover="this.style.background='#2D6A4F'" onmouseout="this.style.background='#3A7A50'">Ask →</button>
+</div>
 
 <script>
 function escHtml(s) {
@@ -544,7 +550,7 @@ function renderRow(c) {
     : '';
 
   const cats = (c.top_cats || []).map(cat =>
-    `<span class="inline-block text-xs px-2 py-0.5 rounded-md mr-1 mb-0.5 whitespace-nowrap font-medium" style="background:rgba(18,151,147,0.1);color:var(--teal);border:1px solid rgba(18,151,147,0.25)">${escHtml(cat)}</span>`
+    `<span class="inline-block text-xs px-2 py-0.5 rounded-md mr-1 mb-0.5 whitespace-nowrap font-medium" style="background:rgba(58,122,80,0.1);color:var(--green);border:1px solid rgba(58,122,80,0.25)">${escHtml(cat)}</span>`
   ).join('');
 
   return `
@@ -563,10 +569,10 @@ function renderRow(c) {
         <div class="tip-box">
           <div class="font-semibold mb-2 text-center text-white">Score Breakdown</div>
           <div class="space-y-1 text-white/80">
-            <div class="flex justify-between gap-6"><span>Recency</span><span style="color:var(--teal)">+${c.sr}</span></div>
-            <div class="flex justify-between gap-6"><span>Overdue bonus</span><span style="color:var(--teal)">+${c.so}</span></div>
-            <div class="flex justify-between gap-6"><span>Frequency</span><span style="color:var(--teal)">+${c.sf}</span></div>
-            <div class="flex justify-between gap-6"><span>Spend</span><span style="color:var(--teal)">+${c.sm}</span></div>
+            <div class="flex justify-between gap-6"><span>Recency</span><span style="color:var(--green)">+${c.sr}</span></div>
+            <div class="flex justify-between gap-6"><span>Overdue bonus</span><span style="color:var(--green)">+${c.so}</span></div>
+            <div class="flex justify-between gap-6"><span>Frequency</span><span style="color:var(--green)">+${c.sf}</span></div>
+            <div class="flex justify-between gap-6"><span>Spend</span><span style="color:var(--green)">+${c.sm}</span></div>
             ${penaltyRow}
             <div class="border-t border-white/20 pt-1 flex justify-between gap-6 font-bold text-white">
               <span>Total</span><span>${c.score}</span>
@@ -592,15 +598,15 @@ function renderRow(c) {
     </td>
     <td class="py-3 px-3">${cats}</td>
     <td class="py-3 px-3 text-sm" style="color:var(--text)">${escHtml(c.mobile || '—')}</td>
-    <td class="py-3 px-3 text-center">${c.sms_optout ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#fde8eb;color:#c0394a">Opted out</span>' : '<span style="color:#9ab3b8;font-size:12px">—</span>'}</td>
-    <td class="py-3 px-3 text-center">${c.email_optout ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#fde8eb;color:#c0394a">Opted out</span>' : '<span style="color:#9ab3b8;font-size:12px">—</span>'}</td>
-    <td class="py-3 px-3 text-center">${c.salonspy_optin ? '<span style="color:#9ab3b8;font-size:12px">—</span>' : '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#fde8eb;color:#c0394a">Opted out</span>'}</td>
+    <td class="py-3 px-3 text-center">${c.sms_optout ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#fde8eb;color:var(--risk)">Opted out</span>' : '<span style="color:#A0AEBC;font-size:12px">—</span>'}</td>
+    <td class="py-3 px-3 text-center">${c.email_optout ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#fde8eb;color:var(--risk)">Opted out</span>' : '<span style="color:#A0AEBC;font-size:12px">—</span>'}</td>
+    <td class="py-3 px-3 text-center">${c.salonspy_optin ? '<span style="color:#A0AEBC;font-size:12px">—</span>' : '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#fde8eb;color:var(--risk)">Opted out</span>'}</td>
     <td class="py-3 px-3 min-w-[340px] max-w-[420px]">
       <div class="flex items-start gap-2">
         <span class="text-sm leading-relaxed flex-1 sms-text" style="color:var(--text)">${escHtml(c.sms)}</span>
         <button onclick="copySMS(this)" class="btn-copy flex-shrink-0 mt-0.5">Copy</button>
       </div>
-      <div class="text-xs mt-1" style="color:#9ab3b8">${c.sms.length} chars</div>
+      <div class="text-xs mt-1" style="color:#A0AEBC">${c.sms.length} chars</div>
     </td>
   </tr>`;
 }
@@ -651,6 +657,52 @@ function setAnalysisFmt(fmt) {
   );
 }
 
+// ── Prompt category tabs ──────────────────────────────────────
+const _PROMPT_CATS = {
+  Revenue: [
+    'Total retail sales for March this year',
+    'Revenue breakdown by service category last month',
+    'Average bill value per client this quarter',
+    'Which services generated the most revenue?',
+    'Monthly revenue trend for the last 12 months',
+    'VAT collected vs net revenue — last 3 months',
+  ],
+  Clients: [
+    'Lapsing clients and potential revenue recovery',
+    'Top 10 clients by total spend this year',
+    'New clients acquired this month vs last month',
+    'Average client rebooking rate this quarter',
+    'Client retention rate over the last 6 months',
+    "Clients who haven't visited in 90+ days",
+  ],
+  Team: [
+    'Which stylist has the highest avg spend per client?',
+    'Personal dashboard for [stylist] — strengths & opportunities',
+    'Top performing team member by revenue this month',
+    'Retail sales by stylist — last 30 days',
+    'Team performance vs targets this quarter',
+    'Average appointment duration by stylist',
+  ],
+  Bookings: [
+    'Monthly appointment trends — last 12 months',
+    'No-show and cancellation rates by stylist',
+    'Busiest days and times this month',
+    'Online vs walk-in booking split this quarter',
+    'Appointments with no follow-up booking',
+    'Booking lead times — how far in advance clients book',
+  ],
+};
+
+function switchPromptCat(cat) {
+  document.querySelectorAll('.prompt-cat-btn').forEach(btn =>
+    btn.classList.toggle('active', btn.dataset.cat === cat));
+  const grid = document.getElementById('promptGrid');
+  if (!grid) return;
+  grid.innerHTML = (_PROMPT_CATS[cat] || []).map(p =>
+    `<button class="eg-chip" onclick="useEgPrompt(this)">${p}</button>`
+  ).join('');
+}
+
 function useEgPrompt(btn) {
   document.getElementById('analysisInput').value = btn.textContent.trim();
   document.getElementById('analysisInput').focus();
@@ -663,7 +715,7 @@ async function runAnalysis() {
   // Hide follow-up bar, floating button, and clear follow-up result while main question loads
   const fbar = document.getElementById('followupBar');
   if (fbar) fbar.style.display = 'none';
-  document.getElementById('floatingAskBtn').style.display = 'none';
+  // floating button removed
   document.getElementById('followupResult').innerHTML = '';
   await _submitAnalysis(question, null,
     document.getElementById('analysisResults'),
@@ -676,7 +728,7 @@ function submitFollowup() {
   if (!q) return;
   // Hide bar and floating button while loading, clear previous follow-up result
   document.getElementById('followupBar').style.display = 'none';
-  document.getElementById('floatingAskBtn').style.display = 'none';
+  // floating button removed
   _submitAnalysis(q, _lastAnalysis,
     document.getElementById('followupResult'), btn);
 }
@@ -707,9 +759,9 @@ function _buildLoader() {
   <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 24px;text-align:center">
     <div class="ai-orb" style="font-size:52px;margin-bottom:20px">✦</div>
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:20px">
-      <div style="width:8px;height:8px;border-radius:50%;background:var(--teal)" class="ai-dot"></div>
-      <div style="width:8px;height:8px;border-radius:50%;background:var(--teal)" class="ai-dot"></div>
-      <div style="width:8px;height:8px;border-radius:50%;background:var(--teal)" class="ai-dot"></div>
+      <div style="width:8px;height:8px;border-radius:50%;background:var(--green)" class="ai-dot"></div>
+      <div style="width:8px;height:8px;border-radius:50%;background:var(--green)" class="ai-dot"></div>
+      <div style="width:8px;height:8px;border-radius:50%;background:var(--green)" class="ai-dot"></div>
     </div>
     <div id="aiThinkMsg" class="ai-msg" style="font-size:15px;font-weight:600;color:var(--navy);margin-bottom:8px;min-height:24px">
       Reading through your client records…
@@ -855,13 +907,13 @@ function renderAnalysis(data, box) {
     } else if (data.format === 'list') {
       if (data.columns && data.rows) {
         html += '<div class="rounded-2xl border overflow-hidden mb-4" style="border-color:var(--border);background:#fff"><div class="overflow-x-auto"><table style="width:100%;border-collapse:collapse">';
-        html += '<thead><tr class="text-xs uppercase tracking-wider" style="background:#f2f8f9">';
+        html += '<thead><tr class="text-xs uppercase tracking-wider" style="background:#F6F8FB">';
         data.columns.forEach(col => {
           html += `<th class="text-left py-3 px-4 font-semibold" style="color:var(--muted);border-bottom:2px solid var(--border)">${escHtml(col)}</th>`;
         });
         html += '</tr></thead><tbody>';
         data.rows.forEach((row, i) => {
-          html += `<tr style="${i % 2 ? 'background:#f2f8f9' : ''}">`;
+          html += `<tr style="${i % 2 ? 'background:#F6F8FB' : ''}">`;
           row.forEach(cell => {
             html += `<td class="py-3 px-4 text-sm" style="color:var(--text);border-bottom:1px solid var(--border)">${escHtml(String(cell))}</td>`;
           });
@@ -877,8 +929,8 @@ function renderAnalysis(data, box) {
         if (sec.body)    html += `<p class="text-sm mb-4" style="color:var(--text);line-height:1.85">${escHtml(sec.body)}</p>`;
       });
       if (data.conclusion) {
-        html += `<div class="mt-6 p-4 rounded-xl" style="background:rgba(18,151,147,0.08);border:1px solid rgba(18,151,147,0.3)">
-          <div class="font-bold mb-2" style="color:var(--teal-d)">Conclusion</div>
+        html += `<div class="mt-6 p-4 rounded-xl" style="background:rgba(58,122,80,0.08);border:1px solid rgba(58,122,80,0.3)">
+          <div class="font-bold mb-2" style="color:var(--green-d)">Conclusion</div>
           <p class="text-sm" style="color:var(--text);line-height:1.75">${escHtml(data.conclusion)}</p>
         </div>`;
       }
@@ -894,7 +946,7 @@ function renderAnalysis(data, box) {
   if (fbar) {
     fbar.style.display = 'flex';
     document.getElementById('followupInput').value = '';
-    document.getElementById('floatingAskBtn').style.display = 'flex';
+    // floating button removed
   }
 }
 
@@ -902,9 +954,9 @@ function renderAnalysis(data, box) {
 let _chartSeq = 0;   // ever-increasing counter — guarantees unique canvas IDs across all renders
 
 const _chartPalette = [
-  '#129793','#52926c','#f85c70','#8B5CF6','#F59E0B',
-  '#535456','#4A9EBF','#F97316','#EC4899','#cfdddf',
-  '#06B6D4','#84CC16','#A855F7','#0d7a77','#b0c4c8',
+  '#1A2332','#3A7A50','#C0392B','#5DBF85','#F59E0B',
+  '#2D6A4F','#4A9EBF','#F97316','#8B5CF6','#A0AEBC',
+  '#06B6D4','#84CC16','#A855F7','#243040','#B0C8B8',
 ];
 
 function _drawChart(chart, uid) {
@@ -946,7 +998,7 @@ function _drawChart(chart, uid) {
         legend: {
           display:  isPie || datasets.length > 1,
           position: isPie ? 'right' : 'top',
-          labels:   { font: { family: 'Calibri, Poppins, sans-serif', size: 12 }, color: '#535456' },
+          labels:   { font: { family: 'Helvetica Neue, Helvetica, Arial, sans-serif', size: 12 }, color: '#3A4A5A' },
         },
         tooltip: {
           callbacks: {
@@ -961,8 +1013,8 @@ function _drawChart(chart, uid) {
         },
       },
       scales: isPie ? {} : {
-        x: { grid: { display: isHoriz }, ticks: { font: { family: 'Calibri, Poppins, sans-serif' }, color: '#6b8183' } },
-        y: { beginAtZero: true, grid: { color: '#cfdddf' }, ticks: { font: { family: 'Calibri, Poppins, sans-serif' }, color: '#6b8183' } },
+        x: { grid: { display: isHoriz }, ticks: { font: { family: 'Helvetica Neue, Helvetica, Arial, sans-serif' }, color: '#A0AEBC' } },
+        y: { beginAtZero: true, grid: { color: '#E2E6EC' }, ticks: { font: { family: 'Helvetica Neue, Helvetica, Arial, sans-serif' }, color: '#A0AEBC' } },
       },
     },
   });
@@ -1026,7 +1078,7 @@ function renderSelectionResults(clients) {
   }
   const rows = clients.map(c => {
     const cats = (c.top_cats || []).map(cat =>
-      `<span class="inline-block text-xs px-2 py-0.5 rounded-md mr-0.5 font-medium" style="background:rgba(18,151,147,0.1);color:var(--teal);border:1px solid rgba(18,151,147,0.25)">${escHtml(cat)}</span>`
+      `<span class="inline-block text-xs px-2 py-0.5 rounded-md mr-0.5 font-medium" style="background:rgba(58,122,80,0.1);color:var(--green);border:1px solid rgba(58,122,80,0.25)">${escHtml(cat)}</span>`
     ).join('');
     return `<tr data-name="${escHtml(c.name.toLowerCase())}">
       <td class="py-3 px-3 font-semibold" style="color:var(--navy)">${escHtml(c.name)}</td>
@@ -1039,9 +1091,9 @@ function renderSelectionResults(clients) {
       <td class="py-3 px-3 text-sm" style="color:var(--muted)">${c.n_stylists} stylist${c.n_stylists !== 1 ? 's' : ''}</td>
       <td class="py-3 px-3">${cats}</td>
       <td class="py-3 px-3 text-sm" style="color:var(--text)">${escHtml(c.mobile || '—')}</td>
-      <td class="py-3 px-3 text-center">${c.sms_optout ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#fde8eb;color:#c0394a">Opted out</span>' : '<span style="color:#9ab3b8;font-size:12px">—</span>'}</td>
-      <td class="py-3 px-3 text-center">${c.email_optout ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#fde8eb;color:#c0394a">Opted out</span>' : '<span style="color:#9ab3b8;font-size:12px">—</span>'}</td>
-      <td class="py-3 px-3 text-center">${c.salonspy_optin ? '<span style="color:#9ab3b8;font-size:12px">—</span>' : '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#fde8eb;color:#c0394a">Opted out</span>'}</td>
+      <td class="py-3 px-3 text-center">${c.sms_optout ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#fde8eb;color:var(--risk)">Opted out</span>' : '<span style="color:#A0AEBC;font-size:12px">—</span>'}</td>
+      <td class="py-3 px-3 text-center">${c.email_optout ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#fde8eb;color:var(--risk)">Opted out</span>' : '<span style="color:#A0AEBC;font-size:12px">—</span>'}</td>
+      <td class="py-3 px-3 text-center">${c.salonspy_optin ? '<span style="color:#A0AEBC;font-size:12px">—</span>' : '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#fde8eb;color:var(--risk)">Opted out</span>'}</td>
     </tr>`;
   }).join('');
 
@@ -1051,19 +1103,19 @@ function renderSelectionResults(clients) {
     <table>
       <thead>
         <tr class="text-xs uppercase tracking-wider">
-          <th class="text-left py-3 px-3" style="background:#f2f8f9;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Client</th>
-          <th class="text-left py-3 px-3" style="background:#f2f8f9;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600"><span class="tip-wrap">Status<span class="tip-box tip-box-down" style="white-space:normal;width:220px;text-align:left;line-height:1.6"><b>Active</b> — visited within 60 days<br><b>Due Soon</b> — 60–120 days ago<br><b>Lapsing</b> — 120–365 days ago<br><b>Lapsed</b> — over 365 days ago<br><b>No Visit (2yrs)</b> — no visit in last 2 years</span></span></th>
-          <th class="text-left py-3 px-3" style="background:#f2f8f9;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Last Visit</th>
-          <th class="text-left py-3 px-3" style="background:#f2f8f9;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Days Since</th>
-          <th class="text-left py-3 px-3" style="background:#f2f8f9;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Visits</th>
-          <th class="text-left py-3 px-3" style="background:#f2f8f9;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Avg Spend</th>
-          <th class="text-left py-3 px-3" style="background:#f2f8f9;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Stylist</th>
-          <th class="text-left py-3 px-3" style="background:#f2f8f9;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Stylists Seen</th>
-          <th class="text-left py-3 px-3" style="background:#f2f8f9;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Services</th>
-          <th class="text-left py-3 px-3" style="background:#f2f8f9;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Mobile</th>
-          <th class="text-left py-3 px-3" style="background:#f2f8f9;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">SMS Opt-out</th>
-          <th class="text-left py-3 px-3" style="background:#f2f8f9;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Email Opt-out</th>
-          <th class="text-left py-3 px-3" style="background:#f2f8f9;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Salon Spy Opt-out</th>
+          <th class="text-left py-3 px-3" style="background:#F6F8FB;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Client</th>
+          <th class="text-left py-3 px-3" style="background:#F6F8FB;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600"><span class="tip-wrap">Status<span class="tip-box tip-box-down" style="white-space:normal;width:220px;text-align:left;line-height:1.6"><b>Active</b> — visited within 60 days<br><b>Due Soon</b> — 60–120 days ago<br><b>Lapsing</b> — 120–365 days ago<br><b>Lapsed</b> — over 365 days ago<br><b>No Visit (2yrs)</b> — no visit in last 2 years</span></span></th>
+          <th class="text-left py-3 px-3" style="background:#F6F8FB;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Last Visit</th>
+          <th class="text-left py-3 px-3" style="background:#F6F8FB;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Days Since</th>
+          <th class="text-left py-3 px-3" style="background:#F6F8FB;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Visits</th>
+          <th class="text-left py-3 px-3" style="background:#F6F8FB;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Avg Spend</th>
+          <th class="text-left py-3 px-3" style="background:#F6F8FB;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Stylist</th>
+          <th class="text-left py-3 px-3" style="background:#F6F8FB;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Stylists Seen</th>
+          <th class="text-left py-3 px-3" style="background:#F6F8FB;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Services</th>
+          <th class="text-left py-3 px-3" style="background:#F6F8FB;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Mobile</th>
+          <th class="text-left py-3 px-3" style="background:#F6F8FB;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">SMS Opt-out</th>
+          <th class="text-left py-3 px-3" style="background:#F6F8FB;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Email Opt-out</th>
+          <th class="text-left py-3 px-3" style="background:#F6F8FB;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Salon Spy Opt-out</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
@@ -1098,7 +1150,7 @@ function setServer(s) {
   document.getElementById('btnBeta').style.cssText =
     `flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;transition:all 0.15s;background:${isLive ? 'transparent' : 'var(--navy)'};color:${isLive ? 'var(--muted)' : '#fff'}`;
   document.getElementById('btnLive').style.cssText =
-    `flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;transition:all 0.15s;background:${isLive ? '#52926c' : 'transparent'};color:${isLive ? '#fff' : 'var(--muted)'}`;
+    `flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;transition:all 0.15s;background:${isLive ? '#3A7A50' : 'transparent'};color:${isLive ? '#fff' : 'var(--muted)'}`;
   initTenants();
 }
 
@@ -1162,13 +1214,13 @@ function renderLoadingSteps(activeIdx) {
   list.innerHTML = LOAD_STEPS.map((s, i) => {
     let icon, labelStyle;
     if (i < activeIdx) {
-      icon = `<svg width="20" height="20" viewBox="0 0 20 20" style="flex-shrink:0"><circle cx="10" cy="10" r="10" fill="#129793"/><path d="M6 10.5l2.5 2.5 5-5" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
-      labelStyle = 'color:#9ab3b8';
+      icon = `<svg width="20" height="20" viewBox="0 0 20 20" style="flex-shrink:0"><circle cx="10" cy="10" r="10" fill="#3A7A50"/><path d="M6 10.5l2.5 2.5 5-5" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>`;
+      labelStyle = 'color:#A0AEBC';
     } else if (i === activeIdx) {
       icon = `<div class="step-spinner"></div>`;
       labelStyle = 'color:var(--navy);font-weight:600';
     } else {
-      icon = `<svg width="20" height="20" viewBox="0 0 20 20" style="flex-shrink:0"><circle cx="10" cy="10" r="9" stroke="#cfdddf" stroke-width="2" fill="none"/></svg>`;
+      icon = `<svg width="20" height="20" viewBox="0 0 20 20" style="flex-shrink:0"><circle cx="10" cy="10" r="9" stroke="#E2E6EC" stroke-width="2" fill="none"/></svg>`;
       labelStyle = 'color:#b0c4c8';
     }
     const border = i < LOAD_STEPS.length - 1 ? 'border-bottom:1px solid var(--border)' : '';
@@ -1197,12 +1249,12 @@ function loadTenant() {
   document.getElementById('followupResult').innerHTML   = '';
   const _fb = document.getElementById('followupBar');
   if (_fb) _fb.style.display = 'none';
-  document.getElementById('floatingAskBtn').style.display = 'none';
+  // floating button removed
   _lastAnalysis = null;
   document.getElementById('analysisInput').value = '';
   const badge = document.getElementById('serverBadge');
   badge.textContent   = selectedServer;
-  badge.style.background = selectedServer === 'LIVE' ? '#52926c' : 'rgba(255,255,255,0.12)';
+  badge.style.background = selectedServer === 'LIVE' ? '#3A7A50' : 'rgba(255,255,255,0.12)';
   initLoadingCard();
   fetchData();
 }
@@ -1266,6 +1318,8 @@ async function fetchData(force = false) {
     }
 
     document.getElementById('generatedTs').textContent    = d.generated;
+    const gWrap = document.getElementById('generatedTs-wrap');
+    if (gWrap) gWrap.style.display = 'inline';
     document.getElementById('statTotal').textContent      = d.n_total.toLocaleString();
     document.getElementById('statActive').textContent     = d.n_active;
     document.getElementById('statDueLapsing').textContent = d.n_due + d.n_lapsing;
@@ -1291,7 +1345,7 @@ async function fetchData(force = false) {
     if (card) {
       card.innerHTML = `
         <div style="color:#991B1B;font-weight:700;font-size:1rem;margin-bottom:8px">Failed to load data</div>
-        <div style="color:#6b8183;font-size:13px">${escHtml(err.message)}</div>
+        <div style="color:#A0AEBC;font-size:13px">${escHtml(err.message)}</div>
         <button onclick="document.getElementById('loadingOverlay').style.display='none';document.getElementById('tenantSelector').style.display='flex';" class="btn-teal mt-6">← Back to Salon List</button>`;
     }
   }
@@ -1391,75 +1445,75 @@ async function runLookup() {
   const q   = document.getElementById('lookupInput').value.trim();
   const box = document.getElementById('lookupResults');
   if (q.length < 2) { box.innerHTML = ''; return; }
-  box.innerHTML = '<p style="color:#6b8183" class="text-sm p-2">Searching…</p>';
+  box.innerHTML = '<p style="color:#A0AEBC" class="text-sm p-2">Searching…</p>';
   const searchParams = new URLSearchParams({ q, server: selectedServer });
   if (selectedTenantId) searchParams.set('tenant_id', selectedTenantId);
   const res  = await fetch('/api/search?' + searchParams);
   const data = await res.json();
   if (!data.length) {
-    box.innerHTML = `<p style="color:#6b8183" class="text-sm p-2">No clients found matching "${escHtml(q)}".</p>`;
+    box.innerHTML = `<p style="color:#A0AEBC" class="text-sm p-2">No clients found matching "${escHtml(q)}".</p>`;
     return;
   }
   box.innerHTML = data.map(c => {
     const bCls = {active:'badge-active',due:'badge-due',lapsing:'badge-lapsing',lapsed:'badge-lapsed'}[c.scls] || '';
     const rankBadge = c.rank
-      ? `<span style="background:rgba(18,151,147,0.12);color:var(--teal);border:1px solid rgba(18,151,147,0.3)" class="text-xs px-2 py-0.5 rounded-full font-bold">#${c.rank} in Top 500</span>`
+      ? `<span style="background:rgba(58,122,80,0.12);color:var(--green);border:1px solid rgba(58,122,80,0.3)" class="text-xs px-2 py-0.5 rounded-full font-bold">#${c.rank} in Top 500</span>`
       : `<span style="background:var(--card);color:var(--muted);border:1px solid var(--border)" class="text-xs px-2 py-0.5 rounded-full">Not in Top 500</span>`;
     const overdueTxt = c.overdue
       ? `<span class="text-amber-500 font-semibold">${c.overdue}d overdue</span>`
-      : `<span style="color:#6b8183">Not overdue</span>`;
+      : `<span style="color:#A0AEBC">Not overdue</span>`;
     const cats = (c.top_cats||[]).map(cat =>
-      `<span style="background:rgba(18,151,147,0.1);color:var(--teal);border:1px solid rgba(18,151,147,0.25)" class="text-xs px-2 py-0.5 rounded-md font-medium">${escHtml(cat)}</span>`
+      `<span style="background:rgba(58,122,80,0.1);color:var(--green);border:1px solid rgba(58,122,80,0.25)" class="text-xs px-2 py-0.5 rounded-md font-medium">${escHtml(cat)}</span>`
     ).join(' ');
     return `
     <div class="lookup-card">
       <div class="flex flex-wrap items-start justify-between gap-3 mb-5">
         <div>
           <div class="flex items-center gap-2 flex-wrap mb-1">
-            <h3 class="text-xl font-bold" style="color:#535456">${escHtml(c.name)}</h3>
+            <h3 class="text-xl font-bold" style="color:#3A4A5A">${escHtml(c.name)}</h3>
             ${rankBadge}
             <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold ${bCls}">${c.status}</span>
             ${c.no_shows > 0 ? `<span class="text-red-400 text-xs">⚠ ${c.no_shows} no-show(s)</span>` : ''}
           </div>
-          <div class="text-sm" style="color:#6b8183">Last visit: <strong style="color:#535456">${escHtml(c.last_visit)}</strong> &nbsp;·&nbsp; ${c.days_since} days ago</div>
-          <div class="text-sm mt-1" style="color:#6b8183">
+          <div class="text-sm" style="color:#A0AEBC">Last visit: <strong style="color:#3A4A5A">${escHtml(c.last_visit)}</strong> &nbsp;·&nbsp; ${c.days_since} days ago</div>
+          <div class="text-sm mt-1" style="color:#A0AEBC">
             ${c.mobile ? `📱 ${escHtml(c.mobile)}` : ''}
             ${c.mobile && c.email ? '&nbsp;·&nbsp;' : ''}
             ${c.email ? `✉ ${escHtml(c.email)}` : ''}
           </div>
         </div>
         <div class="text-right">
-          <div class="text-4xl font-extrabold" style="color:var(--teal)">${c.score}</div>
-          <div class="text-xs font-medium" style="color:#6b8183">SMS score</div>
+          <div class="text-4xl font-extrabold" style="color:var(--green)">${c.score}</div>
+          <div class="text-xs font-medium" style="color:#A0AEBC">SMS score</div>
         </div>
       </div>
       <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-        <div class="mini-stat"><div class="text-xs font-semibold mb-1" style="color:#6b8183">Visits (2yr)</div><div class="font-bold" style="color:#535456">${c.n_visits}</div></div>
-        <div class="mini-stat"><div class="text-xs font-semibold mb-1" style="color:#6b8183">Avg Spend</div><div class="font-bold" style="color:#535456">£${c.avg_spend}</div></div>
-        <div class="mini-stat"><div class="text-xs font-semibold mb-1" style="color:#6b8183">Total Spend</div><div class="font-bold" style="color:#535456">£${c.total_spend}</div></div>
-        <div class="mini-stat"><div class="text-xs font-semibold mb-1" style="color:#6b8183">Visit Gap</div><div class="font-bold" style="color:#535456">${c.avg_gap ? c.avg_gap + 'd' : '—'}</div></div>
+        <div class="mini-stat"><div class="text-xs font-semibold mb-1" style="color:#A0AEBC">Visits (2yr)</div><div class="font-bold" style="color:#3A4A5A">${c.n_visits}</div></div>
+        <div class="mini-stat"><div class="text-xs font-semibold mb-1" style="color:#A0AEBC">Avg Spend</div><div class="font-bold" style="color:#3A4A5A">£${c.avg_spend}</div></div>
+        <div class="mini-stat"><div class="text-xs font-semibold mb-1" style="color:#A0AEBC">Total Spend</div><div class="font-bold" style="color:#3A4A5A">£${c.total_spend}</div></div>
+        <div class="mini-stat"><div class="text-xs font-semibold mb-1" style="color:#A0AEBC">Visit Gap</div><div class="font-bold" style="color:#3A4A5A">${c.avg_gap ? c.avg_gap + 'd' : '—'}</div></div>
       </div>
       <div class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4 text-sm">
-        <div><span style="color:#6b8183">Salon: </span><span class="font-semibold" style="color:#535456">${escHtml(c.pref_salon || '—')}</span></div>
-        <div><span style="color:#6b8183">Preferred stylist: </span><span class="font-semibold" style="color:#535456">${escHtml(c.pref_tm)}</span></div>
-        <div><span style="color:#6b8183">Best day: </span><span class="font-semibold" style="color:#535456">${c.pref_day} ${c.pref_time}</span></div>
-        <div><span style="color:#6b8183">Overdue: </span>${overdueTxt}</div>
+        <div><span style="color:#A0AEBC">Salon: </span><span class="font-semibold" style="color:#3A4A5A">${escHtml(c.pref_salon || '—')}</span></div>
+        <div><span style="color:#A0AEBC">Preferred stylist: </span><span class="font-semibold" style="color:#3A4A5A">${escHtml(c.pref_tm)}</span></div>
+        <div><span style="color:#A0AEBC">Best day: </span><span class="font-semibold" style="color:#3A4A5A">${c.pref_day} ${c.pref_time}</span></div>
+        <div><span style="color:#A0AEBC">Overdue: </span>${overdueTxt}</div>
       </div>
       ${cats ? `<div class="flex flex-wrap gap-1 mb-4">${cats}</div>` : ''}
-      <div class="rounded-xl p-4 mb-4" style="background:#f2f8f9;border:1px solid #cfdddf">
-        <div class="text-xs font-semibold uppercase tracking-widest mb-2" style="color:#6b8183">Suggested SMS</div>
+      <div class="rounded-xl p-4 mb-4" style="background:#F6F8FB;border:1px solid #E2E6EC">
+        <div class="text-xs font-semibold uppercase tracking-widest mb-2" style="color:#A0AEBC">Suggested SMS</div>
         <div class="flex items-start gap-3">
-          <p class="text-sm leading-relaxed flex-1" style="color:#535456" id="sms-lookup-${escHtml(c.id)}">${escHtml(c.sms)}</p>
+          <p class="text-sm leading-relaxed flex-1" style="color:#3A4A5A" id="sms-lookup-${escHtml(c.id)}">${escHtml(c.sms)}</p>
           <button onclick="copyLookupSMS('${escHtml(c.id)}')" class="btn-copy flex-shrink-0">Copy</button>
         </div>
-        <div class="text-xs mt-1" style="color:#9ab3b8">${c.sms.length} chars</div>
+        <div class="text-xs mt-1" style="color:#A0AEBC">${c.sms.length} chars</div>
       </div>
       <div class="grid grid-cols-5 gap-2 text-xs text-center">
-        <div class="mini-stat"><div style="color:#6b8183" class="mb-1">Recency</div><div class="font-bold" style="color:var(--teal)">+${c.sr}</div></div>
-        <div class="mini-stat"><div style="color:#6b8183" class="mb-1">Overdue</div><div class="font-bold" style="color:var(--teal)">+${c.so}</div></div>
-        <div class="mini-stat"><div style="color:#6b8183" class="mb-1">Frequency</div><div class="font-bold" style="color:var(--teal)">+${c.sf}</div></div>
-        <div class="mini-stat"><div style="color:#6b8183" class="mb-1">Spend</div><div class="font-bold" style="color:var(--teal)">+${c.sm}</div></div>
-        <div class="mini-stat"><div style="color:#6b8183" class="mb-1">Penalty</div><div class="font-bold ${c.sp < 0 ? 'text-red-400' : ''}">${c.sp}</div></div>
+        <div class="mini-stat"><div style="color:#A0AEBC" class="mb-1">Recency</div><div class="font-bold" style="color:var(--green)">+${c.sr}</div></div>
+        <div class="mini-stat"><div style="color:#A0AEBC" class="mb-1">Overdue</div><div class="font-bold" style="color:var(--green)">+${c.so}</div></div>
+        <div class="mini-stat"><div style="color:#A0AEBC" class="mb-1">Frequency</div><div class="font-bold" style="color:var(--green)">+${c.sf}</div></div>
+        <div class="mini-stat"><div style="color:#A0AEBC" class="mb-1">Spend</div><div class="font-bold" style="color:var(--green)">+${c.sm}</div></div>
+        <div class="mini-stat"><div style="color:#A0AEBC" class="mb-1">Penalty</div><div class="font-bold ${c.sp < 0 ? 'text-red-400' : ''}">${c.sp}</div></div>
       </div>
     </div>`;
   }).join('');
@@ -1518,7 +1572,7 @@ async function init() {
     document.getElementById('selectedSalonLabel').textContent = displayLabel;
     const badge = document.getElementById('serverBadge');
     badge.textContent      = selectedServer;
-    badge.style.background = selectedServer === 'LIVE' ? '#52926c' : 'rgba(255,255,255,0.12)';
+    badge.style.background = selectedServer === 'LIVE' ? '#3A7A50' : 'rgba(255,255,255,0.12)';
     fetchData();
   } catch (e) {
     window.location.href = '/login';
@@ -1526,6 +1580,7 @@ async function init() {
 }
 
 init();
+switchPromptCat('Revenue');
 </script>
 </body>
 </html>
