@@ -129,6 +129,17 @@
                     transition:all 0.15s; white-space:nowrap; font-family:inherit; font-weight:400; }
   .prompt-cat-btn:hover { background:#F2F8F4; border-color:#B0C8B8; color:var(--green-d); }
   .prompt-cat-btn.active { background:var(--navy); border-color:var(--navy); color:#fff; font-weight:500; }
+
+  /* Sidebar */
+  .sidebar-nav-btn { width:100%;display:flex;align-items:center;gap:10px;padding:9px 12px;
+                     border-radius:10px;cursor:pointer;font-size:13px;color:var(--muted);
+                     border:none;background:transparent;text-align:left;transition:all 0.15s;
+                     font-family:inherit;font-weight:400; }
+  .sidebar-nav-btn:hover { background:#F6F8FB; color:var(--text); }
+  .sidebar-nav-btn.active { background:#F2F8F4; color:var(--green); font-weight:500; }
+
+  .sidebar-hist-item { padding:8px 10px;border-radius:8px;cursor:pointer;transition:background 0.15s; }
+  .sidebar-hist-item:hover { background:#F6F8FB; }
 </style>
 </head>
 <body>
@@ -173,37 +184,69 @@
 
 <!-- Main content (hidden until data loads) -->
 <div id="mainContent" style="display:none">
+<div style="display:flex;height:100vh;overflow:hidden">
 
-<!-- Header -->
-<header style="background:#1A2332;height:56px;display:flex;align-items:center;padding:0 28px;justify-content:space-between;flex-shrink:0">
-  <div style="display:flex;align-items:center;gap:14px">
-    <div style="width:32px;height:32px;background:#3A7A50;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
-      <span style="font-family:'Cormorant Garamond',Georgia,serif;font-weight:700;font-size:15px;color:#fff;line-height:1">iQ</span>
+<!-- ── Sidebar ─────────────────────────────────────────────── -->
+<aside style="width:260px;min-width:260px;background:#fff;border-right:1px solid var(--border);display:flex;flex-direction:column;height:100vh;overflow:hidden">
+
+  <!-- Logo -->
+  <div style="padding:0 18px;height:56px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);flex-shrink:0">
+    <div style="width:30px;height:30px;background:var(--green);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+      <span style="font-family:'Cormorant Garamond',Georgia,serif;font-weight:700;font-size:14px;color:#fff;line-height:1">iQ</span>
     </div>
-    <div style="display:flex;flex-direction:column;gap:2px">
-      <div style="display:flex;align-items:center;gap:8px">
-        <span style="font-family:'Cormorant Garamond',Georgia,serif;font-weight:700;font-size:18px;color:#fff;letter-spacing:-0.01em">SalonIQ Aria</span>
-        <span style="background:#1C3028;color:#5DBF85;border:1px solid #2A4A36;border-radius:20px;padding:3px 9px;font-size:10px;text-transform:uppercase;letter-spacing:0.6px;font-weight:600">Beta</span>
-      </div>
-      <div style="font-size:11px;color:rgba(255,255,255,0.4);display:flex;align-items:center;gap:5px">
-        <span id="serverBadge" style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.65);letter-spacing:0.05em;text-transform:uppercase">BETA</span>
-        <span id="selectedSalonLabel"></span><span id="generatedTs-wrap" style="display:none"> · Generated <span id="generatedTs"></span></span>
-      </div>
+    <span style="font-family:'Cormorant Garamond',Georgia,serif;font-weight:700;font-size:16px;color:var(--heading);letter-spacing:-0.01em;flex:1;min-width:0">SalonIQ Aria</span>
+    <span style="background:#E6F5EB;color:var(--green);border:1px solid #C0DECA;border-radius:20px;padding:2px 8px;font-size:10px;text-transform:uppercase;letter-spacing:0.6px;font-weight:600;flex-shrink:0">Beta</span>
+  </div>
+
+  <!-- Nav -->
+  <nav style="padding:8px;flex-shrink:0;border-bottom:1px solid var(--border)">
+    <button id="tabDashboard" class="sidebar-nav-btn" onclick="switchPage('dashboard')" style="display:none">
+      <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      Client Dashboard
+    </button>
+    <button id="tabSelections" class="sidebar-nav-btn" onclick="switchPage('selections')">
+      <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      Client Selections
+    </button>
+    <button id="tabAnalysis" class="sidebar-nav-btn active" onclick="switchPage('analysis')">
+      <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Data Analysis
+    </button>
+  </nav>
+
+  <!-- Sidebar history -->
+  <div style="flex:1;overflow-y:auto;padding:12px 8px">
+    <div id="sidebarHistorySection" style="display:none">
+      <div class="eyebrow" style="padding:4px 6px;margin-bottom:6px">Recent Questions</div>
+      <div id="sidebarHistory"></div>
+    </div>
+    <div id="sidebarSelectionHistorySection" style="display:none">
+      <div class="eyebrow" style="padding:4px 6px;margin-bottom:6px">Recent Searches</div>
+      <div id="sidebarSelectionHistory"></div>
     </div>
   </div>
-  <div style="display:flex;align-items:center;gap:16px">
-    <a id="logsBtnHeader" href="/admin/logs" style="color:rgba(255,255,255,0.4);text-decoration:none;font-size:12px;transition:color 0.15s" onmouseover="this.style.color='rgba(255,255,255,0.85)'" onmouseout="this.style.color='rgba(255,255,255,0.4)'">Logs</a>
-    <button id="refreshBtn" onclick="refreshData()" style="color:rgba(255,255,255,0.4);background:none;border:none;cursor:pointer;padding:0;font-size:12px;font-family:inherit;transition:color 0.15s" onmouseover="this.style.color='rgba(255,255,255,0.85)'" onmouseout="this.style.color='rgba(255,255,255,0.4)'">↻ Reload</button>
-    <button onclick="logOut()" style="background:#3A7A50;color:#fff;border:none;border-radius:8px;padding:6px 16px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:background 0.15s" onmouseover="this.style.background='#2D6A4F'" onmouseout="this.style.background='#3A7A50'">Log out</button>
-  </div>
-</header>
 
-<!-- Nav tabs -->
-<div style="background:#fff;border-bottom:1px solid var(--border);padding:0 28px;display:flex;flex-shrink:0">
-  <button class="nav-tab" id="tabDashboard" onclick="switchPage('dashboard')" style="display:none">Client Dashboard</button>
-  <button class="nav-tab" id="tabSelections" onclick="switchPage('selections')">Client Selections</button>
-  <button class="nav-tab active" id="tabAnalysis" onclick="switchPage('analysis')">Data Analysis</button>
-</div>
+</aside>
+
+<!-- ── Right column ─────────────────────────────────────────── -->
+<div style="flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0">
+
+  <!-- Slim topbar -->
+  <div style="height:44px;background:#fff;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 28px;flex-shrink:0">
+    <div style="font-size:12px;display:flex;align-items:center;gap:7px;min-width:0">
+      <span id="serverBadge" style="font-size:10px;font-weight:700;padding:1px 7px;border-radius:4px;background:var(--border);color:var(--text);letter-spacing:0.06em;text-transform:uppercase;flex-shrink:0">BETA</span>
+      <span id="selectedSalonLabel" style="color:var(--text);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></span>
+      <span id="generatedTs-wrap" style="display:none;color:var(--muted);white-space:nowrap"> · Generated <span id="generatedTs"></span></span>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px;flex-shrink:0">
+      <a id="logsBtnHeader" href="/admin/logs" style="color:var(--muted);text-decoration:none;font-size:12px;transition:color 0.15s" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">Logs</a>
+      <button id="refreshBtn" onclick="refreshData()" style="color:var(--muted);background:none;border:none;cursor:pointer;padding:0;font-size:12px;font-family:inherit;transition:color 0.15s" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">↻ Reload Data</button>
+      <button onclick="logOut()" class="btn-teal" style="height:30px;font-size:12px;padding:0 14px;border-radius:8px">Log out</button>
+    </div>
+  </div>
+
+  <!-- Scrollable pages area -->
+  <div style="flex:1;overflow-y:auto" id="pagesScroller">
 
 <!-- ── Page: SMS Dashboard ─────────────────────────────────── -->
 <div id="pageDashboard" style="display:none">
@@ -459,13 +502,12 @@
 
 <!-- ── Page: Data Analysis ────────────────────────────────── -->
 <div id="pageAnalysis">
-<div style="max-width:96rem;margin:0 auto;padding:32px 28px 120px">
+<div style="max-width:900px;margin:0 auto;padding:36px 28px 80px">
 
-  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:24px">
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:28px">
     <div>
-      <div class="eyebrow" style="margin-bottom:6px">data analysis</div>
-      <h2 style="font-size:26px;margin-bottom:4px">Data Analysis</h2>
-      <p style="color:var(--muted);font-size:13px">Ask the AI anything about your salon data.</p>
+      <h2 style="font-size:32px;margin-bottom:6px">Data Analysis</h2>
+      <p style="color:var(--muted);font-size:13px">Ask Aria anything about your salon data — choose how you'd like the answer presented.</p>
     </div>
     <div id="usageBar" style="display:none;flex-shrink:0;text-align:right">
       <div class="eyebrow" style="margin-bottom:3px">Session usage</div>
@@ -474,73 +516,67 @@
     </div>
   </div>
 
+  <!-- Question input card — Ask Aria header + textarea + format/analyse toolbar -->
+  <div style="background:#fff;border:1px solid var(--border);border-radius:18px;overflow:hidden;margin-bottom:10px">
+    <div style="padding:14px 20px 0;display:flex;align-items:center;gap:8px">
+      <div style="width:9px;height:9px;background:var(--green);border-radius:50%;flex-shrink:0"></div>
+      <span style="font-size:12px;font-weight:500;color:var(--green)">Ask Aria</span>
+    </div>
+    <textarea id="analysisInput" placeholder="Ask anything about your salon data…"
+              style="width:100%;padding:12px 20px 16px;border:none;font-size:15px;resize:none;background:transparent;color:var(--text);font-family:inherit;outline:none;height:90px;line-height:1.55;display:block"
+              onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey))runAnalysis()"></textarea>
+    <div style="padding:10px 14px;border-top:1px solid var(--border);display:flex;align-items:center;gap:6px">
+      <div style="flex:1;display:flex;gap:5px">
+        <button onclick="setAnalysisFmt('dashboard')" id="fmtDashboard" class="fmt-btn active">Dashboard</button>
+        <button onclick="setAnalysisFmt('list')"      id="fmtList"      class="fmt-btn">List / Grid</button>
+        <button onclick="setAnalysisFmt('report')"    id="fmtReport"    class="fmt-btn">Report</button>
+        <button onclick="setAnalysisFmt('chart')"     id="fmtChart"     class="fmt-btn">Chart</button>
+      </div>
+      <button onclick="runAnalysis()" id="analyseBtn" class="btn-teal" style="height:38px;padding:0 22px;border-radius:10px;flex-shrink:0">Analyse →</button>
+    </div>
+  </div>
+  <div style="font-size:11px;color:var(--muted);margin-bottom:20px;padding-left:2px">⌘ + Enter to submit</div>
+
+  <!-- TRY: horizontal prompt chips -->
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:24px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none">
+    <span class="eyebrow" style="white-space:nowrap;flex-shrink:0">Try</span>
+    <div id="promptChips" style="display:flex;gap:6px;flex-wrap:nowrap"></div>
+  </div>
+
   <!-- Alert bar -->
-  <div style="background:#F4FAF5;border:1px solid #C0DECA;border-radius:11px;padding:12px 16px;display:flex;align-items:flex-start;gap:12px;margin-bottom:24px">
-    <div style="width:28px;height:28px;background:#E6F5EB;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px">⚠️</div>
-    <span style="font-size:12px;color:#4A6A52;line-height:1.6"><strong style="color:#2A5A3A">Results are indicative, not definitive.</strong> Aria analyses your data and highlights patterns, but figures may not match your back-office reports exactly — always verify important numbers before acting on them.</span>
-  </div>
-
-  <!-- Format toggle -->
-  <div style="display:flex;align-items:center;gap:8px;margin-bottom:24px">
-    <span class="eyebrow" style="margin-right:4px">Output as</span>
-    <button onclick="setAnalysisFmt('dashboard')" id="fmtDashboard" class="fmt-btn active">Dashboard</button>
-    <button onclick="setAnalysisFmt('list')"      id="fmtList"      class="fmt-btn">List / Grid</button>
-    <button onclick="setAnalysisFmt('report')"    id="fmtReport"    class="fmt-btn">Report</button>
-    <button onclick="setAnalysisFmt('chart')"     id="fmtChart"     class="fmt-btn">Chart</button>
-  </div>
-
-  <!-- Category tabs + prompt cards -->
-  <div style="margin-bottom:24px">
-    <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
-      <button class="prompt-cat-btn active" data-cat="Revenue"  onclick="switchPromptCat('Revenue')">Revenue</button>
-      <button class="prompt-cat-btn"        data-cat="Clients"  onclick="switchPromptCat('Clients')">Clients</button>
-      <button class="prompt-cat-btn"        data-cat="Team"     onclick="switchPromptCat('Team')">Team</button>
-      <button class="prompt-cat-btn"        data-cat="Bookings" onclick="switchPromptCat('Bookings')">Bookings</button>
-    </div>
-    <div id="promptGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px"></div>
-  </div>
-
-  <!-- Recent analysis history -->
-  <div id="analysisHistoryWrap" style="margin-bottom:24px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-      <span class="eyebrow">Recent questions</span>
-    </div>
-    <div id="analysisHistory" style="border:1px solid var(--border);border-radius:14px;overflow:hidden;background:#fff"></div>
-  </div>
-
-  <!-- Question input card -->
-  <div style="background:#fff;border:1px solid var(--border);border-radius:18px;padding:22px;margin-bottom:24px">
-    <div style="display:flex;gap:12px;align-items:flex-end">
-      <textarea id="analysisInput" placeholder="Ask anything about your salon data…"
-                style="flex:1;border-radius:11px;padding:12px 15px;font-size:14px;border:1.5px solid var(--border);background:#F6F8FB;font-family:inherit;color:var(--text);outline:none;transition:all 0.15s;resize:none;height:72px;line-height:1.5"
-                onfocus="this.style.borderColor='#3A7A50';this.style.background='#fff';this.style.boxShadow='0 0 0 3px #E6F5EB'"
-                onblur="this.style.borderColor='var(--border)';this.style.background='#F6F8FB';this.style.boxShadow='none'"
-                onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey))runAnalysis()"></textarea>
-      <button onclick="runAnalysis()" id="analyseBtn" class="btn-teal" style="height:52px;padding:0 24px;border-radius:11px;flex-shrink:0">Analyse →</button>
-    </div>
-    <div style="font-size:11px;color:var(--muted);margin-top:8px">Ctrl + Enter to submit</div>
+  <div style="background:#F4FAF5;border:1px solid #C0DECA;border-radius:11px;padding:12px 16px;display:flex;align-items:flex-start;gap:12px;margin-bottom:28px">
+    <div style="width:24px;height:24px;background:#E6F5EB;border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:12px">⚠️</div>
+    <span style="font-size:12px;color:#4A6A52;line-height:1.6"><strong style="color:#2A5A3A">AI results are indicative, not definitive.</strong> Aria analyses your data and highlights patterns, but figures may not match your back-office reports exactly — always verify important numbers before acting on them.</span>
   </div>
 
   <!-- Results -->
   <div id="analysisResults"></div>
   <div id="followupResult"></div>
 
+  <!-- Hidden containers kept for compatibility -->
+  <div id="analysisHistory" style="display:none"></div>
+  <div id="promptGrid" style="display:none"></div>
+
 </div>
 </div><!-- end #pageAnalysis -->
 
-</div><!-- end #mainContent -->
+  </div><!-- end pagesScroller -->
 
-<!-- Sticky follow-up bar — shown after first result -->
-<div id="followupBar" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:50;background:#1A2332;padding:12px 28px;border-top:1px solid #243040;gap:14px;align-items:center">
-  <span style="color:#5DBF85;font-size:12px;font-weight:500;white-space:nowrap;flex-shrink:0">Ask a follow-up</span>
-  <input id="followupInput" type="text" placeholder="e.g. Which products drove the decline in March?"
-         style="flex:1;border-radius:9px;padding:10px 15px;font-size:13px;border:1px solid #2E3F52;background:#243040;color:#E8EBF0;font-family:inherit;outline:none;transition:border-color 0.15s"
-         onfocus="this.style.borderColor='#3A7A50'" onblur="this.style.borderColor='#2E3F52'"
-         onkeydown="if(event.key==='Enter')submitFollowup()">
-  <button id="followupBtn" data-label="Ask →" onclick="submitFollowup()"
-          style="background:#3A7A50;color:#fff;border:none;border-radius:9px;padding:10px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;transition:background 0.15s"
-          onmouseover="this.style.background='#2D6A4F'" onmouseout="this.style.background='#3A7A50'">Ask →</button>
-</div>
+  <!-- Follow-up bar — bottom of right column -->
+  <div id="followupBar" style="display:none;background:#1A2332;padding:12px 28px;border-top:1px solid #243040;gap:14px;align-items:center;flex-shrink:0">
+    <span style="color:#5DBF85;font-size:12px;font-weight:500;white-space:nowrap;flex-shrink:0">Ask a follow-up</span>
+    <input id="followupInput" type="text" placeholder="e.g. Which products drove the decline in March?"
+           style="flex:1;border-radius:9px;padding:10px 15px;font-size:13px;border:1px solid #2E3F52;background:#243040;color:#E8EBF0;font-family:inherit;outline:none;transition:border-color 0.15s"
+           onfocus="this.style.borderColor='#3A7A50'" onblur="this.style.borderColor='#2E3F52'"
+           onkeydown="if(event.key==='Enter')submitFollowup()">
+    <button id="followupBtn" data-label="Ask →" onclick="submitFollowup()"
+            style="background:#3A7A50;color:#fff;border:none;border-radius:9px;padding:10px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;transition:background 0.15s"
+            onmouseover="this.style.background='#2D6A4F'" onmouseout="this.style.background='#3A7A50'">Ask →</button>
+  </div>
+
+</div><!-- end right column -->
+</div><!-- end flex wrapper -->
+</div><!-- end #mainContent -->
 
 <script>
 function escHtml(s) {
@@ -630,9 +666,17 @@ function switchPage(page) {
   document.getElementById('pageDashboard').style.display  = page === 'dashboard'  ? '' : 'none';
   document.getElementById('pageSelections').style.display = page === 'selections' ? '' : 'none';
   document.getElementById('pageAnalysis').style.display   = page === 'analysis'   ? '' : 'none';
+  document.querySelectorAll('.sidebar-nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('tabDashboard').classList.toggle('active',  page === 'dashboard');
   document.getElementById('tabSelections').classList.toggle('active', page === 'selections');
   document.getElementById('tabAnalysis').classList.toggle('active',   page === 'analysis');
+  const anaS = document.getElementById('sidebarHistorySection');
+  const selS = document.getElementById('sidebarSelectionHistorySection');
+  if (anaS) anaS.style.display = page === 'analysis'   ? '' : 'none';
+  if (selS) selS.style.display = page === 'selections' ? '' : 'none';
+  // Scroll page area to top on switch
+  const scroller = document.getElementById('pagesScroller');
+  if (scroller) scroller.scrollTop = 0;
   if (page === 'analysis')   loadHistory('analysis');
   if (page === 'selections') loadHistory('selection');
 }
@@ -650,13 +694,31 @@ function _relTime(iso) {
   } catch { return ''; }
 }
 
+function _renderSidebarHistory(items, type) {
+  const sidebarEl  = document.getElementById(type === 'analysis' ? 'sidebarHistory' : 'sidebarSelectionHistory');
+  const sectionEl  = document.getElementById(type === 'analysis' ? 'sidebarHistorySection' : 'sidebarSelectionHistorySection');
+  if (!sidebarEl) return;
+  if (!items.length) { if (sectionEl) sectionEl.style.display = 'none'; sidebarEl.innerHTML = ''; return; }
+  if (sectionEl) sectionEl.style.display = '';
+  sidebarEl.innerHTML = items.slice(0, 20).map(item => {
+    const action  = type === 'analysis' ? `replayAnalysis(${item.id})` : `replaySelection(${item.id})`;
+    const label   = item.result_title || item.question;
+    return `<div class="sidebar-hist-item" onclick="${action}" title="${escHtml(item.question)}">
+      <div style="font-size:12px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(label)}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:1px">${_relTime(item.ts)}</div>
+    </div>`;
+  }).join('');
+}
+
 async function loadHistory(type) {
   if (!selectedAccountCode) return;
   const box = document.getElementById(type === 'analysis' ? 'analysisHistory' : 'selectionHistory');
-  if (!box) return;
   try {
     const res  = await fetch(`/api/history?account_code=${encodeURIComponent(selectedAccountCode)}&type=${type}`);
     const items = await res.json();
+    items.forEach(item => { _historyCache[item.id] = item; });
+    _renderSidebarHistory(items, type);
+    if (!box) return;
     if (!items.length) { box.innerHTML = ''; return; }
     box.innerHTML = items.map(item => {
       const meta = item.is_followup ? '<span style="color:#A0AEBC;font-size:10px"> · follow-up</span>' : '';
@@ -718,7 +780,7 @@ async function deleteHistoryItem(id, type) {
   try {
     await fetch(`/api/history/${id}?account_code=${encodeURIComponent(selectedAccountCode)}`, { method: 'DELETE' });
     delete _historyCache[id];
-    loadHistory(type);
+    await loadHistory(type);
   } catch {}
 }
 
@@ -797,11 +859,16 @@ const _PROMPT_CATS = {
 function switchPromptCat(cat) {
   document.querySelectorAll('.prompt-cat-btn').forEach(btn =>
     btn.classList.toggle('active', btn.dataset.cat === cat));
-  const grid = document.getElementById('promptGrid');
-  if (!grid) return;
-  grid.innerHTML = (_PROMPT_CATS[cat] || []).map(p =>
-    `<button class="eg-chip" onclick="useEgPrompt(this)">${p}</button>`
-  ).join('');
+  // Populate horizontal chip row (new layout)
+  const chips = document.getElementById('promptChips');
+  if (chips) {
+    const allPrompts = Object.values(_PROMPT_CATS).flat();
+    // Show a mix: 3 from selected cat + 1 from each other cat
+    const catPrompts = _PROMPT_CATS[cat] || [];
+    chips.innerHTML = catPrompts.slice(0, 4).map(p =>
+      `<button class="query-chip" style="white-space:nowrap;flex-shrink:0" onclick="useEgPrompt(this)">${p}</button>`
+    ).join('');
+  }
 }
 
 function useEgPrompt(btn) {
@@ -1438,7 +1505,9 @@ async function fetchData(force = false) {
     applyFilters();
 
     document.getElementById('loadingOverlay').style.display = 'none';
-    document.getElementById('mainContent').style.display    = 'block';
+    document.getElementById('mainContent').style.display    = 'flex';
+    const anaS = document.getElementById('sidebarHistorySection');
+    if (anaS) anaS.style.display = '';
     loadHistory('analysis');
     fetch('/api/log', { method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ event_type:'session', detail: d.generated || '' }) }).catch(()=>{});
