@@ -65,12 +65,31 @@ def _db_setup():
             )
         """)
         cur.execute("ALTER TABLE activity_log ADD COLUMN IF NOT EXISTS username TEXT")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS history (
+                id             SERIAL PRIMARY KEY,
+                ts             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                account_code   TEXT NOT NULL,
+                type           TEXT NOT NULL,
+                username       TEXT,
+                question       TEXT NOT NULL,
+                format         TEXT,
+                result_json    JSONB,
+                result_title   TEXT,
+                result_summary TEXT,
+                result_count   INTEGER,
+                is_followup    INTEGER DEFAULT 0
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS history_account_ts ON history(account_code, ts DESC)")
         con.commit()
         cur.execute("SELECT COUNT(*) FROM activity_log")
         count = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM history")
+        hcount = cur.fetchone()[0]
         cur.close()
         con.close()
-        print(f"[startup] activity_log ready — {count} rows persisted in DB", flush=True)
+        print(f"[startup] activity_log ready — {count} rows | history — {hcount} rows", flush=True)
     except Exception as e:
         print(f"[startup] DB setup FAILED: {e}", file=sys.stderr, flush=True)
         app.logger.warning("DB setup failed: %s", e)
@@ -114,6 +133,42 @@ def _log(event_type, **kwargs):
     except Exception as e:
         print(f"[_log] WRITE FAILED ({event_type}): {e}", file=sys.stderr, flush=True)
         app.logger.warning("Activity log write failed: %s", e)
+
+
+def _write_history(account_code, type_, question, result_json=None,
+                   result_title=None, result_summary=None, result_count=None,
+                   format_=None, username=None, is_followup=0):
+    if not account_code:
+        return
+    import sys
+    try:
+        con = _get_db()
+        cur = con.cursor()
+        cur.execute(
+            "DELETE FROM history WHERE account_code=%s AND ts < NOW() - INTERVAL '90 days'",
+            (account_code,)
+        )
+        cur.execute("""
+            INSERT INTO history
+              (account_code, type, username, question, format,
+               result_json, result_title, result_summary, result_count, is_followup)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        """, (
+            account_code, type_,
+            (username or '')[:100],
+            question[:2000],
+            format_,
+            json.dumps(result_json) if result_json is not None else None,
+            (result_title or '')[:500],
+            (result_summary or '')[:1000],
+            result_count,
+            is_followup,
+        ))
+        con.commit()
+        cur.close()
+        con.close()
+    except Exception as e:
+        print(f"[_write_history] FAILED: {e}", file=sys.stderr, flush=True)
 
 
 def _saloniq_login(account_code, username, password):
@@ -1723,6 +1778,13 @@ IMPORTANT: always use contains_exact (not contains) for promo_codes — these ar
          result_title=description[:200],
          response_ms=round((time.time() - t0) * 1000),
     )
+    _write_history(
+        flask_session.get('account_code', ''), 'selection', q,
+        result_json={'description': description, 'criteria': criteria},
+        result_title=description,
+        result_count=len(results),
+        username=flask_session.get('username', ''),
+    )
     return jsonify({"clients": results, "total": len(results),
                     "description": description, "criteria": criteria})
 
@@ -2309,7 +2371,9 @@ def analyse():
 
         job_id = str(uuid.uuid4())
         _jobs[job_id] = {"status": "loading", "step": "Thinking…"}
-        _current_user = flask_session.get('username', '')
+        _current_user    = flask_session.get('username', '')
+        _current_account = flask_session.get('account_code', '')
+        _is_followup     = 1 if previous_result else 0
 
         def worker():
             t0 = time.time()
@@ -2422,12 +2486,23 @@ def analyse():
                      username=_current_user,
                      question=question[:500],
                      format=fmt,
-                     is_followup=1 if previous_result else 0,
+                     is_followup=_is_followup,
                      result_title=(result.get('title') or '')[:200],
                      result_summary=(result.get('summary') or '')[:500],
                      response_ms=round((time.time() - t0) * 1000),
                      input_tokens=msg.usage.input_tokens,
                      output_tokens=msg.usage.output_tokens,
+                )
+                # Strip usage metadata before storing (it's already in activity_log)
+                result_for_history = {k: v for k, v in result.items() if k != '_usage'}
+                _write_history(
+                    _current_account, 'analysis', question,
+                    result_json=result_for_history,
+                    result_title=result.get('title', ''),
+                    result_summary=result.get('summary', ''),
+                    format_=fmt,
+                    username=_current_user,
+                    is_followup=_is_followup,
                 )
                 _jobs[job_id] = {"status": "done", "data": result}
             except Exception as e:
@@ -2448,6 +2523,66 @@ def analyse():
 
     except Exception as e:
         app.logger.exception("ANALYSE error: %s", e)
+        return jsonify(error=str(e)), 500
+
+
+@app.route("/api/history")
+@require_auth
+def get_history():
+    account_code = request.args.get('account_code', '').strip()
+    type_filter  = request.args.get('type', '').strip()
+    if not account_code:
+        return jsonify([])
+    try:
+        con = _get_db()
+        cur = con.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        q   = """SELECT id, ts, type, username, question, format,
+                        result_json, result_title, result_summary, result_count, is_followup
+                 FROM history
+                 WHERE account_code=%s AND ts > NOW() - INTERVAL '90 days'"""
+        params = [account_code]
+        if type_filter:
+            q += " AND type=%s"
+            params.append(type_filter)
+        q += " ORDER BY ts DESC LIMIT 100"
+        cur.execute(q, params)
+        rows = cur.fetchall()
+        cur.close()
+        con.close()
+        return jsonify([{
+            'id':             r['id'],
+            'ts':             r['ts'].isoformat() if r['ts'] else None,
+            'type':           r['type'],
+            'username':       r['username'] or '',
+            'question':       r['question'],
+            'format':         r['format'] or '',
+            'result_json':    r['result_json'],
+            'result_title':   r['result_title'] or '',
+            'result_summary': r['result_summary'] or '',
+            'result_count':   r['result_count'],
+            'is_followup':    r['is_followup'] or 0,
+        } for r in rows])
+    except Exception as e:
+        app.logger.warning("get_history failed: %s", e)
+        return jsonify([])
+
+
+@app.route("/api/history/<int:history_id>", methods=["DELETE"])
+@require_auth
+def delete_history(history_id):
+    account_code = request.args.get('account_code', '').strip()
+    try:
+        con = _get_db()
+        cur = con.cursor()
+        cur.execute(
+            "DELETE FROM history WHERE id=%s AND account_code=%s",
+            (history_id, account_code)
+        )
+        con.commit()
+        cur.close()
+        con.close()
+        return jsonify(ok=True)
+    except Exception as e:
         return jsonify(error=str(e)), 500
 
 

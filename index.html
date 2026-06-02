@@ -435,14 +435,20 @@
     </div>
   </div>
 
+  <!-- Recent selection history -->
+  <div id="selectionHistoryWrap" style="margin-bottom:24px">
+    <div style="margin-bottom:8px"><span class="eyebrow">Recent searches</span></div>
+    <div id="selectionHistory" style="border:1px solid var(--border);border-radius:14px;overflow:hidden;background:#fff"></div>
+  </div>
+
   <!-- Status / results summary -->
-  <div id="queryStatus" class="text-sm mb-4" style="color:var(--muted);min-height:22px"></div>
+  <div id="queryStatus" style="font-size:13px;color:var(--muted);min-height:22px;margin-bottom:12px"></div>
 
   <!-- Export + filter (hidden until results) -->
-  <div id="queryActions" style="display:none" class="flex items-center gap-3 mb-4 flex-wrap">
-    <input type="search" id="selectionSearch" placeholder="🔍  Filter results by name…"
+  <div id="queryActions" style="display:none;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+    <input type="search" id="selectionSearch" placeholder="Filter results by name…"
            oninput="filterSelectionResults()" style="width:240px">
-    <button onclick="exportCSV()" class="btn-copy text-sm px-4 py-2">⬇ Export CSV</button>
+    <button onclick="exportCSV()" class="btn-copy" style="padding:7px 14px">⬇ Export CSV</button>
   </div>
 
   <!-- Results table -->
@@ -492,6 +498,14 @@
       <button class="prompt-cat-btn"        data-cat="Bookings" onclick="switchPromptCat('Bookings')">Bookings</button>
     </div>
     <div id="promptGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px"></div>
+  </div>
+
+  <!-- Recent analysis history -->
+  <div id="analysisHistoryWrap" style="margin-bottom:24px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <span class="eyebrow">Recent questions</span>
+    </div>
+    <div id="analysisHistory" style="border:1px solid var(--border);border-radius:14px;overflow:hidden;background:#fff"></div>
   </div>
 
   <!-- Question input card -->
@@ -619,6 +633,93 @@ function switchPage(page) {
   document.getElementById('tabDashboard').classList.toggle('active',  page === 'dashboard');
   document.getElementById('tabSelections').classList.toggle('active', page === 'selections');
   document.getElementById('tabAnalysis').classList.toggle('active',   page === 'analysis');
+  if (page === 'analysis')   loadHistory('analysis');
+  if (page === 'selections') loadHistory('selection');
+}
+
+// ── History ───────────────────────────────────────────────────
+function _relTime(iso) {
+  if (!iso) return '';
+  try {
+    const diff = (Date.now() - new Date(iso)) / 1000;
+    if (diff < 60)   return 'just now';
+    if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+    const d = new Date(iso);
+    return d.toLocaleDateString('en-GB', {day:'numeric',month:'short'});
+  } catch { return ''; }
+}
+
+async function loadHistory(type) {
+  if (!selectedAccountCode) return;
+  const box = document.getElementById(type === 'analysis' ? 'analysisHistory' : 'selectionHistory');
+  if (!box) return;
+  try {
+    const res  = await fetch(`/api/history?account_code=${encodeURIComponent(selectedAccountCode)}&type=${type}`);
+    const items = await res.json();
+    if (!items.length) { box.innerHTML = ''; return; }
+    box.innerHTML = items.map(item => {
+      const meta = item.is_followup ? '<span style="color:#A0AEBC;font-size:10px"> · follow-up</span>' : '';
+      const user = item.username ? `<span style="color:#A0AEBC;font-size:11px"> · ${escHtml(item.username)}</span>` : '';
+      const subtitle = item.type === 'analysis'
+        ? `<div style="font-size:11px;color:#A0AEBC;margin-top:1px">${escHtml(item.result_title || item.format)}</div>`
+        : `<div style="font-size:11px;color:#A0AEBC;margin-top:1px">${item.result_count != null ? item.result_count + ' clients matched' : ''}</div>`;
+      const replayBtn = item.type === 'analysis'
+        ? `<button onclick="replayAnalysis(${item.id})" style="background:#E6F5EB;color:#2D6A4F;border:1px solid #C0DECA;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;transition:all 0.15s" onmouseover="this.style.background='#3A7A50';this.style.color='#fff'" onmouseout="this.style.background='#E6F5EB';this.style.color='#2D6A4F'">Replay</button>`
+        : `<button onclick="replaySelection(${item.id})" style="background:#E6F5EB;color:#2D6A4F;border:1px solid #C0DECA;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;transition:all 0.15s" onmouseover="this.style.background='#3A7A50';this.style.color='#fff'" onmouseout="this.style.background='#E6F5EB';this.style.color='#2D6A4F'">Re-run</button>`;
+      return `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);background:#fff" data-hid="${item.id}">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(item.question)}${meta}</div>
+          ${subtitle}
+        </div>
+        <div style="font-size:11px;color:#A0AEBC;white-space:nowrap;flex-shrink:0">${_relTime(item.ts)}${user}</div>
+        ${replayBtn}
+        <button onclick="deleteHistoryItem(${item.id},'${type}')" title="Delete" style="background:none;border:none;color:#A0AEBC;cursor:pointer;font-size:16px;padding:0 2px;line-height:1;flex-shrink:0;transition:color 0.15s" onmouseover="this.style.color='#C0392B'" onmouseout="this.style.color='#A0AEBC'">×</button>
+      </div>`;
+    }).join('');
+  } catch (e) { /* silently skip on error */ }
+}
+
+// Cache of history items by id for replay
+const _historyCache = {};
+
+async function _ensureHistoryCache(type) {
+  if (!selectedAccountCode) return;
+  try {
+    const res   = await fetch(`/api/history?account_code=${encodeURIComponent(selectedAccountCode)}&type=${type}`);
+    const items = await res.json();
+    items.forEach(item => { _historyCache[item.id] = item; });
+  } catch {}
+}
+
+async function replayAnalysis(id) {
+  await _ensureHistoryCache('analysis');
+  const item = _historyCache[id];
+  if (!item || !item.result_json) return;
+  document.getElementById('analysisInput').value = item.question;
+  document.getElementById('analysisResults').innerHTML = '';
+  document.getElementById('followupResult').innerHTML  = '';
+  setAnalysisFmt(item.format || 'dashboard');
+  _lastAnalysis = item.result_json;
+  renderAnalysis(item.result_json, document.getElementById('analysisResults'));
+  document.getElementById('analysisResults').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+async function replaySelection(id) {
+  await _ensureHistoryCache('selection');
+  const item = _historyCache[id];
+  if (!item) return;
+  document.getElementById('queryInput').value = item.question;
+  runQuery();
+}
+
+async function deleteHistoryItem(id, type) {
+  if (!selectedAccountCode) return;
+  try {
+    await fetch(`/api/history/${id}?account_code=${encodeURIComponent(selectedAccountCode)}`, { method: 'DELETE' });
+    delete _historyCache[id];
+    loadHistory(type);
+  } catch {}
 }
 
 // ── Session usage tracker ─────────────────────────────────────
@@ -1338,6 +1439,7 @@ async function fetchData(force = false) {
 
     document.getElementById('loadingOverlay').style.display = 'none';
     document.getElementById('mainContent').style.display    = 'block';
+    loadHistory('analysis');
     fetch('/api/log', { method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ event_type:'session', detail: d.generated || '' }) }).catch(()=>{});
   } catch (err) {
