@@ -501,7 +501,7 @@
 </div><!-- end #pageSelections -->
 
 <!-- ── Page: Data Analysis ────────────────────────────────── -->
-<div id="pageAnalysis" style="display:block;width:100%;min-width:0;box-sizing:border-box">
+<div id="pageAnalysis" style="display:none;width:100%;min-width:0;box-sizing:border-box">
 <div style="padding:36px 32px 80px;width:100%;box-sizing:border-box">
 
   <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px">
@@ -1508,9 +1508,7 @@ async function fetchData(force = false) {
 
     document.getElementById('loadingOverlay').style.display = 'none';
     document.getElementById('mainContent').style.display    = 'flex';
-    const anaS = document.getElementById('sidebarHistorySection');
-    if (anaS) anaS.style.display = '';
-    loadHistory('analysis');
+    switchPage('analysis');
     fetch('/api/log', { method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ event_type:'session', detail: d.generated || '' }) }).catch(()=>{});
   } catch (err) {
