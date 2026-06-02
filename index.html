@@ -440,8 +440,8 @@
 </div><!-- end #pageDashboard -->
 
 <!-- ── Page: Client Selections ────────────────────────────── -->
-<div id="pageSelections" style="display:none">
-<div style="padding:32px 32px">
+<div id="pageSelections" style="display:none;width:100%">
+<div style="padding:32px 32px;width:100%">
 
   <div style="margin-bottom:24px">
     <div class="eyebrow" style="margin-bottom:6px">client selections</div>
@@ -501,10 +501,10 @@
 </div><!-- end #pageSelections -->
 
 <!-- ── Page: Data Analysis ────────────────────────────────── -->
-<div id="pageAnalysis">
-<div style="padding:36px 32px 80px">
+<div id="pageAnalysis" style="width:100%">
+<div style="padding:36px 32px 80px;width:100%">
 
-  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:28px">
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px">
     <div>
       <h2 style="font-size:32px;margin-bottom:6px">Data Analysis</h2>
       <p style="color:var(--muted);font-size:13px">Ask Aria anything about your salon data — choose how you'd like the answer presented.</p>
@@ -514,6 +514,12 @@
       <div id="usageDetails" style="font-size:12px;color:var(--text)"></div>
       <div id="usageCost" style="font-size:12px;font-weight:600;color:var(--green);margin-top:2px"></div>
     </div>
+  </div>
+
+  <!-- Alert bar — below heading -->
+  <div style="background:#F4FAF5;border:1px solid #C0DECA;border-radius:11px;padding:12px 16px;display:flex;align-items:flex-start;gap:12px;margin-bottom:24px">
+    <div style="width:24px;height:24px;background:#E6F5EB;border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:12px">⚠️</div>
+    <span style="font-size:12px;color:#4A6A52;line-height:1.6"><strong style="color:#2A5A3A">AI results are indicative, not definitive.</strong> Aria analyses your data and highlights patterns, but figures may not match your back-office reports exactly — always verify important numbers before acting on them.</span>
   </div>
 
   <!-- Question input card — Ask Aria header + textarea + format/analyse toolbar -->
@@ -546,12 +552,6 @@
       <button class="prompt-cat-btn"        data-cat="Bookings" onclick="switchPromptCat('Bookings')">Bookings</button>
     </div>
     <div id="promptGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px"></div>
-  </div>
-
-  <!-- Alert bar -->
-  <div style="background:#F4FAF5;border:1px solid #C0DECA;border-radius:11px;padding:12px 16px;display:flex;align-items:flex-start;gap:12px;margin-bottom:28px">
-    <div style="width:24px;height:24px;background:#E6F5EB;border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:12px">⚠️</div>
-    <span style="font-size:12px;color:#4A6A52;line-height:1.6"><strong style="color:#2A5A3A">AI results are indicative, not definitive.</strong> Aria analyses your data and highlights patterns, but figures may not match your back-office reports exactly — always verify important numbers before acting on them.</span>
   </div>
 
   <!-- Results -->
