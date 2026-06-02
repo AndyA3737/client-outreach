@@ -680,6 +680,8 @@ function switchPage(page) {
   // Scroll page area to top on switch
   const scroller = document.getElementById('pagesScroller');
   if (scroller) scroller.scrollTop = 0;
+  const fbar = document.getElementById('followupBar');
+  if (fbar && page !== 'analysis') fbar.style.display = 'none';
   if (page === 'analysis')   loadHistory('analysis');
   if (page === 'selections') loadHistory('selection');
 }
