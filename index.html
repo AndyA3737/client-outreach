@@ -304,10 +304,6 @@
       <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
       Data Analysis
     </button>
-    <button id="tabLocations" class="sidebar-nav-btn" onclick="switchPage('locations')" style="display:none">
-      <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-      Locations
-    </button>
   </nav>
 
   <!-- Sidebar history -->
@@ -674,29 +670,6 @@
 
 </div>
 </div><!-- end #pageAnalysis -->
-
-<!-- ── Page: Locations ────────────────────────────────────── -->
-<div id="pageLocations" style="display:none;width:100%;min-width:0;box-sizing:border-box">
-<div style="padding:36px 32px 80px;width:100%;box-sizing:border-box">
-
-  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:28px">
-    <div>
-      <div class="eyebrow" style="margin-bottom:6px">locations</div>
-      <h2 style="font-size:32px;margin-bottom:4px">Salon Comparison</h2>
-      <p id="locationsSubtitle" style="color:var(--muted);font-size:13px">Side-by-side performance across all locations</p>
-    </div>
-    <button onclick="runLocationsAI()" id="locationsAiBtn" class="btn-teal"
-            style="height:36px;padding:0 18px;font-size:13px;border-radius:9px;flex-shrink:0;display:flex;align-items:center;gap:7px">
-      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>
-      AI Summary
-    </button>
-  </div>
-
-  <div id="locationsAiResult" style="margin-bottom:28px"></div>
-  <div id="locationsContent"><div style="color:var(--muted);font-size:13px">Loading location data…</div></div>
-
-</div>
-</div><!-- end #pageLocations -->
 
   </div><!-- end pagesScroller -->
 
@@ -1131,228 +1104,6 @@
 </div><!-- end #mainContent -->
 
 <script>
-// ── Locations comparison ──────────────────────────────────────
-let _locationsData = null;
-
-async function _checkLocationsTab() {
-  if (!selectedAccountCode) return;
-  try {
-    const params = new URLSearchParams({ server: selectedServer });
-    if (selectedTenantId) params.set('tenant_id', selectedTenantId);
-    const res  = await fetch('/api/locations?' + params);
-    const data = await res.json();
-    _locationsData = data;
-    const tab = document.getElementById('tabLocations');
-    if (tab) tab.style.display = data.count >= 2 ? '' : 'none';
-  } catch {}
-}
-
-async function loadLocations() {
-  const box = document.getElementById('locationsContent');
-  if (!box) return;
-  box.innerHTML = '<div style="color:var(--muted);font-size:13px">Loading…</div>';
-  try {
-    const params = new URLSearchParams({ server: selectedServer });
-    if (selectedTenantId) params.set('tenant_id', selectedTenantId);
-    const res  = await fetch('/api/locations?' + params);
-    const data = await res.json();
-    if (data.error) { box.innerHTML = `<p style="color:var(--risk)">${escHtml(data.error)}</p>`; return; }
-    _locationsData = data;
-    const salons = data.salons || [];
-    document.getElementById('locationsSubtitle').textContent =
-      `${salons.length} location${salons.length !== 1 ? 's' : ''} · last 2 years`;
-    box.innerHTML = _renderLocationsTable(salons) + `<div id="locCharts" style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:28px"></div>`;
-    _renderLocationsCharts(salons, data.months || []);
-  } catch (e) {
-    box.innerHTML = `<p style="color:var(--risk)">Error loading location data: ${escHtml(e.message)}</p>`;
-  }
-}
-
-function _rankColor(value, all, lowerBetter) {
-  if (all.length < 2) return 'var(--text)';
-  const sorted = [...all].filter(v => v != null).sort((a, b) => lowerBetter ? a - b : b - a);
-  const best = sorted[0], worst = sorted[sorted.length - 1];
-  if (value === best)  return 'var(--green)';
-  if (value === worst) return 'var(--risk)';
-  return '#F59E0B';
-}
-
-function _renderLocationsTable(salons) {
-  const revenues   = salons.map(s => s.revenue);
-  const visits     = salons.map(s => s.visits);
-  const avgSpends  = salons.map(s => s.avg_spend);
-  const nsPcts     = salons.map(s => s.no_show_pct);
-
-  const th = `background:#F6F8FB;border-bottom:1px solid var(--border);color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;padding:10px 14px;white-space:nowrap;text-align:right`;
-  const thL = th.replace('text-align:right','text-align:left');
-
-  const rows = salons.map(s => `
-    <tr style="border-bottom:1px solid var(--border)">
-      <td style="padding:12px 14px;font-weight:600;color:var(--text)">${escHtml(s.name)}</td>
-      <td style="padding:12px 14px;text-align:right;font-weight:600;color:${_rankColor(s.revenue,   revenues,  false)}">£${s.revenue.toLocaleString()}</td>
-      <td style="padding:12px 14px;text-align:right;font-weight:600;color:${_rankColor(s.visits,    visits,    false)}">${s.visits.toLocaleString()}</td>
-      <td style="padding:12px 14px;text-align:right;font-weight:600;color:${_rankColor(s.avg_spend, avgSpends, false)}">£${s.avg_spend}</td>
-      <td style="padding:12px 14px;text-align:right;font-weight:600;color:${_rankColor(s.no_show_pct, nsPcts,  true)}">${s.no_show_pct}%</td>
-      <td style="padding:12px 14px;text-align:right;color:var(--muted);font-size:12px">£${s.no_show_value.toLocaleString()}</td>
-      <td style="padding:12px 14px;text-align:right;color:var(--muted);font-size:12px">${s.kpi_rebookings  ? s.kpi_rebookings  + '%' : '—'}</td>
-      <td style="padding:12px 14px;text-align:right;color:var(--muted);font-size:12px">${s.kpi_utilization ? s.kpi_utilization + '%' : '—'}</td>
-    </tr>`).join('');
-
-  return `
-    <div style="border:1px solid var(--border);border-radius:14px;overflow:hidden;background:#fff">
-    <div style="overflow-x:auto">
-    <table style="width:100%;border-collapse:collapse">
-      <thead><tr>
-        <th style="${thL}">Salon</th>
-        <th style="${th}">Revenue</th>
-        <th style="${th}">Visits</th>
-        <th style="${th}">Avg Spend</th>
-        <th style="${th}">No-show %</th>
-        <th style="${th}">No-show Value</th>
-        <th style="${th}">Rebook Target</th>
-        <th style="${th}">Util. Target</th>
-      </tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-    </div></div>
-    <p style="font-size:11px;color:var(--muted);margin-top:8px">
-      Green = best performer · Amber = middle · Red = needs attention
-    </p>`;
-}
-
-let _locChartSeq = 200;
-function _renderLocationsCharts(salons, months) {
-  const box = document.getElementById('locCharts');
-  if (!box || !salons.length) return;
-
-  const palette = ['#1A2332','#3A7A50','#C0392B','#8B5CF6','#F59E0B','#4A9EBF','#84CC16','#F97316'];
-  const names   = salons.map(s => s.name);
-
-  // 1 — Revenue by salon
-  const uid1 = ++_locChartSeq;
-  // 2 — No-show % by salon
-  const uid2 = ++_locChartSeq;
-  // 3 — Revenue trend (line)
-  const uid3 = ++_locChartSeq;
-  // 4 — Avg spend by salon
-  const uid4 = ++_locChartSeq;
-
-  box.innerHTML = `
-    <div style="background:#fff;border:1px solid var(--border);border-radius:14px;padding:20px">
-      <h4 style="font-size:14px;font-weight:600;color:var(--heading);margin-bottom:16px">Revenue by location (2 yrs)</h4>
-      <canvas id="lc-${uid1}"></canvas>
-    </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:14px;padding:20px">
-      <h4 style="font-size:14px;font-weight:600;color:var(--heading);margin-bottom:16px">No-show rate by location</h4>
-      <canvas id="lc-${uid2}"></canvas>
-    </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:14px;padding:20px;grid-column:1/-1">
-      <h4 style="font-size:14px;font-weight:600;color:var(--heading);margin-bottom:16px">Monthly revenue trend</h4>
-      <canvas id="lc-${uid3}"></canvas>
-    </div>
-    <div style="background:#fff;border:1px solid var(--border);border-radius:14px;padding:20px">
-      <h4 style="font-size:14px;font-weight:600;color:var(--heading);margin-bottom:16px">Average spend per visit</h4>
-      <canvas id="lc-${uid4}"></canvas>
-    </div>`;
-
-  const axisStyle = { font: { family: 'Helvetica Neue, Arial, sans-serif', size: 11 }, color: '#A0AEBC' };
-  const tooltipStyle = { backgroundColor: '#1A2332', titleColor: '#A0AEBC', bodyColor: '#fff', padding: 10, cornerRadius: 8 };
-  const baseHoriz = (labels, data, colors, fmt) => ({
-    type: 'bar',
-    data: { labels, datasets: [{ data, backgroundColor: colors, borderRadius: 5, borderSkipped: false, barThickness: 22 }] },
-    options: {
-      indexAxis: 'y', responsive: true, plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ' ' + fmt(ctx.parsed.x) }, ...tooltipStyle } },
-      scales: { x: { grid: { color: '#EDF0F4' }, ticks: { ...axisStyle } }, y: { grid: { display: false }, ticks: { ...axisStyle } } }
-    }
-  });
-
-  // Chart 1 — Revenue
-  new Chart(document.getElementById(`lc-${uid1}`), baseHoriz(
-    names, salons.map(s => s.revenue),
-    salons.map((_, i) => palette[i % palette.length]),
-    v => '£' + v.toLocaleString()
-  ));
-
-  // Chart 2 — No-show %
-  new Chart(document.getElementById(`lc-${uid2}`), baseHoriz(
-    names, salons.map(s => s.no_show_pct),
-    salons.map(s => s.no_show_pct > 6 ? '#C0392B' : s.no_show_pct > 3 ? '#F59E0B' : '#3A7A50'),
-    v => v + '%'
-  ));
-
-  // Chart 3 — Trend lines
-  if (months.length) {
-    new Chart(document.getElementById(`lc-${uid3}`), {
-      type: 'line',
-      data: {
-        labels: months,
-        datasets: salons.map((s, i) => ({
-          label: s.name,
-          data:  months.map(mk => { const t = s.trend.find(x => x.month === mk); return t ? t.revenue : 0; }),
-          borderColor: palette[i % palette.length],
-          backgroundColor: palette[i % palette.length] + '22',
-          borderWidth: 2, fill: false, tension: 0.35, pointRadius: 3,
-        }))
-      },
-      options: {
-        responsive: true,
-        plugins: { legend: { position: 'top', labels: { font: { size: 12 }, color: '#3A4A5A' } }, tooltip: { ...tooltipStyle } },
-        scales: {
-          x: { grid: { color: '#EDF0F4' }, ticks: { ...axisStyle } },
-          y: { grid: { color: '#EDF0F4' }, ticks: { ...axisStyle, callback: v => '£' + v.toLocaleString() } }
-        }
-      }
-    });
-  }
-
-  // Chart 4 — Avg spend
-  new Chart(document.getElementById(`lc-${uid4}`), baseHoriz(
-    names, salons.map(s => s.avg_spend),
-    salons.map((_, i) => palette[i % palette.length]),
-    v => '£' + v
-  ));
-}
-
-async function runLocationsAI() {
-  if (!_locationsData || !_locationsData.salons) return;
-  const btn = document.getElementById('locationsAiBtn');
-  btn.disabled = true; btn.textContent = 'Generating…';
-  const box = document.getElementById('locationsAiResult');
-  box.innerHTML = '<div style="color:var(--muted);font-size:13px">Asking Aria to analyse your locations…</div>';
-
-  // Build a rich prompt with the per-salon data
-  const rows = _locationsData.salons.map(s =>
-    `${s.name}: Revenue £${s.revenue.toLocaleString()}, ${s.visits} visits, avg spend £${s.avg_spend}, no-show rate ${s.no_show_pct}%, no-show value lost £${s.no_show_value.toLocaleString()}`
-  ).join('\n');
-  const question = `Compare performance across all salon locations. Here is the summary data:\n\n${rows}\n\nIdentify which location is performing best and which needs the most attention. Highlight the biggest gap between locations and give 3 specific, actionable recommendations for the weakest location.`;
-
-  try {
-    const kick = await fetch('/api/analyse', {
-      method:  'POST',
-      headers: {'Content-Type': 'application/json'},
-      body:    JSON.stringify({ question, format: 'dashboard', tenant_id: selectedTenantId, server: selectedServer }),
-    });
-    const { job_id } = await kick.json();
-    const result = await new Promise((resolve, reject) => {
-      const timer = setInterval(async () => {
-        const poll = await fetch(`/api/job/${job_id}`);
-        const pd   = await poll.json();
-        if (pd.status === 'loading') return;
-        clearInterval(timer);
-        if (pd.error) reject(new Error(pd.error)); else resolve(pd);
-      }, 2000);
-    });
-    _recordUsage(result);
-    box.innerHTML = '';
-    renderAnalysis(result, box);
-  } catch (e) {
-    box.innerHTML = `<p style="color:var(--risk)">AI summary failed: ${escHtml(e.message)}</p>`;
-  } finally {
-    btn.disabled = false; btn.textContent = 'AI Summary';
-    btn.innerHTML = '<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg> AI Summary';
-  }
-}
-
 // ── SMS Blast ─────────────────────────────────────────────────
 const _SMS_PRESETS = [
   "Hi {first_name}, we've missed you! It's been {days_since} since your last visit. {stylist} would love to see you at {salon} again — give us a call.",
@@ -1889,12 +1640,10 @@ function switchPage(page) {
   document.getElementById('pageDashboard').style.display  = page === 'dashboard'  ? '' : 'none';
   document.getElementById('pageSelections').style.display = page === 'selections' ? '' : 'none';
   document.getElementById('pageAnalysis').style.display   = page === 'analysis'   ? '' : 'none';
-  document.getElementById('pageLocations').style.display  = page === 'locations'  ? '' : 'none';
   document.querySelectorAll('.sidebar-nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('tabDashboard').classList.toggle('active',  page === 'dashboard');
   document.getElementById('tabSelections').classList.toggle('active', page === 'selections');
   document.getElementById('tabAnalysis').classList.toggle('active',   page === 'analysis');
-  document.getElementById('tabLocations').classList.toggle('active',  page === 'locations');
   const anaS = document.getElementById('sidebarHistorySection');
   const selS = document.getElementById('sidebarSelectionHistorySection');
   if (anaS) anaS.style.display = page === 'analysis'   ? '' : 'none';
@@ -1907,7 +1656,6 @@ function switchPage(page) {
   if (fbar && page !== 'analysis') fbar.style.display = 'none';
   if (page === 'analysis')   loadHistory('analysis');
   if (page === 'selections') loadHistory('selection');
-  if (page === 'locations')  loadLocations();
 }
 
 // ── History ───────────────────────────────────────────────────
@@ -2821,8 +2569,6 @@ async function fetchData(force = false) {
     document.getElementById('loadingOverlay').style.display = 'none';
     document.getElementById('mainContent').style.display    = 'block';
     switchPage('analysis');
-    // Show Locations tab for multi-location tenants
-    _checkLocationsTab();
     fetch('/api/log', { method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ event_type:'session', detail: d.generated || '' }) }).catch(()=>{});
   } catch (err) {
