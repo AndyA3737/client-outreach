@@ -1538,6 +1538,66 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
 def index():
     return send_from_directory(BASE_DIR, 'index.html')
 
+@app.route("/api/locations")
+@require_auth
+def locations_comparison():
+    tenant_id = request.args.get('tenant_id') or None
+    server    = request.args.get('server', 'BETA')
+    ctx       = _get_ctx(tenant_id, server)
+    if not ctx:
+        return jsonify(error="Salon data not loaded"), 400
+
+    ssm  = ctx.get('service_salon_monthly', {})   # {salon_name: {month: {revenue,visits,no_shows}}}
+    kpis = ctx.get('salon_kpis', {})              # {salon_id: {name, kpi_rebookings, kpi_utilization...}}
+
+    # All months across all salons, sorted chronological
+    all_months_set = {mk for months in ssm.values() for mk in months}
+    all_months = list(reversed(_sort_months(list(all_months_set))))
+    recent_12  = all_months[-12:] if len(all_months) > 12 else all_months
+
+    salons = {}
+    for salon_name, months in ssm.items():
+        if not salon_name:
+            continue
+        revenue   = sum(d.get('revenue', 0)       for d in months.values())
+        visits    = sum(d.get('visits',  0)        for d in months.values())
+        no_shows  = sum(d.get('no_shows', 0)       for d in months.values())
+        no_show_v = sum(d.get('no_show_value', 0)  for d in months.values())
+        salons[salon_name] = {
+            'name':          salon_name,
+            'revenue':       revenue,
+            'visits':        visits,
+            'avg_spend':     round(revenue / visits) if visits else 0,
+            'no_shows':      no_shows,
+            'no_show_pct':   round(no_shows / (visits + no_shows) * 100, 1) if (visits + no_shows) else 0,
+            'no_show_value': round(no_show_v),
+            'trend':         [
+                {
+                    'month':   mk,
+                    'revenue': months.get(mk, {}).get('revenue', 0),
+                    'visits':  months.get(mk, {}).get('visits',  0),
+                }
+                for mk in recent_12
+            ],
+            'kpi_rebookings':  0,
+            'kpi_utilization': 0,
+            'kpi_care_factor': 0,
+        }
+
+    # Merge KPI targets by matching on salon name
+    for kpi in kpis.values():
+        name = kpi.get('name', '')
+        if name in salons:
+            salons[name].update({
+                'kpi_rebookings':  round(kpi.get('kpi_rebookings',  0)),
+                'kpi_utilization': round(kpi.get('kpi_utilization', 0)),
+                'kpi_care_factor': round(kpi.get('kpi_care_factor', 0)),
+            })
+
+    result = sorted(salons.values(), key=lambda s: -s['revenue'])
+    return jsonify(salons=result, count=len(result), months=recent_12)
+
+
 @app.route("/api/sms/test", methods=["POST"])
 @require_auth
 def test_sms():
