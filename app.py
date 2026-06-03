@@ -1705,7 +1705,9 @@ def send_email_blast():
                     'Subject':      subject,
                     'bdy':          html_body,
                 }
-                resp = requests.post(email_url, params=params, timeout=30)
+                # Use data= (form POST body) not params= (query string) — the HTML body
+                # can be several KB which exceeds IIS's default URL length limit (~4 KB).
+                resp = requests.post(email_url, data=params, timeout=30)
                 body_preview = resp.text[:200].strip()
                 if resp.status_code == 200 and 'success' in body_preview.lower():
                     return True, None
