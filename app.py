@@ -484,15 +484,17 @@ API_COMMON = dict(Salonid="", UserID="", data1="", data2="", data3="", data4="")
 # Override with SMS_TOKEN env var if needed.
 SMS_TOKEN     = os.environ.get('SMS_TOKEN',     '79B57270-8300-40F8-82FE-FFE47EE62A44')
 SMS_SALON_ID  = os.environ.get('SMS_SALON_ID',  '')   # fallback Salonid for SMS API
-# Override SMS endpoint paths via env vars if SalonIQ changes them.
 SMS_PATH_BETA = os.environ.get('SMS_PATH_BETA', '/Wella/SendSMS')
 SMS_PATH_LIVE = os.environ.get('SMS_PATH_LIVE', '/Wella/SendSMS')
 SMS_PATH_DEMO = os.environ.get('SMS_PATH_DEMO', '/Wella/SendSMS')
+
+EMAIL_TOKEN   = os.environ.get('EMAIL_TOKEN', '1166554')   # same for all servers
 
 SERVERS = {
     "BETA": {
         "base":           "https://greathairhub.saloniq.co.uk/api/GetAPIReport",
         "sms_base":       "https://greathairhub.saloniq.co.uk" + SMS_PATH_BETA,
+        "email_base":     "https://greathairhub.saloniq.co.uk/api/SendEmail",
         "token":          "ACD7636F-D6D5-45AB-92FC-785D4904ADA5",
         "default_tenant": "1E7D7624-FEB7-4950-A6BE-5FBB1498EE39",
         "date_fmt":       "%d/%m/%Y",
@@ -500,6 +502,7 @@ SERVERS = {
     "LIVE": {
         "base":           "https://apihub.saloniq.co.uk/api/GetAPIReport",
         "sms_base":       "https://apihub.saloniq.co.uk" + SMS_PATH_LIVE,
+        "email_base":     "https://apihub.saloniq.co.uk/api/SendEmail",
         "token":          "517a41d9-48e3-4af7-ae6c-0e30688f9325",
         "default_tenant": "1E7D7624-FEB7-4950-A6BE-5FBB1498EE39",
         "date_fmt":       "%m/%d/%Y",
@@ -507,6 +510,7 @@ SERVERS = {
     "DEMO": {
         "base":           "https://demohub.saloniq.co.uk/api/GETAPIReport",
         "sms_base":       "https://demohub.saloniq.co.uk" + SMS_PATH_DEMO,
+        "email_base":     "https://demohub.saloniq.co.uk/api/SendEmail",
         "token":          "ACD7636F-D6D5-45AB-92FC-785D4904ADA5",
         "default_tenant": "1E7D7624-FEB7-4950-A6BE-5FBB1498EE39",
         "date_fmt":       "%d/%m/%Y",
@@ -1637,6 +1641,97 @@ def send_sms_blast():
              salon=_current_salon,
              username=_current_user,
              question=f"{_total} SMS via {server}",
+             result_count=sent,
+             error=(f"{failed} failed" if failed else None),
+        )
+        _jobs[job_id] = {
+            'status': 'done',
+            'data': {'sent': sent, 'failed': failed, 'errors': errors[:20], 'total': _total},
+        }
+
+    threading.Thread(target=worker, daemon=True).start()
+    return jsonify(job_id=job_id, total=_total)
+
+
+@app.route("/api/email/send", methods=["POST"])
+@require_auth
+def send_email_blast():
+    body        = request.get_json(silent=True) or {}
+    clients     = body.get('clients', [])      # [{id, name, email, + merge field data}]
+    template_id = body.get('template_id', 'minimal')
+    subject_tmpl= body.get('subject', '')
+    headline_tmpl = body.get('headline', '')
+    body_tmpl   = body.get('body', '')
+    cta_text    = body.get('cta_text', '')
+    cta_url     = body.get('cta_url', '')
+    image_url   = body.get('image_url', '')
+    tenant_id   = body.get('tenant_id') or None
+    server      = body.get('server', 'BETA')
+
+    if not clients:
+        return jsonify(error="No recipients provided"), 400
+
+    srv       = SERVERS.get(server, SERVERS['BETA'])
+    email_url = srv['email_base']
+    account_code = flask_session.get('account_code', '')
+    brand     = _get_brand(account_code)
+
+    job_id  = str(uuid.uuid4())
+    _total  = len(clients)
+    _jobs[job_id] = {'status': 'loading', 'step': f'Preparing {_total} emails…'}
+
+    _current_salon = _salon_label(_get_ctx(tenant_id, server))
+    _current_user  = flask_session.get('username', '')
+
+    def worker():
+        sent = 0; failed = 0; errors = []
+
+        def _send_one(c):
+            try:
+                subject  = _resolve_email_merge(subject_tmpl, c)
+                content  = {
+                    'headline':  _resolve_email_merge(headline_tmpl, c),
+                    'body':      _resolve_email_merge(body_tmpl, c),
+                    'cta_text':  cta_text,
+                    'cta_url':   cta_url,
+                    'image_url': image_url,
+                }
+                html_body = _build_email_html(template_id, brand, content, recipient=c)
+                params = {
+                    'TokenID':      EMAIL_TOKEN,
+                    'EmailAddress': c.get('email', ''),
+                    'Subject':      subject,
+                    'bdy':          html_body,
+                }
+                resp = requests.post(email_url, params=params, timeout=30)
+                body_preview = resp.text[:200].strip()
+                if resp.status_code == 200 and 'success' in body_preview.lower():
+                    return True, None
+                print(f"[email_blast] FAIL {c.get('email','')} HTTP {resp.status_code} body={body_preview!r}", flush=True)
+                return False, f"HTTP {resp.status_code}: {body_preview}"
+            except Exception as e:
+                print(f"[email_blast] EXCEPTION {c.get('email','')}: {e}", flush=True)
+                return False, str(e)[:200]
+
+        print(f"[email_blast] server={server} url={email_url} total={_total}", flush=True)
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            futures = {pool.submit(_send_one, c): c for c in clients}
+            done = 0
+            for future in as_completed(futures):
+                done += 1
+                ok, err = future.result()
+                c = futures[future]
+                if ok:
+                    sent += 1
+                else:
+                    failed += 1
+                    errors.append({'name': c.get('name', ''), 'error': err})
+                _jobs[job_id]['step'] = f'Sent {done} of {_total}…'
+
+        _log('email_blast',
+             salon=_current_salon,
+             username=_current_user,
+             question=f"{_total} emails via {server} — template: {template_id}",
              result_count=sent,
              error=(f"{failed} failed" if failed else None),
         )
