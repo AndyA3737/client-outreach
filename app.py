@@ -482,26 +482,30 @@ API_COMMON = dict(Salonid="", UserID="", data1="", data2="", data3="", data4="")
 
 # SMS send token — distinct from the data API token.
 # Override with SMS_TOKEN env var if needed.
-SMS_TOKEN = os.environ.get('SMS_TOKEN', '79B57270-8300-40F8-82FE-FFE47EE62A44')
+SMS_TOKEN    = os.environ.get('SMS_TOKEN',    '79B57270-8300-40F8-82FE-FFE47EE62A44')
+# Override SMS endpoint paths via env vars if SalonIQ changes them.
+SMS_PATH_BETA = os.environ.get('SMS_PATH_BETA', '/Wella/SendSMS')
+SMS_PATH_LIVE = os.environ.get('SMS_PATH_LIVE', '/Wella/SendSMS')
+SMS_PATH_DEMO = os.environ.get('SMS_PATH_DEMO', '/Wella/SendSMS')
 
 SERVERS = {
     "BETA": {
         "base":           "https://greathairhub.saloniq.co.uk/api/GetAPIReport",
-        "sms_base":       "https://greathairhub.saloniq.co.uk/Wella/SendSMS",
+        "sms_base":       "https://greathairhub.saloniq.co.uk" + SMS_PATH_BETA,
         "token":          "ACD7636F-D6D5-45AB-92FC-785D4904ADA5",
         "default_tenant": "1E7D7624-FEB7-4950-A6BE-5FBB1498EE39",
         "date_fmt":       "%d/%m/%Y",
     },
     "LIVE": {
         "base":           "https://apihub.saloniq.co.uk/api/GetAPIReport",
-        "sms_base":       "https://apihub.saloniq.co.uk/Wella/SendSMS",
+        "sms_base":       "https://apihub.saloniq.co.uk" + SMS_PATH_LIVE,
         "token":          "517a41d9-48e3-4af7-ae6c-0e30688f9325",
         "default_tenant": "1E7D7624-FEB7-4950-A6BE-5FBB1498EE39",
         "date_fmt":       "%m/%d/%Y",
     },
     "DEMO": {
         "base":           "https://demohub.saloniq.co.uk/api/GETAPIReport",
-        "sms_base":       "https://demohub.saloniq.co.uk/Wella/SendSMS",
+        "sms_base":       "https://demohub.saloniq.co.uk" + SMS_PATH_DEMO,
         "token":          "ACD7636F-D6D5-45AB-92FC-785D4904ADA5",
         "default_tenant": "1E7D7624-FEB7-4950-A6BE-5FBB1498EE39",
         "date_fmt":       "%d/%m/%Y",
