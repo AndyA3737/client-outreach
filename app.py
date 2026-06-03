@@ -250,16 +250,16 @@ def _save_brand(account_code, data):
 def _resolve_email_merge(text, client):
     if not client or not text:
         return text or ''
-    first = (client.get('name','') or '').split()[0] if client.get('name') else ''
+    first = ((client.get('name') or '').split() or [''])[0]
     return (text
         .replace('{first_name}',  first)
-        .replace('{full_name}',   client.get('name',''))
-        .replace('{stylist}',     client.get('pref_tm',''))
-        .replace('{salon}',       client.get('pref_salon',''))
-        .replace('{last_visit}',  client.get('last_visit',''))
-        .replace('{days_since}',  (str(client['days_since'])+' days') if client.get('days_since') is not None else '')
-        .replace('{overdue}',     (str(client['overdue'])+' days overdue') if client.get('overdue') else '')
-        .replace('{avg_spend}',   str(client.get('avg_spend','')) if client.get('avg_spend') is not None else ''))
+        .replace('{full_name}',   client.get('name')    or '')
+        .replace('{stylist}',     client.get('pref_tm') or '')
+        .replace('{salon}',       client.get('pref_salon') or '')
+        .replace('{last_visit}',  client.get('last_visit') or '')
+        .replace('{days_since}',  (str(client['days_since']) + ' days') if client.get('days_since') is not None else '')
+        .replace('{overdue}',     (str(client['overdue']) + ' days overdue') if client.get('overdue') else '')
+        .replace('{avg_spend}',   str(client['avg_spend']) if client.get('avg_spend') is not None else ''))
 
 def _build_email_html(template_id, brand, content, recipient=None):
     """Return a complete HTML email string."""
