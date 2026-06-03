@@ -1700,10 +1700,10 @@ def send_email_blast():
                 if cta_text and cta_url:
                     plain_body += f'\n\n{cta_text}: {cta_url}'
                 params = {
-                    'TokenID':      EMAIL_TOKEN,
-                    'EmailAddress': c.get('email', ''),
-                    'Subject':      subject,
-                    'bdy':          plain_body,
+                    'TokenID': EMAIL_TOKEN,
+                    'Email':   c.get('email', ''),
+                    'Subject': subject,
+                    'bdy':     plain_body,
                 }
                 print(f"[email_blast] bdy={plain_body!r}", flush=True)
                 resp = requests.post(email_url, params=params, timeout=30)
