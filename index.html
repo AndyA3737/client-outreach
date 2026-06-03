@@ -713,23 +713,23 @@
           <div style="display:flex;flex-direction:column;gap:7px">
             <button class="sms-preset" onclick="applyPreset(0)">
               <div style="font-size:12px;font-weight:600;color:var(--text)">Win-back</div>
-              <div style="font-size:11px;color:var(--muted);margin-top:2px">Hi {first_name}, we've missed you! It's been {days_since} since your last visit. {stylist} would love to see you at {salon} again — give us a call 😊</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px">Hi {first_name}, we've missed you! It's been {days_since} since your last visit. {stylist} would love to see you at {salon} again — give us a call.</div>
             </button>
             <button class="sms-preset" onclick="applyPreset(1)">
               <div style="font-size:12px;font-weight:600;color:var(--text)">Overdue reminder</div>
-              <div style="font-size:11px;color:var(--muted);margin-top:2px">Hi {first_name}, your hair is {overdue} — time to treat yourself! Book with {stylist} at {salon}. Call us to get in the diary 💇‍♀️</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px">Hi {first_name}, your hair is {overdue} — time to treat yourself! Book with {stylist} at {salon}. Call us to get in the diary.</div>
             </button>
             <button class="sms-preset" onclick="applyPreset(2)">
               <div style="font-size:12px;font-weight:600;color:var(--text)">Colour refresh</div>
-              <div style="font-size:11px;color:var(--muted);margin-top:2px">Hi {first_name}, your colour is ready for a refresh! Book with {stylist} at {salon} and keep those tones looking gorgeous 🎨</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px">Hi {first_name}, your colour is ready for a refresh! Book with {stylist} at {salon} and keep those tones looking gorgeous.</div>
             </button>
             <button class="sms-preset" onclick="applyPreset(3)">
               <div style="font-size:12px;font-weight:600;color:var(--text)">Prebook nudge</div>
-              <div style="font-size:11px;color:var(--muted);margin-top:2px">Hi {first_name}, lovely seeing you on {last_visit}! Why not prebook your next visit with {stylist} before the diary fills up? 📅</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px">Hi {first_name}, lovely seeing you on {last_visit}! Why not prebook your next visit with {stylist} before the diary fills up?</div>
             </button>
             <button class="sms-preset" onclick="applyPreset(4)">
               <div style="font-size:12px;font-weight:600;color:var(--text)">General offer</div>
-              <div style="font-size:11px;color:var(--muted);margin-top:2px">Hi {first_name}! We have some exciting availability at {salon} — why not treat yourself? Call us to book with {stylist} ✨</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px">Hi {first_name}! We have some exciting availability at {salon} — why not treat yourself? Call us to book with {stylist}.</div>
             </button>
           </div>
         </div>
@@ -1106,11 +1106,11 @@
 <script>
 // ── SMS Blast ─────────────────────────────────────────────────
 const _SMS_PRESETS = [
-  "Hi {first_name}, we've missed you! It's been {days_since} since your last visit. {stylist} would love to see you at {salon} again — give us a call 😊",
-  "Hi {first_name}, your hair is {overdue} — time to treat yourself! Book with {stylist} at {salon}. Call us to get in the diary 💇‍♀️",
-  "Hi {first_name}, your colour is ready for a refresh! Book with {stylist} at {salon} and keep those tones looking gorgeous 🎨",
-  "Hi {first_name}, lovely seeing you on {last_visit}! Why not prebook your next visit with {stylist} before the diary fills up? 📅",
-  "Hi {first_name}! We have some exciting availability at {salon} — why not treat yourself? Call us to book with {stylist} ✨",
+  "Hi {first_name}, we've missed you! It's been {days_since} since your last visit. {stylist} would love to see you at {salon} again — give us a call.",
+  "Hi {first_name}, your hair is {overdue} — time to treat yourself! Book with {stylist} at {salon}. Call us to get in the diary.",
+  "Hi {first_name}, your colour is ready for a refresh! Book with {stylist} at {salon} and keep those tones looking gorgeous.",
+  "Hi {first_name}, lovely seeing you on {last_visit}! Why not prebook your next visit with {stylist} before the diary fills up?",
+  "Hi {first_name}! We have some exciting availability at {salon} — why not treat yourself? Call us to book with {stylist}.",
 ];
 
 function applyPreset(index) {
