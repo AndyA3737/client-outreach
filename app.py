@@ -1705,6 +1705,7 @@ def send_email_blast():
                     'Subject':      subject,
                     'bdy':          plain_body,
                 }
+                print(f"[email_blast] bdy={plain_body!r}", flush=True)
                 resp = requests.post(email_url, params=params, timeout=30)
                 body_preview = resp.text[:200].strip()
                 if resp.status_code == 200 and 'success' in body_preview.lower():
