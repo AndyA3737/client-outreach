@@ -236,10 +236,14 @@
   <div class="text-sm mb-8" style="color:var(--muted)">Select a server and tenant to load your data</div>
 
   <!-- Server toggle -->
-  <div class="flex rounded-xl overflow-hidden mb-5" style="border:2px solid var(--border);width:240px">
+  <div class="flex rounded-xl overflow-hidden mb-5" style="border:2px solid var(--border);width:300px">
     <button id="btnBeta" onclick="setServer('BETA')"
       style="flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;background:var(--navy);color:#fff;transition:all 0.15s">
       BETA
+    </button>
+    <button id="btnDemo" onclick="setServer('DEMO')"
+      style="flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;background:transparent;color:var(--muted);transition:all 0.15s">
+      DEMO
     </button>
     <button id="btnLive" onclick="setServer('LIVE')"
       style="flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;background:transparent;color:var(--muted);transition:all 0.15s">
@@ -2176,11 +2180,14 @@ let selectedAccountCode = '';
 
 function setServer(s) {
   selectedServer = s;
-  const isLive = s === 'LIVE';
-  document.getElementById('btnBeta').style.cssText =
-    `flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;transition:all 0.15s;background:${isLive ? 'transparent' : 'var(--navy)'};color:${isLive ? 'var(--muted)' : '#fff'}`;
-  document.getElementById('btnLive').style.cssText =
-    `flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;transition:all 0.15s;background:${isLive ? '#3A7A50' : 'transparent'};color:${isLive ? '#fff' : 'var(--muted)'}`;
+  const base = 'flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;transition:all 0.15s;';
+  const _bg  = { BETA:'var(--navy)', DEMO:'#D97706', LIVE:'#3A7A50' };
+  ['BETA','DEMO','LIVE'].forEach(srv => {
+    const btn = document.getElementById('btn' + srv.charAt(0) + srv.slice(1).toLowerCase());
+    if (btn) btn.style.cssText = base + (s === srv
+      ? `background:${_bg[srv]};color:#fff`
+      : `background:transparent;color:var(--muted)`);
+  });
   initTenants();
 }
 
@@ -2284,7 +2291,7 @@ function loadTenant() {
   document.getElementById('analysisInput').value = '';
   const badge = document.getElementById('serverBadge');
   badge.textContent   = selectedServer;
-  badge.style.background = selectedServer === 'LIVE' ? '#3A7A50' : 'rgba(255,255,255,0.12)';
+  badge.style.background = selectedServer === 'LIVE' ? '#3A7A50' : selectedServer === 'DEMO' ? '#D97706' : 'rgba(255,255,255,0.12)';
   initLoadingCard();
   fetchData();
 }
@@ -2603,7 +2610,7 @@ async function init() {
     document.getElementById('selectedSalonLabel').textContent = displayLabel;
     const badge = document.getElementById('serverBadge');
     badge.textContent      = selectedServer;
-    badge.style.background = selectedServer === 'LIVE' ? '#3A7A50' : 'rgba(255,255,255,0.12)';
+    badge.style.background = selectedServer === 'LIVE' ? '#3A7A50' : selectedServer === 'DEMO' ? '#D97706' : 'rgba(255,255,255,0.12)';
     fetchData();
   } catch (e) {
     window.location.href = '/login';

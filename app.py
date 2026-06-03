@@ -400,7 +400,8 @@ def _saloniq_login(account_code, username, password):
     Returns (tenant_id, server) on success, or (None, None) on failure.
     GRT001 routes to the BETA (greathairhub) server; all others go to LIVE (apihub).
     """
-    server = 'BETA' if account_code.strip().upper() == 'GRT001' else 'LIVE'
+    _ac = account_code.strip().upper()
+    server = 'BETA' if _ac == 'GRT001' else 'DEMO' if _ac == 'DEM001' else 'LIVE'
     srv    = SERVERS[server]
     today  = date.today()
     fmt    = srv['date_fmt']
@@ -491,6 +492,12 @@ SERVERS = {
         "token":          "517a41d9-48e3-4af7-ae6c-0e30688f9325",
         "default_tenant": "1E7D7624-FEB7-4950-A6BE-5FBB1498EE39",
         "date_fmt":       "%m/%d/%Y",
+    },
+    "DEMO": {
+        "base":           "https://demohub.saloniq.co.uk/api/GETAPIReport",
+        "token":          "ACD7636F-D6D5-45AB-92FC-785D4904ADA5",
+        "default_tenant": "1E7D7624-FEB7-4950-A6BE-5FBB1498EE39",
+        "date_fmt":       "%d/%m/%Y",
     },
 }
 
