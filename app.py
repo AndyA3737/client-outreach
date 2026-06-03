@@ -482,7 +482,8 @@ API_COMMON = dict(Salonid="", UserID="", data1="", data2="", data3="", data4="")
 
 # SMS send token — distinct from the data API token.
 # Override with SMS_TOKEN env var if needed.
-SMS_TOKEN    = os.environ.get('SMS_TOKEN',    '79B57270-8300-40F8-82FE-FFE47EE62A44')
+SMS_TOKEN     = os.environ.get('SMS_TOKEN',     '79B57270-8300-40F8-82FE-FFE47EE62A44')
+SMS_SALON_ID  = os.environ.get('SMS_SALON_ID',  '')   # fallback Salonid for SMS API
 # Override SMS endpoint paths via env vars if SalonIQ changes them.
 SMS_PATH_BETA = os.environ.get('SMS_PATH_BETA', '/Wella/SendSMS')
 SMS_PATH_LIVE = os.environ.get('SMS_PATH_LIVE', '/Wella/SendSMS')
@@ -1543,7 +1544,7 @@ def test_sms():
     sms_url  = srv['sms_base']
     ctx      = _get_ctx(tenant_id, server)
     salon_ids = (ctx or {}).get('loaded_salon_ids', [])
-    salon_id  = salon_ids[0] if salon_ids else ''
+    salon_id  = salon_ids[0] if salon_ids else SMS_SALON_ID
 
     params = {
         'TokenID':  SMS_TOKEN,
@@ -1563,7 +1564,7 @@ def test_sms():
             body    = resp.text[:1000],
             url     = full_url,
             params  = {k: v if k != 'TokenID' else v[:8] + '…' for k, v in params.items()},
-            salon_id_source = 'loaded_salon_ids' if salon_ids else 'empty — no salon IDs in context',
+            salon_id_source = f'loaded_salon_ids: {salon_ids[0]}' if salon_ids else f'SMS_SALON_ID env var: {SMS_SALON_ID!r}',
         )
     except Exception as e:
         print(f"[sms_test] EXCEPTION: {e}", flush=True)
@@ -1585,8 +1586,9 @@ def send_sms_blast():
     sms_url  = srv['sms_base']
     ctx      = _get_ctx(tenant_id, server)
     salon_ids = (ctx or {}).get('loaded_salon_ids', [])
-    salon_id  = salon_ids[0] if salon_ids else ''
+    salon_id  = salon_ids[0] if salon_ids else SMS_SALON_ID
 
+    print(f"[sms_blast] salon_id={salon_id!r} (from {'context' if salon_ids else 'SMS_SALON_ID env var'})", flush=True)
     job_id = str(uuid.uuid4())
     _jobs[job_id] = {'status': 'loading', 'step': f'Preparing {len(messages)} messages…'}
 
