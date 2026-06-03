@@ -1690,24 +1690,22 @@ def send_email_blast():
 
         def _send_one(c):
             try:
-                subject  = _resolve_email_merge(subject_tmpl, c)
-                content  = {
-                    'headline':  _resolve_email_merge(headline_tmpl, c),
-                    'body':      _resolve_email_merge(body_tmpl, c),
-                    'cta_text':  cta_text,
-                    'cta_url':   cta_url,
-                    'image_url': image_url,
-                }
-                html_body = _build_email_html(template_id, brand, content, recipient=c)
+                subject    = _resolve_email_merge(subject_tmpl, c)
+                # SalonIQ's SendEmail API expects plain text — ASP.NET Request Validation
+                # blocks HTML in form fields and IIS URL limits block HTML in query strings.
+                # Build a clean plain-text version: headline + blank line + body.
+                headline_r = _resolve_email_merge(headline_tmpl, c)
+                body_r     = _resolve_email_merge(body_tmpl, c)
+                plain_body = (headline_r + '\n\n' + body_r).strip() if headline_r else body_r
+                if cta_text and cta_url:
+                    plain_body += f'\n\n{cta_text}: {cta_url}'
                 params = {
                     'TokenID':      EMAIL_TOKEN,
                     'EmailAddress': c.get('email', ''),
                     'Subject':      subject,
-                    'bdy':          html_body,
+                    'bdy':          plain_body,
                 }
-                # Use data= (form POST body) not params= (query string) — the HTML body
-                # can be several KB which exceeds IIS's default URL length limit (~4 KB).
-                resp = requests.post(email_url, data=params, timeout=30)
+                resp = requests.post(email_url, params=params, timeout=30)
                 body_preview = resp.text[:200].strip()
                 if resp.status_code == 200 and 'success' in body_preview.lower():
                     return True, None
