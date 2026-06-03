@@ -488,14 +488,15 @@ SMS_PATH_BETA = os.environ.get('SMS_PATH_BETA', '/Wella/SendSMS')
 SMS_PATH_LIVE = os.environ.get('SMS_PATH_LIVE', '/Wella/SendSMS')
 SMS_PATH_DEMO = os.environ.get('SMS_PATH_DEMO', '/Wella/SendSMS')
 
-EMAIL_TOKEN    = os.environ.get('EMAIL_TOKEN',    '1166554')   # same for all servers
-EMAIL_BASE_URL = os.environ.get('EMAIL_BASE_URL', '')          # override per-server email URL if needed
+EMAIL_TOKEN         = os.environ.get('EMAIL_TOKEN',         '1166554')
+EMAIL_HTML_BASE_URL = os.environ.get('EMAIL_HTML_BASE_URL', '')  # override per-server HTML email URL
 
 SERVERS = {
     "BETA": {
         "base":           "https://greathairhub.saloniq.co.uk/api/GetAPIReport",
         "sms_base":       "https://greathairhub.saloniq.co.uk" + SMS_PATH_BETA,
         "email_base":     "https://greathairhub.saloniq.co.uk/api/SendEmail",
+        "html_email_base":"https://greathairhub.saloniq.co.uk/api/SendHTMLEmail",
         "token":          "ACD7636F-D6D5-45AB-92FC-785D4904ADA5",
         "default_tenant": "1E7D7624-FEB7-4950-A6BE-5FBB1498EE39",
         "date_fmt":       "%d/%m/%Y",
@@ -504,6 +505,7 @@ SERVERS = {
         "base":           "https://apihub.saloniq.co.uk/api/GetAPIReport",
         "sms_base":       "https://apihub.saloniq.co.uk" + SMS_PATH_LIVE,
         "email_base":     "https://apihub.saloniq.co.uk/api/SendEmail",
+        "html_email_base":"https://apihub.saloniq.co.uk/api/SendHTMLEmail",
         "token":          "517a41d9-48e3-4af7-ae6c-0e30688f9325",
         "default_tenant": "1E7D7624-FEB7-4950-A6BE-5FBB1498EE39",
         "date_fmt":       "%m/%d/%Y",
@@ -512,6 +514,7 @@ SERVERS = {
         "base":           "https://demohub.saloniq.co.uk/api/GETAPIReport",
         "sms_base":       "https://demohub.saloniq.co.uk" + SMS_PATH_DEMO,
         "email_base":     "https://demohub.saloniq.co.uk/api/SendEmail",
+        "html_email_base":"https://demohub.saloniq.co.uk/api/SendHTMLEmail",
         "token":          "ACD7636F-D6D5-45AB-92FC-785D4904ADA5",
         "default_tenant": "1E7D7624-FEB7-4950-A6BE-5FBB1498EE39",
         "date_fmt":       "%d/%m/%Y",
@@ -1673,8 +1676,8 @@ def send_email_blast():
         return jsonify(error="No recipients provided"), 400
 
     srv       = SERVERS.get(server, SERVERS['BETA'])
-    email_url = EMAIL_BASE_URL or srv['email_base']
-    print(f"[email_blast] email_url={email_url} (source={'EMAIL_BASE_URL env' if EMAIL_BASE_URL else 'SERVERS config'})", flush=True)
+    email_url = EMAIL_HTML_BASE_URL or srv.get('html_email_base', srv['email_base'])
+    print(f"[email_blast] email_url={email_url}", flush=True)
     account_code = flask_session.get('account_code', '')
     brand     = _get_brand(account_code)
 
@@ -1690,19 +1693,22 @@ def send_email_blast():
 
         def _send_one(c):
             try:
-                subject    = _resolve_email_merge(subject_tmpl, c)
-                headline_r = _resolve_email_merge(headline_tmpl, c)
-                body_r     = _resolve_email_merge(body_tmpl, c)
-                plain_body = (headline_r + '\n\n' + body_r).strip() if headline_r else body_r
-                if cta_text and cta_url:
-                    plain_body += f'\n\n{cta_text}: {cta_url}'
-                params = {
+                subject  = _resolve_email_merge(subject_tmpl, c)
+                content  = {
+                    'headline':  _resolve_email_merge(headline_tmpl, c),
+                    'body':      _resolve_email_merge(body_tmpl, c),
+                    'cta_text':  cta_text,
+                    'cta_url':   cta_url,
+                    'image_url': image_url,
+                }
+                html_body = _build_email_html(template_id, brand, content, recipient=c)
+                payload = {
                     'TokenID': EMAIL_TOKEN,
                     'Email':   c.get('email', ''),
                     'Subject': subject,
-                    'bdy':     plain_body,
+                    'bdy':     html_body,
                 }
-                resp = requests.post(email_url, params=params, timeout=30)
+                resp = requests.post(email_url, json=payload, timeout=30)
                 body_preview = resp.text[:200].strip()
                 if resp.status_code == 200 and 'success' in body_preview.lower():
                     return True, None
