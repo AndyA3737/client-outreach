@@ -2242,6 +2242,7 @@ function renderSelectionResults(clients) {
       <td style="padding:10px 12px;font-size:12px;color:var(--muted)">${c.n_stylists} stylist${c.n_stylists !== 1 ? 's' : ''}</td>
       <td style="padding:10px 12px">${cats}</td>
       <td style="padding:10px 12px;font-size:12px;color:var(--text)">${escHtml(c.mobile || '—')}</td>
+      <td style="padding:10px 12px;font-size:12px;color:var(--text)">${escHtml(c.email || '—')}</td>
       <td style="padding:10px 12px;text-align:center">${c.sms_optout ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#fde8eb;color:var(--risk)">Opted out</span>' : '<span style="color:#A0AEBC;font-size:12px">—</span>'}</td>
       <td style="padding:10px 12px;text-align:center">${c.email_optout ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#fde8eb;color:var(--risk)">Opted out</span>' : '<span style="color:#A0AEBC;font-size:12px">—</span>'}</td>
       <td style="padding:10px 12px;text-align:center">${c.salonspy_optin ? '<span style="color:#A0AEBC;font-size:12px">—</span>' : '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#fde8eb;color:var(--risk)">Opted out</span>'}</td>
@@ -2268,6 +2269,7 @@ function renderSelectionResults(clients) {
           <th style="${thStyle}">Stylists Seen</th>
           <th style="${thStyle}">Services</th>
           <th style="${thStyle}">Mobile</th>
+          <th style="${thStyle}">Email</th>
           <th style="${thStyle}">SMS Opt-out</th>
           <th style="${thStyle}">Email Opt-out</th>
           <th style="${thStyle}">Salon Spy Opt-out</th>
