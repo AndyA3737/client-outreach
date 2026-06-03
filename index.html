@@ -1179,7 +1179,7 @@ function insertMerge(field) {
 
 function updateSmsPreview() {
   const tmpl    = document.getElementById('smsTemplate').value;
-  const sample  = _selectionResults.find(_smsEligible) || _selectionResults[0];
+  const sample  = _activeSelection().find(_smsEligible) || _activeSelection()[0] || _selectionResults[0];
   const preview = document.getElementById('smsPreview');
   const meta    = document.getElementById('smsPreviewMeta');
   const counter = document.getElementById('smsCharCount');
@@ -1337,7 +1337,7 @@ function _schedEmailPreview() {
 }
 
 async function _fetchEmailPreview() {
-  const sample = _selectionResults.find(c => c.email) || _selectionResults[0];
+  const sample = _activeSelection().find(c => c.email) || _activeSelection()[0] || _selectionResults[0];
   const meta   = document.getElementById('emailPreviewMeta');
   if (meta && sample) meta.textContent = `Preview: ${sample.name}`;
   try {
