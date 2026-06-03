@@ -588,11 +588,11 @@
     <button id="selectAllBtn" onclick="selectAllClients()" style="display:none;background:none;border:none;color:var(--green);font-size:12px;font-weight:600;cursor:pointer;padding:0;font-family:inherit">Select all</button>
     <input type="search" id="selectionSearch" placeholder="Filter results by name…"
            oninput="filterSelectionResults()" style="width:220px">
-    <button onclick="openSmsModal()" class="btn-teal" style="height:34px;padding:0 16px;font-size:12px;border-radius:8px;display:flex;align-items:center;gap:6px">
+    <button id="btnSendSms" onclick="openSmsModal()" class="btn-teal" style="height:34px;padding:0 16px;font-size:12px;border-radius:8px;display:flex;align-items:center;gap:6px">
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
       Send SMS
     </button>
-    <button onclick="openEmailModal()" class="btn-teal" style="height:34px;padding:0 16px;font-size:12px;border-radius:8px;display:flex;align-items:center;gap:6px">
+    <button id="btnSendEmail" onclick="openEmailModal()" class="btn-teal" style="height:34px;padding:0 16px;font-size:12px;border-radius:8px;display:flex;align-items:center;gap:6px">
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 7L2 7"/></svg>
       Email Blast
     </button>
@@ -1137,7 +1137,23 @@ function _smsEligible(c) {
   return m && m !== 'REFUSED' && !c.sms_optout;
 }
 
+function _updateSendButtons() {
+  const isLive = selectedServer === 'LIVE';
+  ['btnSendSms','btnSendEmail'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    btn.disabled = isLive;
+    btn.style.opacity = isLive ? '0.4' : '';
+    btn.style.cursor  = isLive ? 'not-allowed' : '';
+    btn.title = isLive ? 'Sending is disabled on the LIVE server' : '';
+  });
+}
+
 function openSmsModal() {
+  if (selectedServer === 'LIVE') {
+    alert('SMS sending is disabled on the LIVE server.\nSwitch to BETA or DEMO to send messages.');
+    return;
+  }
   const active    = _activeSelection();
   const total     = active.length;
   const noMobile  = active.filter(c => !c.mobile || !c.mobile.trim()).length;
@@ -1363,6 +1379,10 @@ async function _fetchEmailPreview() {
 }
 
 async function openEmailModal() {
+  if (selectedServer === 'LIVE') {
+    alert('Email sending is disabled on the LIVE server.\nSwitch to BETA or DEMO to send messages.');
+    return;
+  }
   const active     = _activeSelection();
   const recipients = active.filter(c => c.email);
   const total      = active.length;
@@ -2244,6 +2264,7 @@ async function runQuery() {
     renderSelectionResults(_selectionResults);
     if (_selectionResults.length) {
       document.getElementById('queryActions').style.display = 'flex';
+      _updateSendButtons();
       document.getElementById('selectionSearch').value = '';
     }
     loadHistory('selection');
