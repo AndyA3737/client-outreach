@@ -1555,7 +1555,7 @@ def test_sms():
 
     print(f"[sms_test] URL: {full_url}", flush=True)
     try:
-        resp = requests.get(sms_url, params=params, timeout=20)
+        resp = requests.post(sms_url, params=params, timeout=20)
         print(f"[sms_test] HTTP {resp.status_code} — body: {resp.text[:500]!r}", flush=True)
         return jsonify(
             ok      = resp.status_code == 200 and 'success' in resp.text.lower(),
@@ -1607,7 +1607,7 @@ def send_sms_blast():
                     'Salonid':  salon_id,
                     'Message':  msg.get('message', ''),
                 }
-                resp = requests.get(sms_url, params=params, timeout=20)
+                resp = requests.post(sms_url, params=params, timeout=20)
                 body_preview = resp.text[:200].strip()
                 if resp.status_code == 200 and 'success' in body_preview.lower():
                     return True, None
