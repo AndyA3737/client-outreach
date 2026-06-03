@@ -488,7 +488,8 @@ SMS_PATH_BETA = os.environ.get('SMS_PATH_BETA', '/Wella/SendSMS')
 SMS_PATH_LIVE = os.environ.get('SMS_PATH_LIVE', '/Wella/SendSMS')
 SMS_PATH_DEMO = os.environ.get('SMS_PATH_DEMO', '/Wella/SendSMS')
 
-EMAIL_TOKEN   = os.environ.get('EMAIL_TOKEN', '1166554')   # same for all servers
+EMAIL_TOKEN    = os.environ.get('EMAIL_TOKEN',    '1166554')   # same for all servers
+EMAIL_BASE_URL = os.environ.get('EMAIL_BASE_URL', '')          # override per-server email URL if needed
 
 SERVERS = {
     "BETA": {
@@ -1672,7 +1673,8 @@ def send_email_blast():
         return jsonify(error="No recipients provided"), 400
 
     srv       = SERVERS.get(server, SERVERS['BETA'])
-    email_url = srv['email_base']
+    email_url = EMAIL_BASE_URL or srv['email_base']
+    print(f"[email_blast] email_url={email_url} (source={'EMAIL_BASE_URL env' if EMAIL_BASE_URL else 'SERVERS config'})", flush=True)
     account_code = flask_session.get('account_code', '')
     brand     = _get_brand(account_code)
 
