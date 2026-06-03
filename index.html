@@ -8,7 +8,7 @@
 <link rel="icon" type="image/x-icon" href="/favicon.ico">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Poppins:wght@400;500;600&family=Nunito:wght@400;600;700&family=Merriweather:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <style>
@@ -152,6 +152,28 @@
                 border-radius:10px;padding:10px 12px;cursor:pointer;font-family:inherit;
                 transition:all 0.15s; }
   .sms-preset:hover { border-color:var(--green);background:#F4FAF5; }
+
+  /* Email template picker */
+  .email-tmpl-btn { background:#fff;border:1.5px solid var(--border);border-radius:11px;
+                    padding:10px;cursor:pointer;font-family:inherit;transition:all 0.15s;
+                    text-align:left;font-size:11px;font-weight:500;color:var(--muted); }
+  .email-tmpl-btn:hover { border-color:#B0C8B8;color:var(--text); }
+  .email-tmpl-btn.active { border-color:var(--green);background:#F4FAF5;color:var(--green); }
+  .email-tmpl-thumb { height:64px;display:flex;flex-direction:column;justify-content:center;
+                      padding:6px 8px;background:#F6F8FB;border-radius:7px;margin-bottom:6px; }
+  .email-tmpl-btn.active .email-tmpl-thumb { background:#E6F5EB; }
+
+  /* Brand modal */
+  .color-swatch { width:32px;height:32px;border-radius:8px;cursor:pointer;
+                  border:2px solid transparent;transition:all 0.15s; }
+  .color-swatch:hover { transform:scale(1.1); }
+  .color-swatch.active { border-color:#1A2332;box-shadow:0 0 0 2px #fff,0 0 0 4px #1A2332; }
+
+  .font-pair-btn { background:#fff;border:1.5px solid var(--border);border-radius:11px;
+                   padding:12px 14px;cursor:pointer;font-family:inherit;transition:all 0.15s;
+                   text-align:left; }
+  .font-pair-btn:hover { border-color:#B0C8B8; }
+  .font-pair-btn.active { border-color:var(--green);background:#F4FAF5; }
 
   /* ── Mobile ──────────────────────────────────────────────── */
   @media (max-width: 768px) {
@@ -792,126 +814,172 @@
 </div>
 
 <!-- ── Email Blast Modal ───────────────────────────────────── -->
-<div id="emailModal" style="display:none;position:fixed;inset:0;background:rgba(26,35,50,0.55);z-index:300;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:18px;width:100%;max-width:860px;border:1px solid var(--border);display:flex;flex-direction:column;max-height:92vh;overflow:hidden">
+<div id="emailModal" style="display:none;position:fixed;inset:0;background:rgba(26,35,50,0.55);z-index:300;align-items:center;justify-content:center;padding:16px">
+  <div style="background:#fff;border-radius:18px;width:100%;max-width:980px;border:1px solid var(--border);display:flex;flex-direction:column;max-height:94vh;overflow:hidden">
 
     <!-- Header -->
-    <div style="padding:18px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+    <div style="padding:16px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
       <div>
         <h3 style="font-size:20px;margin-bottom:2px">Email Blast</h3>
         <p id="emailRecipientCount" style="font-size:13px;color:var(--muted)">Sending to 0 clients</p>
       </div>
-      <button onclick="closeEmailModal()" style="background:none;border:none;cursor:pointer;font-size:24px;color:var(--muted);line-height:1;padding:4px" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">×</button>
+      <div style="display:flex;align-items:center;gap:12px">
+        <button onclick="openBrandModal()" style="font-size:12px;color:var(--green);background:none;border:none;cursor:pointer;font-family:inherit;font-weight:600;display:flex;align-items:center;gap:5px">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          Brand settings
+        </button>
+        <button onclick="closeEmailModal()" style="background:none;border:none;cursor:pointer;font-size:24px;color:var(--muted);line-height:1;padding:4px" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">×</button>
+      </div>
     </div>
 
-    <!-- Two-column body -->
+    <!-- Body: compose left + iframe preview right -->
     <div style="display:flex;flex:1;overflow:hidden;min-height:0">
 
       <!-- LEFT: compose -->
-      <div style="flex:1;overflow-y:auto;border-right:1px solid var(--border)">
+      <div style="width:440px;flex-shrink:0;overflow-y:auto;border-right:1px solid var(--border);display:flex;flex-direction:column">
 
-        <!-- Presets -->
-        <div style="padding:16px 20px;border-bottom:1px solid var(--border);background:#F6F8FB">
-          <div class="eyebrow" style="margin-bottom:10px">Templates</div>
-          <div style="display:flex;flex-direction:column;gap:7px">
-            <button class="sms-preset" onclick="applyEmailPreset(0)">
-              <div style="font-size:12px;font-weight:600;color:var(--text)">Win-back</div>
-              <div style="font-size:11px;color:var(--muted);margin-top:2px">Subject: We miss you, {first_name}! — A warm re-engagement for lapsed clients with a personal touch</div>
+        <!-- Template picker -->
+        <div style="padding:14px 18px;border-bottom:1px solid var(--border);background:#F6F8FB;flex-shrink:0">
+          <div class="eyebrow" style="margin-bottom:10px">Email design</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <button class="email-tmpl-btn active" data-tmpl="minimal" onclick="selectEmailTemplate('minimal')">
+              <div class="email-tmpl-thumb">
+                <div style="height:4px;background:currentColor;border-radius:2px;margin-bottom:6px"></div>
+                <div style="height:8px;background:#E2E6EC;border-radius:2px;margin-bottom:4px;width:40%"></div>
+                <div style="height:5px;background:#E2E6EC;border-radius:2px;margin-bottom:3px"></div>
+                <div style="height:5px;background:#E2E6EC;border-radius:2px;margin-bottom:3px;width:80%"></div>
+                <div style="height:14px;background:currentColor;border-radius:4px;width:50%;margin-top:6px"></div>
+              </div>
+              <span>Clean Minimal</span>
             </button>
-            <button class="sms-preset" onclick="applyEmailPreset(1)">
-              <div style="font-size:12px;font-weight:600;color:var(--text)">Overdue reminder</div>
-              <div style="font-size:11px;color:var(--muted);margin-top:2px">Subject: Time for a refresh, {first_name}? — Friendly nudge for clients past their usual visit interval</div>
+            <button class="email-tmpl-btn" data-tmpl="hero" onclick="selectEmailTemplate('hero')">
+              <div class="email-tmpl-thumb">
+                <div style="height:28px;background:#E2E6EC;border-radius:2px;margin-bottom:6px"></div>
+                <div style="height:5px;background:#E2E6EC;border-radius:2px;margin-bottom:3px;width:40%"></div>
+                <div style="height:5px;background:#E2E6EC;border-radius:2px;margin-bottom:3px"></div>
+                <div style="height:14px;background:currentColor;border-radius:4px;width:50%;margin-top:4px"></div>
+              </div>
+              <span>Hero Image</span>
             </button>
-            <button class="sms-preset" onclick="applyEmailPreset(2)">
-              <div style="font-size:12px;font-weight:600;color:var(--text)">Colour refresh</div>
-              <div style="font-size:11px;color:var(--muted);margin-top:2px">Subject: Your colour is calling, {first_name}! — Targeted at colour clients who are overdue</div>
+            <button class="email-tmpl-btn" data-tmpl="brand_block" onclick="selectEmailTemplate('brand_block')">
+              <div class="email-tmpl-thumb">
+                <div style="height:22px;background:currentColor;border-radius:2px;margin-bottom:6px;opacity:0.9"></div>
+                <div style="height:6px;background:#E2E6EC;border-radius:2px;margin-bottom:3px;width:70%"></div>
+                <div style="height:5px;background:#E2E6EC;border-radius:2px;margin-bottom:3px"></div>
+                <div style="height:12px;background:currentColor;border-radius:4px;width:45%;margin-top:4px"></div>
+              </div>
+              <span>Brand Block</span>
             </button>
-            <button class="sms-preset" onclick="applyEmailPreset(3)">
-              <div style="font-size:12px;font-weight:600;color:var(--text)">Loyalty reward</div>
-              <div style="font-size:11px;color:var(--muted);margin-top:2px">Subject: A little thank you, {first_name} — Appreciation email for your most loyal clients</div>
-            </button>
-            <button class="sms-preset" onclick="applyEmailPreset(4)">
-              <div style="font-size:12px;font-weight:600;color:var(--text)">Prebook reminder</div>
-              <div style="font-size:11px;color:var(--muted);margin-top:2px">Subject: Rebook with {stylist}, {first_name}! — Post-visit follow-up to secure the next appointment</div>
+            <button class="email-tmpl-btn" data-tmpl="announcement" onclick="selectEmailTemplate('announcement')">
+              <div class="email-tmpl-thumb" style="text-align:center">
+                <div style="height:5px;background:#E2E6EC;border-radius:2px;margin-bottom:6px;width:40%;margin-left:auto;margin-right:auto"></div>
+                <div style="height:3px;background:currentColor;margin-bottom:6px"></div>
+                <div style="height:8px;background:#E2E6EC;border-radius:2px;margin-bottom:4px;width:70%;margin-left:auto;margin-right:auto"></div>
+                <div style="height:5px;background:#E2E6EC;border-radius:2px;margin-bottom:3px;width:60%;margin-left:auto;margin-right:auto"></div>
+                <div style="height:14px;background:currentColor;border-radius:4px;width:50%;margin:6px auto 0"></div>
+              </div>
+              <span>Announcement</span>
             </button>
           </div>
         </div>
 
-        <!-- Merge fields -->
-        <div style="padding:14px 20px;border-bottom:1px solid var(--border)">
-          <div class="eyebrow" style="margin-bottom:8px">Insert merge field</div>
-          <div style="display:flex;flex-wrap:wrap;gap:6px">
-            <button class="merge-btn" onclick="insertEmailMerge('{first_name}')">First name</button>
-            <button class="merge-btn" onclick="insertEmailMerge('{full_name}')">Full name</button>
-            <button class="merge-btn" onclick="insertEmailMerge('{stylist}')">Stylist</button>
-            <button class="merge-btn" onclick="insertEmailMerge('{salon}')">Salon</button>
-            <button class="merge-btn" onclick="insertEmailMerge('{last_visit}')">Last visit</button>
-            <button class="merge-btn" onclick="insertEmailMerge('{days_since}')">Days since</button>
-            <button class="merge-btn" onclick="insertEmailMerge('{overdue}')">Overdue</button>
-            <button class="merge-btn" onclick="insertEmailMerge('{avg_spend}')">Avg spend</button>
-          </div>
-        </div>
+        <!-- Compose form -->
+        <div style="padding:16px 18px;flex:1;overflow-y:auto">
 
-        <!-- Subject + Body -->
-        <div style="padding:16px 20px">
+          <!-- Message preset buttons -->
+          <div style="margin-bottom:16px">
+            <div class="eyebrow" style="margin-bottom:8px">Start with a template</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px">
+              <button class="merge-btn" onclick="applyEmailPreset(0)" style="background:#E6F5EB;border-color:#C0DECA;color:var(--green)">Win-back</button>
+              <button class="merge-btn" onclick="applyEmailPreset(1)" style="background:#E6F5EB;border-color:#C0DECA;color:var(--green)">Overdue</button>
+              <button class="merge-btn" onclick="applyEmailPreset(2)" style="background:#E6F5EB;border-color:#C0DECA;color:var(--green)">Colour refresh</button>
+              <button class="merge-btn" onclick="applyEmailPreset(3)" style="background:#E6F5EB;border-color:#C0DECA;color:var(--green)">Loyalty</button>
+              <button class="merge-btn" onclick="applyEmailPreset(4)" style="background:#E6F5EB;border-color:#C0DECA;color:var(--green)">Prebook</button>
+            </div>
+          </div>
+
+          <!-- Subject -->
           <div style="margin-bottom:14px">
             <label style="display:block;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px">Subject line</label>
-            <input id="emailSubject" type="text" oninput="updateEmailPreview()"
+            <input id="emailSubject" type="text" oninput="_schedEmailPreview()"
                    placeholder="e.g. We'd love to see you again, {first_name}!"
                    style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;font-family:inherit;color:var(--text);background:#F6F8FB;outline:none;transition:all 0.15s"
                    onfocus="this.style.borderColor='var(--green)';this.style.background='#fff';this.style.boxShadow='0 0 0 3px #E6F5EB'"
                    onblur="this.style.borderColor='var(--border)';this.style.background='#F6F8FB';this.style.boxShadow='none'">
           </div>
-          <div>
+
+          <!-- Headline -->
+          <div style="margin-bottom:14px">
+            <label style="display:block;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px">Email headline</label>
+            <input id="emailHeadline" type="text" oninput="_schedEmailPreview()"
+                   placeholder="e.g. We miss you, {first_name}!"
+                   style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;font-family:inherit;color:var(--text);background:#F6F8FB;outline:none;transition:all 0.15s"
+                   onfocus="this.style.borderColor='var(--green)';this.style.background='#fff';this.style.boxShadow='0 0 0 3px #E6F5EB'"
+                   onblur="this.style.borderColor='var(--border)';this.style.background='#F6F8FB';this.style.boxShadow='none'">
+          </div>
+
+          <!-- Body -->
+          <div style="margin-bottom:14px">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-              <label style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px">Email body</label>
+              <label style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px">Message body</label>
               <span id="emailCharCount" style="font-size:11px;color:var(--muted)">0 chars</span>
             </div>
-            <textarea id="emailBody" maxlength="2000" rows="8"
-                      placeholder="Choose a template above or write your own…"
-                      oninput="updateEmailPreview()"
+            <textarea id="emailBody" maxlength="3000" rows="7"
+                      placeholder="Write your message here…"
+                      oninput="_schedEmailPreview()"
                       style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:11px;font-size:13px;font-family:inherit;color:var(--text);background:#F6F8FB;outline:none;resize:vertical;line-height:1.7;transition:all 0.15s"
                       onfocus="this.style.borderColor='var(--green)';this.style.background='#fff';this.style.boxShadow='0 0 0 3px #E6F5EB'"
                       onblur="this.style.borderColor='var(--border)';this.style.background='#F6F8FB';this.style.boxShadow='none'"></textarea>
+            <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:8px">
+              <span class="eyebrow" style="line-height:24px;margin-right:2px">Insert</span>
+              <button class="merge-btn" onclick="insertEmailMerge('{first_name}')">First name</button>
+              <button class="merge-btn" onclick="insertEmailMerge('{stylist}')">Stylist</button>
+              <button class="merge-btn" onclick="insertEmailMerge('{salon}')">Salon</button>
+              <button class="merge-btn" onclick="insertEmailMerge('{last_visit}')">Last visit</button>
+              <button class="merge-btn" onclick="insertEmailMerge('{days_since}')">Days since</button>
+              <button class="merge-btn" onclick="insertEmailMerge('{overdue}')">Overdue</button>
+              <button class="merge-btn" onclick="insertEmailMerge('{avg_spend}')">Avg spend</button>
+            </div>
+          </div>
+
+          <!-- CTA button -->
+          <div style="margin-bottom:14px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div>
+              <label style="display:block;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px">Button text <span style="font-weight:400;text-transform:none">(optional)</span></label>
+              <input id="emailCtaText" type="text" placeholder="e.g. Book now" oninput="_schedEmailPreview()"
+                     style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;font-family:inherit;color:var(--text);background:#F6F8FB;outline:none;transition:all 0.15s"
+                     onfocus="this.style.borderColor='var(--green)';this.style.background='#fff';this.style.boxShadow='0 0 0 3px #E6F5EB'"
+                     onblur="this.style.borderColor='var(--border)';this.style.background='#F6F8FB';this.style.boxShadow='none'">
+            </div>
+            <div>
+              <label style="display:block;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px">Button URL</label>
+              <input id="emailCtaUrl" type="url" placeholder="https://…" oninput="_schedEmailPreview()"
+                     style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;font-family:inherit;color:var(--text);background:#F6F8FB;outline:none;transition:all 0.15s"
+                     onfocus="this.style.borderColor='var(--green)';this.style.background='#fff';this.style.boxShadow='0 0 0 3px #E6F5EB'"
+                     onblur="this.style.borderColor='var(--border)';this.style.background='#F6F8FB';this.style.boxShadow='none'">
+            </div>
+          </div>
+
+          <!-- Image URL -->
+          <div>
+            <label style="display:block;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px">Header image URL <span style="font-weight:400;text-transform:none">(optional — used by Hero & Brand Block)</span></label>
+            <input id="emailImageUrl" type="url" placeholder="https://…" oninput="_schedEmailPreview()"
+                   style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;font-family:inherit;color:var(--text);background:#F6F8FB;outline:none;transition:all 0.15s"
+                   onfocus="this.style.borderColor='var(--green)';this.style.background='#fff';this.style.boxShadow='0 0 0 3px #E6F5EB'"
+                   onblur="this.style.borderColor='var(--border)';this.style.background='#F6F8FB';this.style.boxShadow='none'">
           </div>
         </div>
       </div>
 
-      <!-- RIGHT: email preview -->
-      <div style="width:300px;flex-shrink:0;overflow-y:auto;padding:20px 16px;background:#F6F8FB">
-        <div class="eyebrow" style="margin-bottom:14px">Preview</div>
-
-        <!-- Email client mockup -->
-        <div style="background:#fff;border-radius:12px;border:1px solid #E2E6EC;overflow:hidden;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,0.08)">
-          <!-- Top bar -->
-          <div style="background:#F2F2F7;padding:8px 12px;border-bottom:1px solid #E2E6EC;display:flex;align-items:center;gap:6px">
-            <div style="width:10px;height:10px;border-radius:50%;background:#FF5F57"></div>
-            <div style="width:10px;height:10px;border-radius:50%;background:#FFBD2E"></div>
-            <div style="width:10px;height:10px;border-radius:50%;background:#28C840"></div>
-          </div>
-          <!-- Email meta -->
-          <div style="padding:14px 16px;border-bottom:1px solid #F0F0F5">
-            <div style="font-size:15px;font-weight:600;color:#1A2332;margin-bottom:10px;line-height:1.3" id="emailPreviewSubject">Your subject line</div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-              <div style="width:28px;height:28px;background:var(--green);border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0">
-                <span style="color:#fff;font-size:11px;font-weight:700">S</span>
-              </div>
-              <div>
-                <div style="font-size:11px;font-weight:600;color:#1A2332">SalonIQ</div>
-                <div style="font-size:10px;color:#8E8E93">noreply@saloniq.com</div>
-              </div>
-            </div>
-            <div style="font-size:11px;color:#8E8E93">To: <span id="emailPreviewTo">Client Name</span></div>
-          </div>
-          <!-- Email body -->
-          <div style="padding:16px;font-size:13px;color:#1A2332;line-height:1.75;min-height:80px;white-space:pre-wrap;word-break:break-word" id="emailPreviewBody">Your message will appear here.</div>
-          <!-- Footer -->
-          <div style="padding:10px 16px;border-top:1px solid #F0F0F5;font-size:10px;color:#A0AEBC;line-height:1.5">
-            You're receiving this because you're a valued client of {salon}.<br>To unsubscribe reply STOP.
-          </div>
+      <!-- RIGHT: real HTML email preview in iframe -->
+      <div style="flex:1;display:flex;flex-direction:column;background:#E8EAED;overflow:hidden">
+        <div style="padding:10px 16px;background:#F6F8FB;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+          <span class="eyebrow">Live preview</span>
+          <span id="emailPreviewMeta" style="font-size:11px;color:var(--muted)"></span>
         </div>
-
-        <div id="emailPreviewMeta" style="font-size:11px;color:var(--muted);margin-top:10px;text-align:center;line-height:1.5"></div>
+        <div style="flex:1;overflow:auto;padding:16px;display:flex;justify-content:center">
+          <iframe id="emailPreviewFrame" style="width:600px;max-width:100%;border:none;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,0.14);background:#fff;flex-shrink:0;height:700px" sandbox="allow-same-origin"></iframe>
+        </div>
       </div>
 
     </div><!-- end two-column -->
@@ -921,8 +989,108 @@
       <div id="emailSendNote" style="font-size:12px;color:var(--muted)">Only clients with an email address will receive the message.</div>
       <div style="display:flex;gap:10px">
         <button onclick="closeEmailModal()" style="height:36px;padding:0 18px;font-size:13px;border-radius:9px;border:1px solid var(--border);background:#fff;color:var(--text);cursor:pointer;font-family:inherit">Cancel</button>
-        <button id="emailSendBtn" onclick="sendEmailBlast()" class="btn-teal" style="height:36px;padding:0 20px;border-radius:9px;font-size:13px;background:var(--navy)" onmouseover="this.style.background='var(--green)'" onmouseout="this.style.background='var(--navy)'">Send Email →</button>
+        <button id="emailSendBtn" onclick="sendEmailBlast()" class="btn-teal" style="height:36px;padding:0 20px;border-radius:9px;font-size:13px">Send Email →</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Brand Settings Modal ────────────────────────────────── -->
+<div id="brandModal" style="display:none;position:fixed;inset:0;background:rgba(26,35,50,0.55);z-index:400;align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:18px;width:100%;max-width:560px;border:1px solid var(--border);display:flex;flex-direction:column;max-height:90vh;overflow:hidden">
+    <div style="padding:18px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+      <h3 style="font-size:18px">Brand Settings</h3>
+      <button onclick="closeBrandModal()" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--muted);line-height:1;padding:4px">×</button>
+    </div>
+    <div style="overflow-y:auto;padding:22px 24px;display:flex;flex-direction:column;gap:18px">
+
+      <!-- Logo URL -->
+      <div>
+        <label style="display:block;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px">Logo URL</label>
+        <input id="brandLogo" type="url" placeholder="https://yoursite.com/logo.png" oninput="previewBrandLogo()"
+               style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;font-family:inherit;color:var(--text);background:#F6F8FB;outline:none;transition:all 0.15s"
+               onfocus="this.style.borderColor='var(--green)';this.style.background='#fff'" onblur="this.style.borderColor='var(--border)';this.style.background='#F6F8FB'">
+        <div id="brandLogoPreview" style="margin-top:8px;min-height:36px;display:flex;align-items:center;gap:8px">
+          <img id="brandLogoImg" src="" alt="" style="max-height:40px;max-width:160px;display:none;border-radius:4px;border:1px solid var(--border)">
+          <span id="brandLogoNote" style="font-size:11px;color:var(--muted)">Paste a URL to see your logo here</span>
+        </div>
+      </div>
+
+      <!-- Salon name + phone -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <label style="display:block;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px">Salon name</label>
+          <input id="brandSalonName" type="text" placeholder="e.g. The Hair Studio"
+                 style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;font-family:inherit;color:var(--text);background:#F6F8FB;outline:none;transition:all 0.15s"
+                 onfocus="this.style.borderColor='var(--green)';this.style.background='#fff'" onblur="this.style.borderColor='var(--border)';this.style.background='#F6F8FB'">
+        </div>
+        <div>
+          <label style="display:block;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px">Phone</label>
+          <input id="brandPhone" type="tel" placeholder="e.g. 01234 567890"
+                 style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;font-family:inherit;color:var(--text);background:#F6F8FB;outline:none;transition:all 0.15s"
+                 onfocus="this.style.borderColor='var(--green)';this.style.background='#fff'" onblur="this.style.borderColor='var(--border)';this.style.background='#F6F8FB'">
+        </div>
+      </div>
+
+      <!-- Address + booking URL -->
+      <div>
+        <label style="display:block;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px">Address (shown in email footer)</label>
+        <input id="brandAddress" type="text" placeholder="e.g. 12 High Street, London W1A 1AA"
+               style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;font-family:inherit;color:var(--text);background:#F6F8FB;outline:none;transition:all 0.15s"
+               onfocus="this.style.borderColor='var(--green)';this.style.background='#fff'" onblur="this.style.borderColor='var(--border)';this.style.background='#F6F8FB'">
+      </div>
+      <div>
+        <label style="display:block;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px">Online booking URL (used as default CTA link)</label>
+        <input id="brandBookingUrl" type="url" placeholder="https://…"
+               style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;font-family:inherit;color:var(--text);background:#F6F8FB;outline:none;transition:all 0.15s"
+               onfocus="this.style.borderColor='var(--green)';this.style.background='#fff'" onblur="this.style.borderColor='var(--border)';this.style.background='#F6F8FB'">
+      </div>
+
+      <!-- Primary colour -->
+      <div>
+        <label style="display:block;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:8px">Brand colour</label>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <div id="colorSwatches" style="display:flex;gap:7px">
+            <div class="color-swatch" data-color="#3A7A50" style="background:#3A7A50" onclick="pickColor('#3A7A50')" title="Forest Green"></div>
+            <div class="color-swatch" data-color="#1A2332" style="background:#1A2332" onclick="pickColor('#1A2332')" title="Midnight Ink"></div>
+            <div class="color-swatch" data-color="#C0392B" style="background:#C0392B" onclick="pickColor('#C0392B')" title="Crimson"></div>
+            <div class="color-swatch" data-color="#8B5CF6" style="background:#8B5CF6" onclick="pickColor('#8B5CF6')" title="Violet"></div>
+            <div class="color-swatch" data-color="#D97706" style="background:#D97706" onclick="pickColor('#D97706')" title="Amber"></div>
+            <div class="color-swatch" data-color="#0369A1" style="background:#0369A1" onclick="pickColor('#0369A1')" title="Sky Blue"></div>
+          </div>
+          <input id="brandColor" type="color" value="#3A7A50" oninput="syncColorSwatch(this.value)"
+                 style="width:38px;height:38px;border:1.5px solid var(--border);border-radius:8px;padding:2px;cursor:pointer;background:#fff">
+          <span id="brandColorHex" style="font-size:13px;color:var(--text);font-family:'Helvetica Neue',monospace">#3A7A50</span>
+        </div>
+      </div>
+
+      <!-- Font pair -->
+      <div>
+        <label style="display:block;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:10px">Font style</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <button class="font-pair-btn active" data-pair="premium" onclick="selectFontPair('premium')">
+            <span style="font-family:'Cormorant Garamond',Georgia,serif;font-size:18px;font-weight:700;color:#1A2332;line-height:1;display:block;margin-bottom:3px">Premium</span>
+            <span style="font-family:'Helvetica Neue',Helvetica,sans-serif;font-size:11px;color:var(--muted)">Cormorant + Helvetica</span>
+          </button>
+          <button class="font-pair-btn" data-pair="modern" onclick="selectFontPair('modern')">
+            <span style="font-family:'Poppins',system-ui,sans-serif;font-size:16px;font-weight:600;color:#1A2332;line-height:1;display:block;margin-bottom:3px">Modern</span>
+            <span style="font-family:'Poppins',system-ui,sans-serif;font-size:11px;color:var(--muted)">Poppins throughout</span>
+          </button>
+          <button class="font-pair-btn" data-pair="friendly" onclick="selectFontPair('friendly')">
+            <span style="font-family:'Nunito',system-ui,sans-serif;font-size:16px;font-weight:700;color:#1A2332;line-height:1;display:block;margin-bottom:3px">Friendly</span>
+            <span style="font-family:'Nunito',system-ui,sans-serif;font-size:11px;color:var(--muted)">Nunito throughout</span>
+          </button>
+          <button class="font-pair-btn" data-pair="classic" onclick="selectFontPair('classic')">
+            <span style="font-family:'Merriweather',Georgia,serif;font-size:15px;font-weight:700;color:#1A2332;line-height:1;display:block;margin-bottom:3px">Classic</span>
+            <span style="font-family:Georgia,serif;font-size:11px;color:var(--muted)">Merriweather + Georgia</span>
+          </button>
+        </div>
+      </div>
+
+    </div>
+    <div style="padding:14px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px;flex-shrink:0;background:#fff">
+      <button onclick="closeBrandModal()" style="height:36px;padding:0 18px;font-size:13px;border-radius:9px;border:1px solid var(--border);background:#fff;color:var(--text);cursor:pointer;font-family:inherit">Cancel</button>
+      <button onclick="saveBrandSettings()" class="btn-teal" style="height:36px;padding:0 20px;border-radius:9px;font-size:13px">Save brand settings</button>
     </div>
   </div>
 </div>
@@ -1049,57 +1217,92 @@ function sendSmsBlast() {
 document.addEventListener('click', e => {
   const sms   = document.getElementById('smsModal');
   const email = document.getElementById('emailModal');
+  const brand = document.getElementById('brandModal');
   if (sms   && sms.style.display   === 'flex' && e.target === sms)   closeSmsModal();
   if (email && email.style.display === 'flex' && e.target === email) closeEmailModal();
+  if (brand && brand.style.display === 'flex' && e.target === brand) closeBrandModal();
 });
 
 // ── Email Blast ───────────────────────────────────────────────
 const _EMAIL_PRESETS = [
-  {
-    subject: "We miss you, {first_name}!",
-    body: "Hi {first_name},\n\nIt's been {days_since} since we last saw you at {salon} and we'd love to have you back.\n\n{stylist} has availability and we'd love to catch up on your hair. Whether it's a quick trim or a full transformation, we're here for you.\n\nGive us a call or book online — we can't wait to see you! 😊\n\nWarm regards,\nThe team at {salon}",
-  },
-  {
-    subject: "Time for a refresh, {first_name}?",
-    body: "Hi {first_name},\n\nYour hair is {overdue} — which means it's the perfect time to book in for a little TLC!\n\n{stylist} would love to work their magic at {salon}. Don't leave it too long!\n\nCall us or book online today 💇‍♀️\n\nSee you soon,\nThe team at {salon}",
-  },
-  {
-    subject: "Your colour is calling, {first_name}!",
-    body: "Hi {first_name},\n\nYour colour is ready for a refresh — and {stylist} at {salon} is here to make it gorgeous again.\n\nWhether it's a root touch-up, balayage refresh or a brand new look, now is the perfect time.\n\nBook your colour appointment today 🎨\n\nSpeak soon,\nThe team at {salon}",
-  },
-  {
-    subject: "A little thank you, {first_name}",
-    body: "Hi {first_name},\n\nWe just wanted to say a huge thank you for being such a loyal client at {salon}. Your support means the world to us.\n\nAs one of our most valued guests (averaging £{avg_spend} per visit!), we'd love to make sure your next visit is just as special.\n\nWe look forward to seeing you soon.\n\nWith gratitude,\nThe team at {salon}",
-  },
-  {
-    subject: "Rebook with {stylist}, {first_name}!",
-    body: "Hi {first_name},\n\nWe loved having you in on {last_visit} and we'd love to see you again soon!\n\nPrebook your next appointment with {stylist} at {salon} before the diary fills up — it's the best way to guarantee your preferred time. 📅\n\nGive us a call or pop in to book.\n\nSee you soon,\nThe team at {salon}",
-  },
+  { subject: "We miss you, {first_name}!", headline: "We've been thinking about you, {first_name}",
+    body: "It's been {days_since} since we last saw you at {salon} and we'd love to have you back.\n\n{stylist} has availability and we'd love to catch up on your hair. Whether it's a quick trim or a full transformation, we're here for you.\n\nGive us a call or book online — we can't wait to see you! 😊\n\nWarm regards,\nThe team at {salon}", cta: "Book now" },
+  { subject: "Time for a refresh, {first_name}?", headline: "Your hair deserves some TLC",
+    body: "Your hair is {overdue} overdue — which means it's the perfect time to book in for a little TLC!\n\n{stylist} would love to work their magic at {salon}. Don't leave it too long!\n\nCall us or book online today 💇‍♀️\n\nSee you soon,\nThe team at {salon}", cta: "Book your appointment" },
+  { subject: "Your colour is calling, {first_name}!", headline: "Let's bring your colour back to life",
+    body: "Your colour is ready for a refresh — and {stylist} at {salon} is here to make it gorgeous again.\n\nWhether it's a root touch-up, balayage refresh or a brand new look, now is the perfect time.\n\nBook your colour appointment today 🎨\n\nSpeak soon,\nThe team at {salon}", cta: "Book a colour appointment" },
+  { subject: "A little thank you, {first_name}", headline: "Thank you for being amazing, {first_name}",
+    body: "We just wanted to say a huge thank you for being such a loyal client at {salon}. Your support means the world to us.\n\nAs one of our most valued guests (averaging £{avg_spend} per visit!), we'd love to make sure your next visit is just as special.\n\nWe look forward to seeing you soon.\n\nWith gratitude,\nThe team at {salon}", cta: "Book your next visit" },
+  { subject: "Rebook with {stylist}, {first_name}!", headline: "See you again soon, {first_name}?",
+    body: "We loved having you in on {last_visit} and we'd love to see you again soon!\n\nPrebook your next appointment with {stylist} at {salon} before the diary fills up — it's the best way to guarantee your preferred time. 📅\n\nGive us a call or pop in to book.\n\nSee you soon,\nThe team at {salon}", cta: "Prebook now" },
 ];
 
+let _emailTemplate  = 'minimal';
+let _brandSettings  = null;
+let _emailPreviewTimer = null;
+
 function applyEmailPreset(index) {
-  const preset = _EMAIL_PRESETS[index];
-  if (!preset) return;
-  document.getElementById('emailSubject').value = preset.subject;
-  document.getElementById('emailBody').value    = preset.body;
-  updateEmailPreview();
+  const p = _EMAIL_PRESETS[index];
+  if (!p) return;
+  document.getElementById('emailSubject').value  = p.subject;
+  document.getElementById('emailHeadline').value = p.headline || '';
+  document.getElementById('emailBody').value     = p.body;
+  document.getElementById('emailCtaText').value  = p.cta || '';
+  _schedEmailPreview();
 }
 
-function _resolveEmailMerge(template, client) {
-  if (!client) return template;
-  const first = (client.name || '').split(' ')[0] || '';
-  return template
-    .replace(/\{first_name\}/gi, first)
-    .replace(/\{full_name\}/gi,  client.name        || '')
-    .replace(/\{stylist\}/gi,    client.pref_tm      || '')
-    .replace(/\{salon\}/gi,      client.pref_salon   || '')
-    .replace(/\{last_visit\}/gi, client.last_visit   || '')
-    .replace(/\{days_since\}/gi, client.days_since != null ? client.days_since + ' days' : '')
-    .replace(/\{overdue\}/gi,    client.overdue       ? client.overdue + ' days overdue' : '')
-    .replace(/\{avg_spend\}/gi,  client.avg_spend != null ? client.avg_spend : '');
+function selectEmailTemplate(tmpl) {
+  _emailTemplate = tmpl;
+  document.querySelectorAll('.email-tmpl-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.tmpl === tmpl));
+  _schedEmailPreview();
 }
 
-function openEmailModal() {
+function insertEmailMerge(field) {
+  const ids = ['emailSubject','emailHeadline','emailBody','emailCtaText','emailCtaUrl'];
+  let ta = document.getElementById('emailBody');
+  if (document.activeElement && ids.includes(document.activeElement.id)) ta = document.activeElement;
+  const s = ta.selectionStart, e = ta.selectionEnd;
+  ta.value = ta.value.slice(0, s) + field + ta.value.slice(e);
+  ta.selectionStart = ta.selectionEnd = s + field.length;
+  ta.focus();
+  _schedEmailPreview();
+}
+
+function _schedEmailPreview() {
+  const body = document.getElementById('emailBody');
+  if (body) document.getElementById('emailCharCount').textContent = body.value.length + ' chars';
+  clearTimeout(_emailPreviewTimer);
+  _emailPreviewTimer = setTimeout(_fetchEmailPreview, 600);
+}
+
+async function _fetchEmailPreview() {
+  const sample = _selectionResults.find(c => c.email) || _selectionResults[0];
+  const meta   = document.getElementById('emailPreviewMeta');
+  if (meta && sample) meta.textContent = `Preview: ${sample.name}`;
+  try {
+    const res = await fetch('/api/email/preview', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        template_id: _emailTemplate,
+        headline:    document.getElementById('emailHeadline').value,
+        body:        document.getElementById('emailBody').value,
+        cta_text:    document.getElementById('emailCtaText').value,
+        cta_url:     document.getElementById('emailCtaUrl').value,
+        image_url:   document.getElementById('emailImageUrl').value,
+        recipient:   sample || null,
+        // pass unsaved brand overrides if brand modal is open
+        ...(_brandSettings || {}),
+      }),
+    });
+    const data = await res.json();
+    const frame = document.getElementById('emailPreviewFrame');
+    if (frame && data.html) frame.srcdoc = data.html;
+  } catch (e) { /* silent */ }
+}
+
+async function openEmailModal() {
   const recipients = _selectionResults.filter(c => c.email);
   const total      = _selectionResults.length;
   document.getElementById('emailModal').style.display = 'flex';
@@ -1108,66 +1311,32 @@ function openEmailModal() {
   document.getElementById('emailSendNote').textContent =
     recipients.length === total
       ? 'All selected clients have an email address.'
-      : `${total - recipients.length} client${total - recipients.length !== 1 ? 's' : ''} without an email will be skipped.`;
-  document.getElementById('emailSendBtn').textContent = `Send to ${recipients.length} client${recipients.length !== 1 ? 's' : ''} →`;
-  updateEmailPreview();
+      : `${total - recipients.length} without an email will be skipped.`;
+  document.getElementById('emailSendBtn').textContent = `Send to ${recipients.length} →`;
+  // Load brand settings for preview
+  if (!_brandSettings && selectedAccountCode) {
+    try {
+      const r = await fetch(`/api/brand?account_code=${encodeURIComponent(selectedAccountCode)}`);
+      _brandSettings = await r.json();
+    } catch {}
+  }
+  _fetchEmailPreview();
 }
 
 function closeEmailModal() {
   document.getElementById('emailModal').style.display = 'none';
 }
 
-function insertEmailMerge(field) {
-  const inputs = ['emailSubject', 'emailBody'];
-  let ta = document.getElementById('emailBody');
-  // Use whichever was focused last; default to body
-  if (document.activeElement && inputs.includes(document.activeElement.id)) {
-    ta = document.activeElement;
-  }
-  const s = ta.selectionStart, e = ta.selectionEnd;
-  ta.value = ta.value.slice(0, s) + field + ta.value.slice(e);
-  ta.selectionStart = ta.selectionEnd = s + field.length;
-  ta.focus();
-  updateEmailPreview();
-}
-
-function updateEmailPreview() {
-  const subject = document.getElementById('emailSubject').value;
-  const body    = document.getElementById('emailBody').value;
-  const sample  = _selectionResults.find(c => c.email) || _selectionResults[0];
-  const counter = document.getElementById('emailCharCount');
-
-  counter.textContent = `${body.length} chars`;
-
-  const rSubject = sample ? _resolveEmailMerge(subject, sample) : subject;
-  const rBody    = sample ? _resolveEmailMerge(body,    sample) : body;
-  const rTo      = sample ? (sample.name || sample.email || 'Client') : 'Client';
-
-  document.getElementById('emailPreviewSubject').textContent = rSubject || 'Your subject line';
-  document.getElementById('emailPreviewBody').textContent    = rBody    || 'Your message will appear here.';
-  document.getElementById('emailPreviewTo').textContent      = rTo;
-  document.getElementById('emailPreviewMeta').textContent    = sample   ? `Preview using: ${sample.name}` : '';
-}
-
 function sendEmailBlast() {
   const subject = document.getElementById('emailSubject').value.trim();
   const body    = document.getElementById('emailBody').value.trim();
   if (!subject) { alert('Please enter a subject line.'); return; }
-  if (!body)    { alert('Please enter an email body.'); return; }
+  if (!body)    { alert('Please enter a message body.'); return; }
   const recipients = _selectionResults.filter(c => c.email);
   if (!recipients.length) { alert('No clients with email addresses in this selection.'); return; }
 
-  const messages = recipients.map(c => ({
-    client_id: c.id,
-    name:      c.name,
-    email:     c.email,
-    subject:   _resolveEmailMerge(subject, c),
-    body:      _resolveEmailMerge(body,    c),
-  }));
-
-  // TODO: POST to SalonIQ email API
-  // fetch('/api/email/send', { method:'POST', headers:{'Content-Type':'application/json'},
-  //   body: JSON.stringify({ messages, tenant_id: selectedTenantId, server: selectedServer }) })
+  // TODO: POST to email send API
+  // Each recipient gets the HTML generated server-side with their merge fields resolved
 
   const btn = document.getElementById('emailSendBtn');
   btn.disabled    = true;
@@ -1177,8 +1346,79 @@ function sendEmailBlast() {
     document.getElementById('queryStatus').innerHTML =
       `<span style="color:var(--green);font-weight:600">✓ Email prepared for ${recipients.length} client${recipients.length !== 1 ? 's' : ''}</span> — API integration coming soon.`;
     btn.disabled    = false;
-    btn.textContent = `Send to ${recipients.length} client${recipients.length !== 1 ? 's' : ''} →`;
+    btn.textContent = `Send to ${recipients.length} →`;
   }, 800);
+}
+
+// ── Brand Settings Modal ──────────────────────────────────────
+function openBrandModal() {
+  document.getElementById('brandModal').style.display = 'flex';
+  if (_brandSettings) {
+    document.getElementById('brandLogo').value        = _brandSettings.logo_url      || '';
+    document.getElementById('brandSalonName').value   = _brandSettings.salon_name    || '';
+    document.getElementById('brandPhone').value       = _brandSettings.salon_phone   || '';
+    document.getElementById('brandAddress').value     = _brandSettings.salon_address || '';
+    document.getElementById('brandBookingUrl').value  = _brandSettings.booking_url   || '';
+    document.getElementById('brandColor').value       = _brandSettings.primary_color || '#3A7A50';
+    document.getElementById('brandColorHex').textContent = _brandSettings.primary_color || '#3A7A50';
+    syncColorSwatch(_brandSettings.primary_color || '#3A7A50');
+    selectFontPair(_brandSettings.font_pair || 'premium');
+    previewBrandLogo();
+  }
+}
+
+function closeBrandModal() {
+  document.getElementById('brandModal').style.display = 'none';
+}
+
+async function saveBrandSettings() {
+  const data = {
+    logo_url:      document.getElementById('brandLogo').value.trim(),
+    salon_name:    document.getElementById('brandSalonName').value.trim(),
+    salon_phone:   document.getElementById('brandPhone').value.trim(),
+    salon_address: document.getElementById('brandAddress').value.trim(),
+    booking_url:   document.getElementById('brandBookingUrl').value.trim(),
+    primary_color: document.getElementById('brandColor').value,
+    font_pair:     document.querySelector('.font-pair-btn.active')?.dataset.pair || 'premium',
+  };
+  try {
+    await fetch('/api/brand', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data) });
+    _brandSettings = data;
+    closeBrandModal();
+    _fetchEmailPreview();
+  } catch (e) { alert('Failed to save brand settings.'); }
+}
+
+function previewBrandLogo() {
+  const url = document.getElementById('brandLogo').value.trim();
+  const img = document.getElementById('brandLogoImg');
+  const note = document.getElementById('brandLogoNote');
+  if (url) {
+    img.src = url;
+    img.style.display = 'block';
+    note.style.display = 'none';
+  } else {
+    img.style.display = 'none';
+    note.style.display = 'block';
+    note.textContent = 'Paste a URL to see your logo here';
+  }
+}
+
+function pickColor(hex) {
+  document.getElementById('brandColor').value = hex;
+  document.getElementById('brandColorHex').textContent = hex;
+  syncColorSwatch(hex);
+}
+
+function syncColorSwatch(hex) {
+  document.getElementById('brandColorHex').textContent = hex;
+  document.querySelectorAll('.color-swatch').forEach(s =>
+    s.classList.toggle('active', s.dataset.color === hex));
+}
+
+function selectFontPair(pair) {
+  document.querySelectorAll('.font-pair-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.pair === pair));
 }
 
 function escHtml(s) {

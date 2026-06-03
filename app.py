@@ -82,6 +82,19 @@ def _db_setup():
             )
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS history_account_ts ON history(account_code, ts DESC)")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS brand_settings (
+                account_code  TEXT PRIMARY KEY,
+                logo_url      TEXT,
+                primary_color TEXT DEFAULT '#3A7A50',
+                font_pair     TEXT DEFAULT 'premium',
+                salon_name    TEXT,
+                salon_phone   TEXT,
+                salon_address TEXT,
+                booking_url   TEXT,
+                updated_at    TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
         con.commit()
         cur.execute("SELECT COUNT(*) FROM activity_log")
         count = cur.fetchone()[0]
@@ -169,6 +182,217 @@ def _write_history(account_code, type_, question, result_json=None,
         con.close()
     except Exception as e:
         print(f"[_write_history] FAILED: {e}", file=sys.stderr, flush=True)
+
+
+_FONT_PAIRS = {
+    'premium': {
+        'import_url': 'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&display=swap',
+        'heading': "'Cormorant Garamond', Georgia, 'Times New Roman', serif",
+        'body':    "'Helvetica Neue', Helvetica, Arial, sans-serif",
+        'h_weight': '700', 'h_size': '30px', 'b_size': '15px',
+    },
+    'modern': {
+        'import_url': 'https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap',
+        'heading': "'Poppins', system-ui, -apple-system, sans-serif",
+        'body':    "'Poppins', system-ui, -apple-system, sans-serif",
+        'h_weight': '600', 'h_size': '26px', 'b_size': '14px',
+    },
+    'friendly': {
+        'import_url': 'https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap',
+        'heading': "'Nunito', system-ui, sans-serif",
+        'body':    "'Nunito', system-ui, sans-serif",
+        'h_weight': '700', 'h_size': '26px', 'b_size': '15px',
+    },
+    'classic': {
+        'import_url': 'https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&display=swap',
+        'heading': "'Merriweather', Georgia, serif",
+        'body':    "Georgia, 'Times New Roman', serif",
+        'h_weight': '700', 'h_size': '26px', 'b_size': '15px',
+    },
+}
+
+_BRAND_DEFAULTS = {
+    'logo_url': '', 'primary_color': '#3A7A50', 'font_pair': 'premium',
+    'salon_name': '', 'salon_phone': '', 'salon_address': '', 'booking_url': '',
+}
+
+def _get_brand(account_code):
+    try:
+        con = _get_db()
+        cur = con.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT * FROM brand_settings WHERE account_code=%s", (account_code,))
+        row = cur.fetchone()
+        cur.close(); con.close()
+        if row:
+            d = dict(_BRAND_DEFAULTS)
+            d.update({k: v for k, v in row.items() if v is not None})
+            return d
+    except Exception as e:
+        app.logger.warning("_get_brand failed: %s", e)
+    return dict(_BRAND_DEFAULTS)
+
+def _save_brand(account_code, data):
+    fields = ['logo_url','primary_color','font_pair','salon_name','salon_phone','salon_address','booking_url']
+    try:
+        con = _get_db()
+        cur = con.cursor()
+        vals = [data.get(f, '') for f in fields]
+        cur.execute(f"""
+            INSERT INTO brand_settings (account_code, {','.join(fields)}, updated_at)
+            VALUES (%s, {','.join(['%s']*len(fields))}, NOW())
+            ON CONFLICT (account_code) DO UPDATE SET
+              {', '.join(f + '=EXCLUDED.' + f for f in fields)}, updated_at=NOW()
+        """, [account_code] + vals)
+        con.commit(); cur.close(); con.close()
+    except Exception as e:
+        app.logger.warning("_save_brand failed: %s", e)
+
+def _resolve_email_merge(text, client):
+    if not client or not text:
+        return text or ''
+    first = (client.get('name','') or '').split()[0] if client.get('name') else ''
+    return (text
+        .replace('{first_name}',  first)
+        .replace('{full_name}',   client.get('name',''))
+        .replace('{stylist}',     client.get('pref_tm',''))
+        .replace('{salon}',       client.get('pref_salon',''))
+        .replace('{last_visit}',  client.get('last_visit',''))
+        .replace('{days_since}',  (str(client['days_since'])+' days') if client.get('days_since') is not None else '')
+        .replace('{overdue}',     (str(client['overdue'])+' days overdue') if client.get('overdue') else '')
+        .replace('{avg_spend}',   str(client.get('avg_spend','')) if client.get('avg_spend') is not None else ''))
+
+def _build_email_html(template_id, brand, content, recipient=None):
+    """Return a complete HTML email string."""
+    f   = _FONT_PAIRS.get(brand.get('font_pair','premium'), _FONT_PAIRS['premium'])
+    clr = brand.get('primary_color','#3A7A50')
+    logo_url     = brand.get('logo_url','')
+    salon_name   = brand.get('salon_name','')
+    salon_phone  = brand.get('salon_phone','')
+    salon_addr   = brand.get('salon_address','')
+
+    headline = _resolve_email_merge(content.get('headline',''), recipient)
+    body_raw = _resolve_email_merge(content.get('body',''), recipient)
+    body_html = body_raw.replace('\n','<br>\n')
+    cta_text = content.get('cta_text','')
+    cta_url  = content.get('cta_url','') or brand.get('booking_url','#') or '#'
+    img_url  = content.get('image_url','')
+
+    # Logo block
+    if logo_url:
+        logo_block = f'<img src="{logo_url}" alt="{salon_name}" style="max-height:52px;max-width:200px;display:block;">'
+    else:
+        logo_block = f'<span style="font-family:{f["heading"]};font-size:22px;font-weight:{f["h_weight"]};color:#1A2332">{salon_name or "SalonIQ"}</span>'
+
+    # CTA button (Outlook-compatible table method)
+    if cta_text:
+        btn = f'''<table cellspacing="0" cellpadding="0" style="margin:28px auto 0" align="center">
+  <tr><td align="center" bgcolor="{clr}" style="border-radius:9px;mso-padding-alt:14px 32px">
+    <a href="{cta_url}" target="_blank" style="font-family:{f["body"]};font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;display:inline-block;padding:14px 32px;mso-padding-alt:14px 32px;line-height:1;letter-spacing:0.02em">{cta_text}</a>
+  </td></tr>
+</table>'''
+    else:
+        btn = ''
+
+    # Footer row
+    footer_parts = [salon_name] + ([salon_phone] if salon_phone else [])
+    footer = f'''<tr><td style="padding:20px 40px 28px;border-top:1px solid #EEEEEE;text-align:center">
+  <p style="margin:0 0 4px;font-family:{f["body"]};font-size:12px;color:#A0AEBC">{' &nbsp;·&nbsp; '.join(filter(None, footer_parts))}</p>
+  {f'<p style="margin:0 0 8px;font-family:{f["body"]};font-size:12px;color:#A0AEBC">{salon_addr}</p>' if salon_addr else ''}
+  <p style="margin:0;font-family:{f["body"]};font-size:11px;color:#C8D0DA">You&#39;re receiving this as a valued client. To unsubscribe reply STOP.</p>
+</td></tr>'''
+
+    # Image block (used by hero/announcement)
+    if img_url:
+        img_block = f'<tr><td style="padding:0;line-height:0"><img src="{img_url}" alt="" width="580" style="width:100%;max-width:580px;height:auto;display:block;border-radius:12px 12px 0 0"></td></tr>'
+    else:
+        img_block = ''
+
+    # ── TEMPLATE: minimal ────────────────────────────────────────
+    if template_id == 'minimal':
+        return f'''<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link href="{f['import_url']}" rel="stylesheet">
+<style>body{{margin:0;padding:0;background:#F5F6F8}}a{{color:{clr}}}@media(max-width:600px){{.mp{{padding:24px 20px!important}}}}</style>
+</head><body>
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#F5F6F8;padding:32px 16px">
+<tr><td align="center">
+  <table width="100%" cellpadding="0" cellspacing="0" style="max-width:580px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #E2E6EC">
+    <tr><td style="height:5px;background:{clr};font-size:0;line-height:0">&nbsp;</td></tr>
+    <tr><td style="padding:32px 40px 0" class="mp">{logo_block}</td></tr>
+    <tr><td style="padding:24px 40px 36px" class="mp">
+      <h1 style="margin:0 0 18px;font-family:{f['heading']};font-size:{f['h_size']};font-weight:{f['h_weight']};color:#1A2332;line-height:1.25">{headline}</h1>
+      <div style="font-family:{f['body']};font-size:{f['b_size']};color:#3A4A5A;line-height:1.8">{body_html}</div>
+      {btn}
+    </td></tr>
+    {footer}
+  </table>
+</td></tr></table>
+</body></html>'''
+
+    # ── TEMPLATE: hero ───────────────────────────────────────────
+    elif template_id == 'hero':
+        hero = img_block if img_url else f'<tr><td style="height:8px;background:{clr};font-size:0">&nbsp;</td></tr>'
+        return f'''<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link href="{f['import_url']}" rel="stylesheet">
+<style>body{{margin:0;padding:0;background:#F5F6F8}}a{{color:{clr}}}@media(max-width:600px){{.mp{{padding:24px 20px!important}}}}</style>
+</head><body>
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#F5F6F8;padding:32px 16px">
+<tr><td align="center">
+  <table width="100%" cellpadding="0" cellspacing="0" style="max-width:580px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #E2E6EC">
+    {hero}
+    <tr><td style="padding:28px 40px 0" class="mp">{logo_block}</td></tr>
+    <tr><td style="padding:20px 40px 36px" class="mp">
+      <h1 style="margin:0 0 18px;font-family:{f['heading']};font-size:{f['h_size']};font-weight:{f['h_weight']};color:#1A2332;line-height:1.25">{headline}</h1>
+      <div style="font-family:{f['body']};font-size:{f['b_size']};color:#3A4A5A;line-height:1.8">{body_html}</div>
+      {btn}
+    </td></tr>
+    {footer}
+  </table>
+</td></tr></table>
+</body></html>'''
+
+    # ── TEMPLATE: brand_block ────────────────────────────────────
+    elif template_id == 'brand_block':
+        return f'''<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link href="{f['import_url']}" rel="stylesheet">
+<style>body{{margin:0;padding:0;background:#F5F6F8}}a{{color:{clr}}}@media(max-width:600px){{.mp{{padding:24px 20px!important}}}}</style>
+</head><body>
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#F5F6F8;padding:32px 16px">
+<tr><td align="center">
+  <table width="100%" cellpadding="0" cellspacing="0" style="max-width:580px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #E2E6EC">
+    <!-- Brand color header -->
+    <tr><td align="center" bgcolor="{clr}" style="padding:36px 40px;background:{clr}">
+      {f'<img src="{logo_url}" alt="{salon_name}" style="max-height:52px;max-width:200px;display:block;margin:0 auto;filter:brightness(0) invert(1)">' if logo_url else f'<span style="font-family:{f["heading"]};font-size:24px;font-weight:{f["h_weight"]};color:#ffffff">{salon_name or "SalonIQ"}</span>'}
+    </td></tr>
+    <tr><td style="padding:36px 40px 16px" class="mp">
+      <h1 style="margin:0 0 18px;font-family:{f['heading']};font-size:{f['h_size']};font-weight:{f['h_weight']};color:#1A2332;line-height:1.25">{headline}</h1>
+      <div style="font-family:{f['body']};font-size:{f['b_size']};color:#3A4A5A;line-height:1.8">{body_html}</div>
+      {btn}
+    </td></tr>
+    {footer}
+  </table>
+</td></tr></table>
+</body></html>'''
+
+    # ── TEMPLATE: announcement ───────────────────────────────────
+    else:
+        return f'''<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link href="{f['import_url']}" rel="stylesheet">
+<style>body{{margin:0;padding:0;background:#F5F6F8}}a{{color:{clr}}}@media(max-width:600px){{.mp{{padding:24px 20px!important}}}}</style>
+</head><body>
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#F5F6F8;padding:32px 16px">
+<tr><td align="center">
+  <table width="100%" cellpadding="0" cellspacing="0" style="max-width:580px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #E2E6EC">
+    <tr><td align="center" style="padding:32px 40px 0" class="mp">{logo_block}</td></tr>
+    <tr><td style="padding:8px 0 0"><table width="100%" cellpadding="0" cellspacing="0"><tr><td style="height:4px;background:{clr}">&nbsp;</td></tr></table></td></tr>
+    <tr><td align="center" style="padding:32px 40px" class="mp">
+      <h1 style="margin:0 0 18px;font-family:{f['heading']};font-size:32px;font-weight:{f['h_weight']};color:#1A2332;line-height:1.2;text-align:center">{headline}</h1>
+      <div style="font-family:{f['body']};font-size:{f['b_size']};color:#3A4A5A;line-height:1.8;text-align:center">{body_html}</div>
+      {btn}
+    </td></tr>
+    {footer}
+  </table>
+</td></tr></table>
+</body></html>'''
 
 
 def _saloniq_login(account_code, username, password):
@@ -1286,6 +1510,39 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
 @require_auth
 def index():
     return send_from_directory(BASE_DIR, 'index.html')
+
+@app.route("/api/brand", methods=["GET", "POST"])
+@require_auth
+def brand_settings_api():
+    account_code = flask_session.get('account_code', '')
+    if request.method == "GET":
+        return jsonify(_get_brand(account_code))
+    data = request.get_json(silent=True) or {}
+    _save_brand(account_code, data)
+    return jsonify(ok=True)
+
+
+@app.route("/api/email/preview", methods=["POST"])
+@require_auth
+def email_preview_api():
+    body         = request.get_json(silent=True) or {}
+    account_code = flask_session.get('account_code', '')
+    brand        = _get_brand(account_code)
+    # Allow brand overrides from the form (unsaved changes)
+    for k in ('logo_url','primary_color','font_pair','salon_name','salon_phone','salon_address','booking_url'):
+        if k in body:
+            brand[k] = body[k]
+    content = {
+        'headline':  body.get('headline',''),
+        'body':      body.get('body',''),
+        'cta_text':  body.get('cta_text',''),
+        'cta_url':   body.get('cta_url',''),
+        'image_url': body.get('image_url',''),
+    }
+    recipient = body.get('recipient')  # optional, for merge field preview
+    html = _build_email_html(body.get('template_id','minimal'), brand, content, recipient)
+    return jsonify(html=html)
+
 
 @app.route("/favicon.ico")
 def favicon_ico():
