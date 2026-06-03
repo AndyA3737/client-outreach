@@ -1525,6 +1525,47 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
 def index():
     return send_from_directory(BASE_DIR, 'index.html')
 
+@app.route("/api/sms/test", methods=["POST"])
+@require_auth
+def test_sms():
+    """Fire a single SMS and return the full raw API response for debugging."""
+    body      = request.get_json(silent=True) or {}
+    tenant_id = body.get('tenant_id') or None
+    server    = body.get('server', 'BETA')
+    client_id = body.get('client_id', '').upper()
+    message   = body.get('message', 'Test SMS from SalonIQ Aria')
+
+    srv      = SERVERS.get(server, SERVERS['BETA'])
+    sms_url  = srv['sms_base']
+    ctx      = _get_ctx(tenant_id, server)
+    salon_ids = (ctx or {}).get('loaded_salon_ids', [])
+    salon_id  = salon_ids[0] if salon_ids else ''
+
+    params = {
+        'TokenID':  SMS_TOKEN,
+        'ClientId': client_id,
+        'Salonid':  salon_id,
+        'Message':  message,
+    }
+    full_url = requests.Request('GET', sms_url, params=params).prepare().url
+
+    print(f"[sms_test] URL: {full_url}", flush=True)
+    try:
+        resp = requests.get(sms_url, params=params, timeout=20)
+        print(f"[sms_test] HTTP {resp.status_code} — body: {resp.text[:500]!r}", flush=True)
+        return jsonify(
+            ok      = resp.status_code == 200 and 'success' in resp.text.lower(),
+            status  = resp.status_code,
+            body    = resp.text[:1000],
+            url     = full_url,
+            params  = {k: v if k != 'TokenID' else v[:8] + '…' for k, v in params.items()},
+            salon_id_source = 'loaded_salon_ids' if salon_ids else 'empty — no salon IDs in context',
+        )
+    except Exception as e:
+        print(f"[sms_test] EXCEPTION: {e}", flush=True)
+        return jsonify(ok=False, error=str(e), url=full_url, params=params), 500
+
+
 @app.route("/api/sms/send", methods=["POST"])
 @require_auth
 def send_sms_blast():
@@ -1552,6 +1593,8 @@ def send_sms_blast():
     def worker():
         sent = 0; failed = 0; errors = []
 
+        print(f"[sms_blast] server={server} sms_url={sms_url} salon_id={salon_id!r} total={_total}", flush=True)
+
         def _send_one(msg):
             try:
                 params = {
@@ -1561,11 +1604,13 @@ def send_sms_blast():
                     'Message':  msg.get('message', ''),
                 }
                 resp = requests.get(sms_url, params=params, timeout=20)
-                # SalonIQ returns 200 + body containing "Success" on success
-                if resp.status_code == 200 and 'success' in resp.text.lower():
+                body_preview = resp.text[:200].strip()
+                if resp.status_code == 200 and 'success' in body_preview.lower():
                     return True, None
-                return False, f"HTTP {resp.status_code}: {resp.text[:120].strip()}"
+                print(f"[sms_blast] FAIL client={params['ClientId'][:8]} HTTP {resp.status_code} body={body_preview!r}", flush=True)
+                return False, f"HTTP {resp.status_code}: {body_preview}"
             except Exception as e:
+                print(f"[sms_blast] EXCEPTION client={msg.get('client_id','')[:8]}: {e}", flush=True)
                 return False, str(e)[:200]
 
         with ThreadPoolExecutor(max_workers=5) as pool:
