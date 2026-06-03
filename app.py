@@ -480,21 +480,28 @@ def require_auth_or_redirect(f):
 
 API_COMMON = dict(Salonid="", UserID="", data1="", data2="", data3="", data4="")
 
+# SMS send token — distinct from the data API token.
+# Override with SMS_TOKEN env var if needed.
+SMS_TOKEN = os.environ.get('SMS_TOKEN', '79B57270-8300-40F8-82FE-FFE47EE62A44')
+
 SERVERS = {
     "BETA": {
         "base":           "https://greathairhub.saloniq.co.uk/api/GetAPIReport",
+        "sms_base":       "https://greathairhub.saloniq.co.uk/Wella/SendSMS",
         "token":          "ACD7636F-D6D5-45AB-92FC-785D4904ADA5",
         "default_tenant": "1E7D7624-FEB7-4950-A6BE-5FBB1498EE39",
         "date_fmt":       "%d/%m/%Y",
     },
     "LIVE": {
         "base":           "https://apihub.saloniq.co.uk/api/GetAPIReport",
+        "sms_base":       "https://apihub.saloniq.co.uk/Wella/SendSMS",
         "token":          "517a41d9-48e3-4af7-ae6c-0e30688f9325",
         "default_tenant": "1E7D7624-FEB7-4950-A6BE-5FBB1498EE39",
         "date_fmt":       "%m/%d/%Y",
     },
     "DEMO": {
         "base":           "https://demohub.saloniq.co.uk/api/GETAPIReport",
+        "sms_base":       "https://demohub.saloniq.co.uk/Wella/SendSMS",
         "token":          "ACD7636F-D6D5-45AB-92FC-785D4904ADA5",
         "default_tenant": "1E7D7624-FEB7-4950-A6BE-5FBB1498EE39",
         "date_fmt":       "%d/%m/%Y",
@@ -1517,6 +1524,79 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
 @require_auth
 def index():
     return send_from_directory(BASE_DIR, 'index.html')
+
+@app.route("/api/sms/send", methods=["POST"])
+@require_auth
+def send_sms_blast():
+    body      = request.get_json(silent=True) or {}
+    messages  = body.get('messages', [])   # [{client_id, name, mobile, message}]
+    tenant_id = body.get('tenant_id') or None
+    server    = body.get('server', 'BETA')
+
+    if not messages:
+        return jsonify(error="No messages provided"), 400
+
+    srv      = SERVERS.get(server, SERVERS['BETA'])
+    sms_url  = srv['sms_base']
+    ctx      = _get_ctx(tenant_id, server)
+    salon_ids = (ctx or {}).get('loaded_salon_ids', [])
+    salon_id  = salon_ids[0] if salon_ids else ''
+
+    job_id = str(uuid.uuid4())
+    _jobs[job_id] = {'status': 'loading', 'step': f'Preparing {len(messages)} messages…'}
+
+    _current_salon = _salon_label(ctx)
+    _current_user  = flask_session.get('username', '')
+    _total         = len(messages)
+
+    def worker():
+        sent = 0; failed = 0; errors = []
+
+        def _send_one(msg):
+            try:
+                params = {
+                    'TokenID':  SMS_TOKEN,
+                    'ClientId': (msg.get('client_id') or '').upper(),
+                    'Salonid':  salon_id,
+                    'Message':  msg.get('message', ''),
+                }
+                resp = requests.get(sms_url, params=params, timeout=20)
+                # SalonIQ returns 200 + body containing "Success" on success
+                if resp.status_code == 200 and 'success' in resp.text.lower():
+                    return True, None
+                return False, f"HTTP {resp.status_code}: {resp.text[:120].strip()}"
+            except Exception as e:
+                return False, str(e)[:200]
+
+        with ThreadPoolExecutor(max_workers=5) as pool:
+            futures = {pool.submit(_send_one, msg): msg for msg in messages}
+            done = 0
+            for future in as_completed(futures):
+                done += 1
+                ok, err = future.result()
+                msg = futures[future]
+                if ok:
+                    sent += 1
+                else:
+                    failed += 1
+                    errors.append({'name': msg.get('name',''), 'error': err})
+                _jobs[job_id]['step'] = f'Sent {done} of {_total}…'
+
+        _log('sms_blast',
+             salon=_current_salon,
+             username=_current_user,
+             question=f"{_total} SMS via {server}",
+             result_count=sent,
+             error=(f"{failed} failed" if failed else None),
+        )
+        _jobs[job_id] = {
+            'status': 'done',
+            'data': {'sent': sent, 'failed': failed, 'errors': errors[:20], 'total': _total},
+        }
+
+    threading.Thread(target=worker, daemon=True).start()
+    return jsonify(job_id=job_id, total=_total)
+
 
 @app.route("/api/brand", methods=["GET", "POST"])
 @require_auth

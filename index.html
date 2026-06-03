@@ -1205,34 +1205,72 @@ function updateSmsPreview() {
   meta.textContent    = sample ? `Preview using: ${sample.name}` : '';
 }
 
-function sendSmsBlast() {
-  const tmpl      = document.getElementById('smsTemplate').value.trim();
+async function sendSmsBlast() {
+  const tmpl = document.getElementById('smsTemplate').value.trim();
   if (!tmpl) { alert('Please enter a message.'); return; }
   const recipients = _activeSelection().filter(_smsEligible);
-  if (!recipients.length) { alert('No eligible clients in this selection (check mobile numbers and opt-out status).'); return; }
+  if (!recipients.length) { alert('No eligible clients (check mobile numbers and opt-out status).'); return; }
 
   const messages = recipients.map(c => ({
-    client_id:  c.id,
-    name:       c.name,
-    mobile:     c.mobile,
-    message:    _resolveMerge(tmpl, c),
+    client_id: c.id,
+    name:      c.name,
+    mobile:    c.mobile,
+    message:   _resolveMerge(tmpl, c),
   }));
 
-  // TODO: POST to SalonIQ SMS API
-  // fetch('/api/sms/send', { method:'POST', headers:{'Content-Type':'application/json'},
-  //   body: JSON.stringify({ messages, tenant_id: selectedTenantId, server: selectedServer }) })
-
-  // Placeholder confirmation
   const btn = document.getElementById('smsSendBtn');
   btn.disabled    = true;
-  btn.textContent = 'Sending…';
-  setTimeout(() => {
+  btn.textContent = `Sending 0 of ${recipients.length}…`;
+
+  try {
+    // Start background send job
+    const kickRes = await fetch('/api/sms/send', {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify({ messages, tenant_id: selectedTenantId, server: selectedServer }),
+    });
+    const kick = await kickRes.json();
+    if (kick.error) throw new Error(kick.error);
+    const job_id = kick.job_id;
+
+    // Poll until done
+    const result = await new Promise((resolve, reject) => {
+      const timer = setInterval(async () => {
+        try {
+          const poll = await fetch(`/api/job/${job_id}`);
+          const pd   = await poll.json();
+          if (pd.status === 'loading') {
+            btn.textContent = pd.step || 'Sending…';
+            return;
+          }
+          clearInterval(timer);
+          if (pd.error) reject(new Error(pd.error));
+          else resolve(pd.data || {});
+        } catch (e) { clearInterval(timer); reject(e); }
+      }, 1500);
+    });
+
     closeSmsModal();
-    document.getElementById('queryStatus').innerHTML =
-      `<span style="color:var(--green);font-weight:600">✓ SMS prepared for ${recipients.length} client${recipients.length !== 1 ? 's' : ''}</span> — API integration coming soon.`;
+    const { sent = 0, failed = 0, errors = [] } = result;
+    let html = `<span style="color:var(--green);font-weight:600">✓ ${sent} SMS sent successfully</span>`;
+    if (failed) {
+      html += ` &nbsp;·&nbsp; <span style="color:var(--risk)">${failed} failed</span>`;
+      if (errors.length) {
+        html += `<details style="margin-top:6px;font-size:12px;display:inline-block">
+          <summary style="cursor:pointer;color:var(--muted)">Show failures</summary>
+          <ul style="margin:6px 0 0 16px;color:var(--risk)">
+            ${errors.map(e => `<li>${escHtml(e.name)}: ${escHtml(e.error)}</li>`).join('')}
+          </ul></details>`;
+      }
+    }
+    document.getElementById('queryStatus').innerHTML = html;
+
+  } catch (e) {
+    alert('SMS send failed: ' + e.message);
+  } finally {
     btn.disabled    = false;
     btn.textContent = `Send to ${recipients.length} client${recipients.length !== 1 ? 's' : ''} →`;
-  }, 800);
+  }
 }
 
 // Close modals on backdrop click
