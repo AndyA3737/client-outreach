@@ -1130,17 +1130,33 @@ function _resolveMerge(template, client) {
     .replace(/\{overdue\}/gi,    client.overdue    ? client.overdue + ' days overdue' : '');
 }
 
+function _smsEligible(c) {
+  const m = (c.mobile || '').trim().toUpperCase();
+  return m && m !== 'REFUSED' && !c.sms_optout;
+}
+
 function openSmsModal() {
-  const recipients = _selectionResults.filter(c => c.mobile);
-  const total      = _selectionResults.length;
-  document.getElementById('smsModal').style.display      = 'flex';
-  document.getElementById('smsRecipientCount').textContent =
-    `Sending to ${recipients.length} of ${total} client${total !== 1 ? 's' : ''} (${total - recipients.length} have no mobile number)`;
-  document.getElementById('smsSendNote').textContent =
-    recipients.length === total
-      ? 'All selected clients have a mobile number.'
-      : `${total - recipients.length} client${total - recipients.length !== 1 ? 's' : ''} without a mobile will be skipped.`;
-  document.getElementById('smsSendBtn').textContent = `Send to ${recipients.length} client${recipients.length !== 1 ? 's' : ''} →`;
+  const total     = _selectionResults.length;
+  const noMobile  = _selectionResults.filter(c => !c.mobile || !c.mobile.trim()).length;
+  const refused   = _selectionResults.filter(c => c.mobile && c.mobile.trim().toUpperCase() === 'REFUSED').length;
+  const optedOut  = _selectionResults.filter(c => c.sms_optout && c.mobile && c.mobile.trim().toUpperCase() !== 'REFUSED').length;
+  const eligible  = _selectionResults.filter(_smsEligible);
+
+  document.getElementById('smsModal').style.display = 'flex';
+
+  document.getElementById('smsRecipientCount').innerHTML =
+    `Sending to <strong>${eligible.length}</strong> of ${total} client${total !== 1 ? 's' : ''}`;
+
+  const notes = [];
+  if (noMobile) notes.push(`<span>${noMobile} no mobile number</span>`);
+  if (refused)  notes.push(`<span>${refused} mobile refused</span>`);
+  if (optedOut) notes.push(`<span>${optedOut} SMS opted out</span>`);
+
+  document.getElementById('smsSendNote').innerHTML = notes.length
+    ? `<span style="color:var(--risk)">Excluded: </span>` + notes.join('<span style="color:var(--muted)"> &nbsp;·&nbsp; </span>')
+    : '<span style="color:var(--green)">All selected clients can receive this SMS.</span>';
+
+  document.getElementById('smsSendBtn').textContent = `Send to ${eligible.length} client${eligible.length !== 1 ? 's' : ''} →`;
   updateSmsPreview();
 }
 
@@ -1160,7 +1176,7 @@ function insertMerge(field) {
 
 function updateSmsPreview() {
   const tmpl    = document.getElementById('smsTemplate').value;
-  const sample  = _selectionResults.find(c => c.mobile) || _selectionResults[0];
+  const sample  = _selectionResults.find(_smsEligible) || _selectionResults[0];
   const preview = document.getElementById('smsPreview');
   const meta    = document.getElementById('smsPreviewMeta');
   const counter = document.getElementById('smsCharCount');
@@ -1189,8 +1205,8 @@ function updateSmsPreview() {
 function sendSmsBlast() {
   const tmpl      = document.getElementById('smsTemplate').value.trim();
   if (!tmpl) { alert('Please enter a message.'); return; }
-  const recipients = _selectionResults.filter(c => c.mobile);
-  if (!recipients.length) { alert('No clients with mobile numbers in this selection.'); return; }
+  const recipients = _selectionResults.filter(_smsEligible);
+  if (!recipients.length) { alert('No eligible clients in this selection (check mobile numbers and opt-out status).'); return; }
 
   // Build payload — one resolved message per recipient
   const messages = recipients.map(c => ({
