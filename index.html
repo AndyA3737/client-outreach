@@ -1388,7 +1388,7 @@ function closeEmailModal() {
   document.getElementById('emailModal').style.display = 'none';
 }
 
-function sendEmailBlast() {
+async function sendEmailBlast() {
   const subject = document.getElementById('emailSubject').value.trim();
   const body    = document.getElementById('emailBody').value.trim();
   if (!subject) { alert('Please enter a subject line.'); return; }
