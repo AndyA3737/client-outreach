@@ -584,6 +584,8 @@
 
   <!-- Actions (hidden until results) -->
   <div id="queryActions" style="display:none;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+    <span id="selectionCountBadge" style="font-size:13px;color:var(--text);font-weight:500;white-space:nowrap"></span>
+    <button id="selectAllBtn" onclick="selectAllClients()" style="display:none;background:none;border:none;color:var(--green);font-size:12px;font-weight:600;cursor:pointer;padding:0;font-family:inherit">Select all</button>
     <input type="search" id="selectionSearch" placeholder="Filter results by name…"
            oninput="filterSelectionResults()" style="width:220px">
     <button onclick="openSmsModal()" class="btn-teal" style="height:34px;padding:0 16px;font-size:12px;border-radius:8px;display:flex;align-items:center;gap:6px">
@@ -1136,11 +1138,12 @@ function _smsEligible(c) {
 }
 
 function openSmsModal() {
-  const total     = _selectionResults.length;
-  const noMobile  = _selectionResults.filter(c => !c.mobile || !c.mobile.trim()).length;
-  const refused   = _selectionResults.filter(c => c.mobile && c.mobile.trim().toUpperCase() === 'REFUSED').length;
-  const optedOut  = _selectionResults.filter(c => c.sms_optout && c.mobile && c.mobile.trim().toUpperCase() !== 'REFUSED').length;
-  const eligible  = _selectionResults.filter(_smsEligible);
+  const active    = _activeSelection();
+  const total     = active.length;
+  const noMobile  = active.filter(c => !c.mobile || !c.mobile.trim()).length;
+  const refused   = active.filter(c => c.mobile && c.mobile.trim().toUpperCase() === 'REFUSED').length;
+  const optedOut  = active.filter(c => c.sms_optout && c.mobile && c.mobile.trim().toUpperCase() !== 'REFUSED').length;
+  const eligible  = active.filter(_smsEligible);
 
   document.getElementById('smsModal').style.display = 'flex';
 
@@ -1205,10 +1208,9 @@ function updateSmsPreview() {
 function sendSmsBlast() {
   const tmpl      = document.getElementById('smsTemplate').value.trim();
   if (!tmpl) { alert('Please enter a message.'); return; }
-  const recipients = _selectionResults.filter(_smsEligible);
+  const recipients = _activeSelection().filter(_smsEligible);
   if (!recipients.length) { alert('No eligible clients in this selection (check mobile numbers and opt-out status).'); return; }
 
-  // Build payload — one resolved message per recipient
   const messages = recipients.map(c => ({
     client_id:  c.id,
     name:       c.name,
@@ -1323,8 +1325,9 @@ async function _fetchEmailPreview() {
 }
 
 async function openEmailModal() {
-  const recipients = _selectionResults.filter(c => c.email);
-  const total      = _selectionResults.length;
+  const active     = _activeSelection();
+  const recipients = active.filter(c => c.email);
+  const total      = active.length;
   document.getElementById('emailModal').style.display = 'flex';
   document.getElementById('emailRecipientCount').textContent =
     `Sending to ${recipients.length} of ${total} client${total !== 1 ? 's' : ''} (${total - recipients.length} have no email address)`;
@@ -1352,7 +1355,7 @@ function sendEmailBlast() {
   const body    = document.getElementById('emailBody').value.trim();
   if (!subject) { alert('Please enter a subject line.'); return; }
   if (!body)    { alert('Please enter a message body.'); return; }
-  const recipients = _selectionResults.filter(c => c.email);
+  const recipients = _activeSelection().filter(c => c.email);
   if (!recipients.length) { alert('No clients with email addresses in this selection.'); return; }
 
   // TODO: POST to email send API
@@ -2071,14 +2074,64 @@ function _drawChart(chart, uid) {
 
 // ── Client Selections ─────────────────────────────────────────
 let _selectionResults = [];
+let _selectedIds      = new Set();
+
+function _updateSelectionCount() {
+  const total    = _selectionResults.length;
+  const selected = _selectedIds.size;
+  const badge    = document.getElementById('selectionCountBadge');
+  const selBtn   = document.getElementById('selectAllBtn');
+  if (badge) {
+    badge.textContent = selected === total
+      ? `${total.toLocaleString()} selected`
+      : `${selected.toLocaleString()} of ${total.toLocaleString()} selected`;
+    badge.style.color = selected === total ? 'var(--muted)' : 'var(--text)';
+  }
+  if (selBtn) selBtn.style.display = selected < total ? '' : 'none';
+  // update header checkbox state
+  const headerCb = document.getElementById('selectAllCb');
+  if (headerCb) {
+    headerCb.indeterminate = selected > 0 && selected < total;
+    headerCb.checked       = selected === total;
+  }
+}
+
+function toggleClient(cb) {
+  const id = cb.dataset.id;
+  if (cb.checked) _selectedIds.add(id); else _selectedIds.delete(id);
+  cb.closest('tr').style.opacity = cb.checked ? '' : '0.45';
+  _updateSelectionCount();
+}
+
+function toggleSelectAll(headerCb) {
+  const q    = (document.getElementById('selectionSearch').value || '').toLowerCase().trim();
+  const rows = document.querySelectorAll('#queryResults tbody tr');
+  rows.forEach(row => {
+    if (row.style.display === 'none') return; // skip filtered-out rows
+    const cb = row.querySelector('.sel-cb');
+    if (!cb) return;
+    cb.checked = headerCb.checked;
+    row.style.opacity = headerCb.checked ? '' : '0.45';
+    if (headerCb.checked) _selectedIds.add(cb.dataset.id);
+    else _selectedIds.delete(cb.dataset.id);
+  });
+  _updateSelectionCount();
+}
+
+function selectAllClients() {
+  _selectionResults.forEach(c => _selectedIds.add(c.id));
+  document.querySelectorAll('#queryResults tbody tr .sel-cb').forEach(cb => {
+    cb.checked = true;
+    cb.closest('tr').style.opacity = '';
+  });
+  _updateSelectionCount();
+}
 
 function filterSelectionResults() {
   const q = (document.getElementById('selectionSearch').value || '').toLowerCase().trim();
-  let visible = 0;
   document.querySelectorAll('#queryResults tbody tr').forEach(row => {
     const show = !q || (row.dataset.name || '').includes(q);
     row.style.display = show ? '' : 'none';
-    if (show) visible++;
   });
 }
 
@@ -2126,58 +2179,80 @@ function renderSelectionResults(clients) {
     box.innerHTML = '<p class="text-sm p-4" style="color:var(--muted)">No clients matched this query.</p>';
     return;
   }
+
+  // All clients selected by default
+  _selectedIds = new Set(clients.map(c => c.id));
+
+  const thStyle = 'background:#F6F8FB;border-bottom:1px solid var(--border);color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;padding:10px 12px;white-space:nowrap';
   const rows = clients.map(c => {
     const cats = (c.top_cats || []).map(cat =>
       `<span class="inline-block text-xs px-2 py-0.5 rounded-md mr-0.5 font-medium" style="background:rgba(58,122,80,0.1);color:var(--green);border:1px solid rgba(58,122,80,0.25)">${escHtml(cat)}</span>`
     ).join('');
-    return `<tr data-name="${escHtml(c.name.toLowerCase())}">
-      <td class="py-3 px-3 font-semibold" style="color:var(--navy)">${escHtml(c.name)}</td>
-      <td class="py-3 px-3"><span class="px-2 py-0.5 rounded-full text-xs font-semibold badge-${c.scls}">${c.status}</span></td>
-      <td class="py-3 px-3 text-sm" style="color:var(--muted)">${escHtml(c.last_visit)}</td>
-      <td class="py-3 px-3 text-sm" style="color:var(--muted)">${c.days_since}d</td>
-      <td class="py-3 px-3 text-sm text-center">${c.n_visits}</td>
-      <td class="py-3 px-3 text-sm">£${c.avg_spend}</td>
-      <td class="py-3 px-3 text-sm">${escHtml(c.pref_tm)}</td>
-      <td class="py-3 px-3 text-sm" style="color:var(--muted)">${c.n_stylists} stylist${c.n_stylists !== 1 ? 's' : ''}</td>
-      <td class="py-3 px-3">${cats}</td>
-      <td class="py-3 px-3 text-sm" style="color:var(--text)">${escHtml(c.mobile || '—')}</td>
-      <td class="py-3 px-3 text-center">${c.sms_optout ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#fde8eb;color:var(--risk)">Opted out</span>' : '<span style="color:#A0AEBC;font-size:12px">—</span>'}</td>
-      <td class="py-3 px-3 text-center">${c.email_optout ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#fde8eb;color:var(--risk)">Opted out</span>' : '<span style="color:#A0AEBC;font-size:12px">—</span>'}</td>
-      <td class="py-3 px-3 text-center">${c.salonspy_optin ? '<span style="color:#A0AEBC;font-size:12px">—</span>' : '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#fde8eb;color:var(--risk)">Opted out</span>'}</td>
+    return `<tr data-name="${escHtml(c.name.toLowerCase())}" style="border-bottom:1px solid var(--border)">
+      <td style="padding:10px 12px;width:36px;vertical-align:middle">
+        <input type="checkbox" class="sel-cb" data-id="${escHtml(c.id)}" checked
+               onchange="toggleClient(this)"
+               style="width:15px;height:15px;accent-color:var(--green);cursor:pointer;display:block;margin:0 auto">
+      </td>
+      <td style="padding:10px 12px;font-weight:500;color:var(--text)">${escHtml(c.name)}</td>
+      <td style="padding:10px 12px"><span class="px-2 py-0.5 rounded-full text-xs font-semibold badge-${c.scls}">${c.status}</span></td>
+      <td style="padding:10px 12px;font-size:12px;color:var(--muted)">${escHtml(c.last_visit || '—')}</td>
+      <td style="padding:10px 12px;font-size:12px;color:var(--muted)">${c.days_since != null ? c.days_since + 'd' : '—'}</td>
+      <td style="padding:10px 12px;font-size:12px;text-align:center">${c.n_visits}</td>
+      <td style="padding:10px 12px;font-size:12px">£${c.avg_spend}</td>
+      <td style="padding:10px 12px;font-size:12px">${escHtml(c.pref_tm)}</td>
+      <td style="padding:10px 12px;font-size:12px;color:var(--muted)">${c.n_stylists} stylist${c.n_stylists !== 1 ? 's' : ''}</td>
+      <td style="padding:10px 12px">${cats}</td>
+      <td style="padding:10px 12px;font-size:12px;color:var(--text)">${escHtml(c.mobile || '—')}</td>
+      <td style="padding:10px 12px;text-align:center">${c.sms_optout ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#fde8eb;color:var(--risk)">Opted out</span>' : '<span style="color:#A0AEBC;font-size:12px">—</span>'}</td>
+      <td style="padding:10px 12px;text-align:center">${c.email_optout ? '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#fde8eb;color:var(--risk)">Opted out</span>' : '<span style="color:#A0AEBC;font-size:12px">—</span>'}</td>
+      <td style="padding:10px 12px;text-align:center">${c.salonspy_optin ? '<span style="color:#A0AEBC;font-size:12px">—</span>' : '<span class="px-2 py-0.5 rounded-full text-xs font-semibold" style="background:#fde8eb;color:var(--risk)">Opted out</span>'}</td>
     </tr>`;
   }).join('');
 
   box.innerHTML = `
-    <div class="rounded-2xl border overflow-hidden shadow-sm" style="border-color:var(--border);background:#fff">
-    <div class="overflow-x-auto">
-    <table>
+    <div style="border:1px solid var(--border);border-radius:14px;overflow:hidden;background:#fff">
+    <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse">
       <thead>
-        <tr class="text-xs uppercase tracking-wider">
-          <th class="text-left py-3 px-3" style="background:#F6F8FB;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Client</th>
-          <th class="text-left py-3 px-3" style="background:#F6F8FB;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600"><span class="tip-wrap">Status<span class="tip-box tip-box-down" style="white-space:normal;width:220px;text-align:left;line-height:1.6"><b>Active</b> — visited within 60 days<br><b>Due Soon</b> — 60–120 days ago<br><b>Lapsing</b> — 120–365 days ago<br><b>Lapsed</b> — over 365 days ago<br><b>No Visit (2yrs)</b> — no visit in last 2 years</span></span></th>
-          <th class="text-left py-3 px-3" style="background:#F6F8FB;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Last Visit</th>
-          <th class="text-left py-3 px-3" style="background:#F6F8FB;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Days Since</th>
-          <th class="text-left py-3 px-3" style="background:#F6F8FB;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Visits</th>
-          <th class="text-left py-3 px-3" style="background:#F6F8FB;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Avg Spend</th>
-          <th class="text-left py-3 px-3" style="background:#F6F8FB;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Stylist</th>
-          <th class="text-left py-3 px-3" style="background:#F6F8FB;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Stylists Seen</th>
-          <th class="text-left py-3 px-3" style="background:#F6F8FB;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Services</th>
-          <th class="text-left py-3 px-3" style="background:#F6F8FB;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Mobile</th>
-          <th class="text-left py-3 px-3" style="background:#F6F8FB;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">SMS Opt-out</th>
-          <th class="text-left py-3 px-3" style="background:#F6F8FB;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Email Opt-out</th>
-          <th class="text-left py-3 px-3" style="background:#F6F8FB;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600">Salon Spy Opt-out</th>
+        <tr>
+          <th style="${thStyle};width:36px;text-align:center">
+            <input type="checkbox" id="selectAllCb" checked onclick="toggleSelectAll(this)"
+                   style="width:15px;height:15px;accent-color:var(--green);cursor:pointer;display:block;margin:0 auto">
+          </th>
+          <th style="${thStyle}">Client</th>
+          <th style="${thStyle}"><span class="tip-wrap">Status<span class="tip-box tip-box-down" style="white-space:normal;width:220px;text-align:left;line-height:1.6"><b>Active</b> — visited within 60 days<br><b>Due Soon</b> — 60–120 days ago<br><b>Lapsing</b> — 120–365 days ago<br><b>Lapsed</b> — over 365 days ago<br><b>No Visit (2yrs)</b> — no visit in last 2 years</span></span></th>
+          <th style="${thStyle}">Last Visit</th>
+          <th style="${thStyle}">Days Since</th>
+          <th style="${thStyle}">Visits</th>
+          <th style="${thStyle}">Avg Spend</th>
+          <th style="${thStyle}">Stylist</th>
+          <th style="${thStyle}">Stylists Seen</th>
+          <th style="${thStyle}">Services</th>
+          <th style="${thStyle}">Mobile</th>
+          <th style="${thStyle}">SMS Opt-out</th>
+          <th style="${thStyle}">Email Opt-out</th>
+          <th style="${thStyle}">Salon Spy Opt-out</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>
     </div></div>`;
+
+  _updateSelectionCount();
+}
+
+function _activeSelection() {
+  return _selectedIds.size
+    ? _selectionResults.filter(c => _selectedIds.has(c.id))
+    : _selectionResults;
 }
 
 function exportCSV() {
   if (!_selectionResults.length) return;
   const cols = ['name','mobile','email','status','last_visit','days_since','n_visits','avg_spend','total_spend','pref_salon','pref_tm','n_stylists','no_shows','pref_day','pref_time','age_group','gender','points','top_cats','sms'];
   const header = cols.join(',');
-  const lines  = _selectionResults.map(c =>
+  const lines  = _activeSelection().map(c =>
     cols.map(k => {
       const v = Array.isArray(c[k]) ? c[k].join('; ') : (c[k] ?? '');
       return JSON.stringify(String(v));
