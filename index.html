@@ -1138,22 +1138,20 @@ function _smsEligible(c) {
 }
 
 function _updateSendButtons() {
+  // Action bar buttons always enabled — the LIVE restriction is inside the modal
+}
+
+function _applyLiveModalGuard(sendBtnId) {
   const isLive = selectedServer === 'LIVE';
-  ['btnSendSms','btnSendEmail'].forEach(id => {
-    const btn = document.getElementById(id);
-    if (!btn) return;
-    btn.disabled = isLive;
-    btn.style.opacity = isLive ? '0.4' : '';
-    btn.style.cursor  = isLive ? 'not-allowed' : '';
-    btn.title = isLive ? 'Sending is disabled on the LIVE server' : '';
-  });
+  const btn    = document.getElementById(sendBtnId);
+  if (!btn) return;
+  btn.disabled      = isLive;
+  btn.style.opacity = isLive ? '0.45' : '';
+  btn.style.cursor  = isLive ? 'not-allowed' : '';
+  btn.title         = isLive ? 'Sending is disabled on the LIVE server' : '';
 }
 
 function openSmsModal() {
-  if (selectedServer === 'LIVE') {
-    alert('SMS sending is disabled on the LIVE server.\nSwitch to BETA or DEMO to send messages.');
-    return;
-  }
   const active    = _activeSelection();
   const total     = active.length;
   const noMobile  = active.filter(c => !c.mobile || !c.mobile.trim()).length;
@@ -1176,6 +1174,7 @@ function openSmsModal() {
     : '<span style="color:var(--green)">All selected clients can receive this SMS.</span>';
 
   document.getElementById('smsSendBtn').textContent = `Send to ${eligible.length} client${eligible.length !== 1 ? 's' : ''} →`;
+  _applyLiveModalGuard('smsSendBtn');
   updateSmsPreview();
 }
 
@@ -1379,10 +1378,6 @@ async function _fetchEmailPreview() {
 }
 
 async function openEmailModal() {
-  if (selectedServer === 'LIVE') {
-    alert('Email sending is disabled on the LIVE server.\nSwitch to BETA or DEMO to send messages.');
-    return;
-  }
   const active     = _activeSelection();
   const recipients = active.filter(c => c.email);
   const total      = active.length;
@@ -1402,6 +1397,7 @@ async function openEmailModal() {
     } catch {}
   }
   _fetchEmailPreview();
+  _applyLiveModalGuard('emailSendBtn');
 }
 
 function closeEmailModal() {
