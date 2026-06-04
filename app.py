@@ -309,11 +309,11 @@ def _build_email_html(template_id, brand, content, recipient=None):
 
     # ── TEMPLATE: minimal ────────────────────────────────────────
     if template_id == 'minimal':
-        return f'''<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+        return f'''<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light">
 <link href="{f['import_url']}" rel="stylesheet">
-<style>body{{margin:0;padding:0;background:#F5F6F8}}a{{color:{clr}}}@media(max-width:600px){{.mp{{padding:24px 20px!important}}}}</style>
-</head><body bgcolor="#F5F6F8" style="margin:0;padding:0;background-color:#F5F6F8">
-<table width="100%" cellpadding="0" cellspacing="0" bgcolor="#F5F6F8" style="background:#F5F6F8;padding:32px 16px">
+<style>body{{margin:0;padding:0;background:#ffffff}}a{{color:{clr}}}@media(max-width:600px){{.mp{{padding:24px 20px!important}}}}</style>
+</head><body bgcolor="#ffffff" style="margin:0;padding:0;background-color:#ffffff">
+<table width="100%" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="background:#ffffff;padding:32px 16px">
 <tr><td align="center">
   <table width="100%" cellpadding="0" cellspacing="0" style="max-width:580px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #E2E6EC">
     <tr><td style="height:5px;background:{clr};font-size:0;line-height:0">&nbsp;</td></tr>
@@ -331,11 +331,11 @@ def _build_email_html(template_id, brand, content, recipient=None):
     # ── TEMPLATE: hero ───────────────────────────────────────────
     elif template_id == 'hero':
         hero = img_block if img_url else f'<tr><td style="height:8px;background:{clr};font-size:0">&nbsp;</td></tr>'
-        return f'''<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+        return f'''<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light">
 <link href="{f['import_url']}" rel="stylesheet">
-<style>body{{margin:0;padding:0;background:#F5F6F8}}a{{color:{clr}}}@media(max-width:600px){{.mp{{padding:24px 20px!important}}}}</style>
-</head><body bgcolor="#F5F6F8" style="margin:0;padding:0;background-color:#F5F6F8">
-<table width="100%" cellpadding="0" cellspacing="0" bgcolor="#F5F6F8" style="background:#F5F6F8;padding:32px 16px">
+<style>body{{margin:0;padding:0;background:#ffffff}}a{{color:{clr}}}@media(max-width:600px){{.mp{{padding:24px 20px!important}}}}</style>
+</head><body bgcolor="#ffffff" style="margin:0;padding:0;background-color:#ffffff">
+<table width="100%" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="background:#ffffff;padding:32px 16px">
 <tr><td align="center">
   <table width="100%" cellpadding="0" cellspacing="0" style="max-width:580px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #E2E6EC">
     {hero}
@@ -352,11 +352,11 @@ def _build_email_html(template_id, brand, content, recipient=None):
 
     # ── TEMPLATE: brand_block ────────────────────────────────────
     elif template_id == 'brand_block':
-        return f'''<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+        return f'''<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light">
 <link href="{f['import_url']}" rel="stylesheet">
-<style>body{{margin:0;padding:0;background:#F5F6F8}}a{{color:{clr}}}@media(max-width:600px){{.mp{{padding:24px 20px!important}}}}</style>
-</head><body bgcolor="#F5F6F8" style="margin:0;padding:0;background-color:#F5F6F8">
-<table width="100%" cellpadding="0" cellspacing="0" bgcolor="#F5F6F8" style="background:#F5F6F8;padding:32px 16px">
+<style>body{{margin:0;padding:0;background:#ffffff}}a{{color:{clr}}}@media(max-width:600px){{.mp{{padding:24px 20px!important}}}}</style>
+</head><body bgcolor="#ffffff" style="margin:0;padding:0;background-color:#ffffff">
+<table width="100%" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="background:#ffffff;padding:32px 16px">
 <tr><td align="center">
   <table width="100%" cellpadding="0" cellspacing="0" style="max-width:580px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #E2E6EC">
     <!-- Brand color header -->
@@ -375,11 +375,11 @@ def _build_email_html(template_id, brand, content, recipient=None):
 
     # ── TEMPLATE: announcement ───────────────────────────────────
     else:
-        return f'''<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+        return f'''<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light">
 <link href="{f['import_url']}" rel="stylesheet">
-<style>body{{margin:0;padding:0;background:#F5F6F8}}a{{color:{clr}}}@media(max-width:600px){{.mp{{padding:24px 20px!important}}}}</style>
-</head><body bgcolor="#F5F6F8" style="margin:0;padding:0;background-color:#F5F6F8">
-<table width="100%" cellpadding="0" cellspacing="0" bgcolor="#F5F6F8" style="background:#F5F6F8;padding:32px 16px">
+<style>body{{margin:0;padding:0;background:#ffffff}}a{{color:{clr}}}@media(max-width:600px){{.mp{{padding:24px 20px!important}}}}</style>
+</head><body bgcolor="#ffffff" style="margin:0;padding:0;background-color:#ffffff">
+<table width="100%" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="background:#ffffff;padding:32px 16px">
 <tr><td align="center">
   <table width="100%" cellpadding="0" cellspacing="0" style="max-width:580px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #E2E6EC">
     <tr><td align="center" style="padding:32px 40px 0" class="mp">{logo_block}</td></tr>
