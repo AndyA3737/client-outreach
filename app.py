@@ -65,6 +65,8 @@ def _db_setup():
             )
         """)
         cur.execute("ALTER TABLE activity_log ADD COLUMN IF NOT EXISTS username TEXT")
+        cur.execute("ALTER TABLE activity_log ADD COLUMN IF NOT EXISTS cache_write_tokens INTEGER")
+        cur.execute("ALTER TABLE activity_log ADD COLUMN IF NOT EXISTS cache_read_tokens INTEGER")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS history (
                 id             SERIAL PRIMARY KEY,
@@ -2150,12 +2152,10 @@ Fields available on each client record:
 - request_count (int): number of past visits where the client specifically requested their team member (0 if never requested)
 """
 
-    prompt = f"""You are a filter assistant for a hair salon CRM.
+    static_prompt = f"""You are a filter assistant for a hair salon CRM.
 Convert the natural language query into JSON filter criteria for the client database.
 
 {schema}
-
-Query: "{q}"
 
 Return ONLY a JSON object — no markdown, no explanation — in this exact structure:
 {{
@@ -2246,10 +2246,19 @@ IMPORTANT: always use contains_exact (not contains) for promo_codes — these ar
         msg = ai.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=512,
-            messages=[{"role": "user", "content": prompt}],
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": static_prompt,
+                     "cache_control": {"type": "ephemeral"}},
+                    {"type": "text", "text": f'Query: "{q}"\n\nReturn ONLY the JSON object for the query above.'},
+                ],
+            }],
         )
         _query_in  = msg.usage.input_tokens
         _query_out = msg.usage.output_tokens
+        _cache_write = getattr(msg.usage, 'cache_creation_input_tokens', 0) or 0
+        _cache_read  = getattr(msg.usage, 'cache_read_input_tokens', 0) or 0
         raw = msg.content[0].text.strip()
         if raw.startswith("```"):
             raw = raw.split("```")[1]
@@ -2323,6 +2332,8 @@ IMPORTANT: always use contains_exact (not contains) for promo_codes — these ar
          response_ms=round((time.time() - t0) * 1000),
          input_tokens=_query_in,
          output_tokens=_query_out,
+         cache_write_tokens=_cache_write,
+         cache_read_tokens=_cache_read,
     )
     _write_history(
         flask_session.get('account_code', ''), 'selection', q,
@@ -2349,7 +2360,49 @@ def _sort_months(keys):
     return sorted(keys, key=parse, reverse=True)
 
 
-def build_analysis_context(question="", ctx=None):
+def _named_client_block(question, all_clients):
+    """Render a 'NAMED CLIENT RECORDS' block for any client named in the question.
+
+    Kept separate from build_analysis_context so the (large, mostly-static) salon
+    data block can be prompt-cached — this small, question-dependent piece is
+    appended outside the cached block.
+    """
+    if not question:
+        return ""
+    q_lower = question.lower()
+    q_words = set(q_lower.split())
+    named_clients = []
+    for c in all_clients:
+        name = (c.get("name") or "").strip()
+        if not name:
+            continue
+        first = name.split()[0].lower()
+        # Only match on first name if it's at least 4 chars (avoids "is", "new", etc.)
+        if name.lower() in q_lower or (len(first) >= 4 and first in q_words):
+            named_clients.append(c)
+    if not named_clients:
+        return ""
+
+    lines = ["", "NAMED CLIENT RECORDS (full detail):"]
+    for c in named_clients[:5]:
+        lines += [
+            f"  Name: {c['name']}",
+            f"  Status: {c.get('status','')} | Score: {c.get('score','')} | Days since visit: {c.get('days_since','')}",
+            f"  Visits: {c.get('n_visits',0)} | Last visit: {c.get('last_visit','')} | Avg gap: {c.get('avg_gap','')}d",
+            f"  Service revenue: £{c.get('total_spend',0)} | Avg spend: £{c.get('avg_spend',0)} | Overdue: {c.get('overdue','')}d",
+            f"  Retail: {c.get('retail_count',0)} purchases, £{c.get('retail_total',0)} total",
+            f"  Gift cards: {c.get('giftcard_count',0)}, £{c.get('giftcard_total',0)} total",
+            f"  Promotions: {c.get('promo_count',0)} — {', '.join(c.get('promo_names') or [])}",
+            f"  Preferred stylist: {c.get('pref_tm','')} | Day: {c.get('pref_day','')} {c.get('pref_time','')}",
+            f"  Services: {', '.join(c.get('top_cats',[]))}",
+            f"  No-shows: {c.get('no_shows',0)} | Points: {c.get('points',0)} | Balance: £{c.get('account_balance',0)}",
+            f"  SMS opt-out: {c.get('sms_optout',False)} | Email opt-out: {c.get('email_optout',False)}",
+            "",
+        ]
+    return "\n".join(lines)
+
+
+def build_analysis_context(ctx=None):
     # Unpack per-tenant context
     all_clients          = (ctx or {}).get('all_clients', [])
     all_scored           = (ctx or {}).get('all_scored', [])
@@ -2433,20 +2486,6 @@ def build_analysis_context(question="", ctx=None):
                 "avg_visits":   round(sum(c.get("n_visits", 0) for c in grp) / len(grp), 1),
                 "retail_buyers": sum(1 for c in grp if c.get("retail_count", 0) > 0),
             }
-
-    # Specific client lookup — include full record if the question names someone
-    named_clients = []
-    if question:
-        q_lower = question.lower()
-        q_words = set(q_lower.split())
-        for c in all_clients:
-            name = (c.get("name") or "").strip()
-            if not name:
-                continue
-            first = name.split()[0].lower()
-            # Only match on first name if it's at least 4 chars (avoids "is", "new", etc.)
-            if name.lower() in q_lower or (len(first) >= 4 and first in q_words):
-                named_clients.append(c)
 
     this_monday  = today - timedelta(days=today.weekday())
     last_monday  = this_monday - timedelta(days=7)
@@ -2789,25 +2828,6 @@ def build_analysis_context(question="", ctx=None):
             f"{c.get('pref_tm','')},{c.get('pref_salon','')},{cats}"
         )
 
-    # Named client spotlight
-    if named_clients:
-        lines += ["", "NAMED CLIENT RECORDS (full detail):"]
-        for c in named_clients[:5]:
-            lines += [
-                f"  Name: {c['name']}",
-                f"  Status: {c.get('status','')} | Score: {c.get('score','')} | Days since visit: {c.get('days_since','')}",
-                f"  Visits: {c.get('n_visits',0)} | Last visit: {c.get('last_visit','')} | Avg gap: {c.get('avg_gap','')}d",
-                f"  Service revenue: £{c.get('total_spend',0)} | Avg spend: £{c.get('avg_spend',0)} | Overdue: {c.get('overdue','')}d",
-                f"  Retail: {c.get('retail_count',0)} purchases, £{c.get('retail_total',0)} total",
-                f"  Gift cards: {c.get('giftcard_count',0)}, £{c.get('giftcard_total',0)} total",
-                f"  Promotions: {c.get('promo_count',0)} — {', '.join(c.get('promo_names') or [])}",
-                f"  Preferred stylist: {c.get('pref_tm','')} | Day: {c.get('pref_day','')} {c.get('pref_time','')}",
-                f"  Services: {', '.join(c.get('top_cats',[]))}",
-                f"  No-shows: {c.get('no_shows',0)} | Points: {c.get('points',0)} | Balance: £{c.get('account_balance',0)}",
-                f"  SMS opt-out: {c.get('sms_optout',False)} | Email opt-out: {c.get('email_optout',False)}",
-                "",
-            ]
-
     # Utilisation data — aggregated from daily rows (ClientMinutes / AvailablTime)
     if utilisation:
         zero = lambda: {"client_mins": 0, "avail_mins": 0, "days": 0,
@@ -2999,7 +3019,11 @@ def analyse():
                     + fmt_instructions.get(fmt, fmt_instructions["dashboard"])
                 )
                 _jobs[job_id]["step"] = "Building data context…"
-                context  = build_analysis_context(question, ctx=ctx)
+                # SALON DATA is large but identical for every question against this
+                # tenant — cache it so repeat/follow-up questions in a session only
+                # pay full input-token price for the small per-question block below.
+                context  = build_analysis_context(ctx=ctx)
+                named_block = _named_client_block(question, ctx.get('all_clients', []))
                 prev_block = ""
                 if previous_result:
                     prev_block = (
@@ -3009,8 +3033,8 @@ def analyse():
                         "always recalculate everything fresh from SALON DATA above):\n"
                         + json.dumps(previous_result, ensure_ascii=False)
                     )
-                user_msg = (
-                    f"SALON DATA:\n{context}"
+                question_block = (
+                    f"{named_block}"
                     f"{prev_block}"
                     f"\n\nQUESTION: {question}\n\nOutput format: {fmt}"
                 )
@@ -3022,13 +3046,24 @@ def analyse():
                 msg = ai.messages.create(
                     model="claude-sonnet-4-6",
                     max_tokens=8192,
-                    system=system,
-                    messages=[{"role": "user", "content": user_msg}],
+                    system=[{"type": "text", "text": system,
+                             "cache_control": {"type": "ephemeral"}}],
+                    messages=[{
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": f"SALON DATA:\n{context}",
+                             "cache_control": {"type": "ephemeral"}},
+                            {"type": "text", "text": question_block},
+                        ],
+                    }],
                 )
                 text = msg.content[0].text.strip()
-                app.logger.info("ANALYSE done chars=%d stop=%s in=%d out=%d",
+                _cache_write = getattr(msg.usage, 'cache_creation_input_tokens', 0) or 0
+                _cache_read  = getattr(msg.usage, 'cache_read_input_tokens', 0) or 0
+                app.logger.info("ANALYSE done chars=%d stop=%s in=%d out=%d cache_write=%d cache_read=%d",
                                 len(text), msg.stop_reason,
-                                msg.usage.input_tokens, msg.usage.output_tokens)
+                                msg.usage.input_tokens, msg.usage.output_tokens,
+                                _cache_write, _cache_read)
 
                 if text.startswith("```"):
                     text = text.split("```", 1)[1]
@@ -3047,6 +3082,8 @@ def analyse():
                 result["_usage"] = {
                     "input_tokens":  msg.usage.input_tokens,
                     "output_tokens": msg.usage.output_tokens,
+                    "cache_write_tokens": _cache_write,
+                    "cache_read_tokens":  _cache_read,
                 }
                 _log('analyse',
                      salon=_salon_label(ctx),
@@ -3059,6 +3096,8 @@ def analyse():
                      response_ms=round((time.time() - t0) * 1000),
                      input_tokens=msg.usage.input_tokens,
                      output_tokens=msg.usage.output_tokens,
+                     cache_write_tokens=_cache_write,
+                     cache_read_tokens=_cache_read,
                 )
                 # Strip usage metadata before storing (it's already in activity_log)
                 result_for_history = {k: v for k, v in result.items() if k != '_usage'}
@@ -3364,6 +3403,8 @@ def admin_logs():
                            THEN response_ms END))                           AS avg_ms,
             SUM(COALESCE(input_tokens,  0))                                 AS total_in,
             SUM(COALESCE(output_tokens, 0))                                 AS total_out,
+            SUM(COALESCE(cache_write_tokens, 0))                            AS total_cache_write,
+            SUM(COALESCE(cache_read_tokens,  0))                            AS total_cache_read,
             COUNT(CASE WHEN error IS NOT NULL THEN 1 END)                   AS errors
         FROM activity_log
     """)
@@ -3372,10 +3413,17 @@ def admin_logs():
     con.close()
 
     # Cost estimate: Sonnet 4.6 — $3/MTok in, $15/MTok out
-    total_in  = totals['total_in']  or 0
-    total_out = totals['total_out'] or 0
-    avg_ms    = totals['avg_ms']    or 0
-    cost_usd  = (total_in * 3 + total_out * 15) / 1_000_000
+    # (Haiku selection queries are far cheaper but small enough to ignore here.)
+    # Prompt-cache pricing: writes cost 1.25x base input rate, reads cost 0.1x.
+    total_in    = totals['total_in']  or 0
+    total_out   = totals['total_out'] or 0
+    cache_write = totals['total_cache_write'] or 0
+    cache_read  = totals['total_cache_read']  or 0
+    avg_ms      = totals['avg_ms']    or 0
+    cost_usd    = (total_in * 3 + cache_write * 3 * 1.25 + cache_read * 3 * 0.1
+                   + total_out * 15) / 1_000_000
+    cost_usd_no_cache = ((total_in + cache_write + cache_read) * 3 + total_out * 15) / 1_000_000
+    cache_savings_usd = cost_usd_no_cache - cost_usd
 
     def badge(event_type):
         colours = {'analyse': '#3A7A50', 'query': '#1A2332', 'session': '#5DBF85', 'history_delete': '#C0392B'}
@@ -3500,6 +3548,7 @@ def admin_logs():
   <div class="stat"><div class="val">{totals['queries']}</div><div class="lbl">Client queries</div></div>
   <div class="stat"><div class="val">{int(avg_ms) // 1000}.{(int(avg_ms) % 1000) // 100}s</div><div class="lbl">Avg response</div></div>
   <div class="stat"><div class="val">${cost_usd:.2f}</div><div class="lbl">Est. API cost (USD)</div></div>
+  <div class="stat"><div class="val" style="color:#3A7A50">${cache_savings_usd:.2f}</div><div class="lbl">Saved by prompt caching</div></div>
   <div class="stat"><div class="val" style="color:{'#C0392B' if totals['errors'] else '#3A7A50'}">{totals['errors']}</div><div class="lbl">Errors</div></div>
 </div>
 <div class="tbl-wrap">
