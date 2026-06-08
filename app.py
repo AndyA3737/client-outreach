@@ -2172,6 +2172,8 @@ Examples:
 "last visit in January 2026" → [{{"field":"last_visit","op":"contains","value":"Jan 2026"}}]
 "visited only once" → [{{"field":"n_visits","op":"eq","value":1}}]
 "loyal regulars" → [{{"field":"n_visits","op":"gte","value":10}}]
+"haven't visited in more than 12 weeks but visited regularly before (at least 6 times in 2 years)" → logic AND, [{{"field":"days_since","op":"gt","value":84}},{{"field":"n_visits","op":"gte","value":6}}]
+IMPORTANT: convert weeks/months to days for days_since comparisons (1 week ≈ 7 days, 1 month ≈ 30 days), e.g. "more than 12 weeks" → days_since gt 84, "over 3 months" → days_since gt 90.
 "high value lapsing" → logic AND, [{{"field":"scls","op":"eq","value":"lapsing"}},{{"field":"avg_spend","op":"gte","value":60}}]
 "colour clients overdue" → logic AND, [{{"field":"top_cats","op":"contains","value":"Colour"}},{{"field":"overdue","op":"exists","value":true}}]
 IMPORTANT: when a query mentions a time window ("last 6 months", "recently", "in the past X months"), always use recent_svcs or recent_cats instead of top_svcs or all_cats:

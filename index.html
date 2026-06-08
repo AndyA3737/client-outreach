@@ -574,6 +574,7 @@
       <button class="query-chip" onclick="setQuery(this)">Loyal clients visiting 8+ times</button>
       <button class="query-chip" onclick="setQuery(this)">All clients with a future booking</button>
       <button class="query-chip" onclick="setQuery(this)">Clients who have requested their stylist</button>
+      <button class="query-chip" onclick="setQuery(this)">Regulars (6+ visits in 2 years) who've gone quiet for 12+ weeks</button>
     </div>
   </div>
 
@@ -1824,6 +1825,8 @@ const _PROMPT_CATS = {
     'Average client rebooking rate this quarter',
     'Client retention rate over the last 6 months',
     "Clients who haven't visited in 90+ days",
+    'Which clients spend the most annually, and what services do they purchase?',
+    'Identify clients most likely to lapse based on historical visit patterns',
   ],
   Team: [
     'Which stylist has the highest avg spend per client?',
