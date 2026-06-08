@@ -883,6 +883,8 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     _seen_hr   = set()   # (bid, hour) — dedup visits per hour slot
     _seen_dow  = set()   # (bid, dow)  — dedup visits per day-of-week
     _tm_rebook_agg = defaultdict(lambda: defaultdict(lambda: {"visits": 0, "rebooked": 0, "revenue": 0.0, "clients": set(), "requests": 0}))
+    _tm_cat_agg    = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: {"revenue": 0.0, "visits": 0})))
+    _seen_tm_cat_bid = set()  # (tm_id, cat, bid) — dedup visits per stylist per category
     _tm_day_agg    = defaultdict(lambda: defaultdict(lambda: {"visits": 0, "rebooked": 0, "revenue": 0.0, "clients": set(), "requests": 0}))
     _tm_wk_agg     = defaultdict(lambda: defaultdict(lambda: {"visits": 0, "rebooked": 0, "revenue": 0.0, "clients": set(), "requests": 0}))
     _seen_tm_bid   = set()  # (tm_id, bid) — dedup booking visits per team member
@@ -974,6 +976,11 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                     _tm_day_agg[tm_id][day]["clients"].add(cid)
                     _tm_wk_agg[tm_id][wk]["revenue"]      += b["price"]
                     _tm_wk_agg[tm_id][wk]["clients"].add(cid)
+                    if cat:  # stylist × category × month breakdown
+                        _tm_cat_agg[tm_id][cat][mk]["revenue"] += b["price"]
+                        if (tm_id, cat, bid) not in _seen_tm_cat_bid:
+                            _seen_tm_cat_bid.add((tm_id, cat, bid))
+                            _tm_cat_agg[tm_id][cat][mk]["visits"] += 1
                     if (tm_id, bid) not in _seen_tm_bid:
                         _seen_tm_bid.add((tm_id, bid))
                         _tm_rebook_agg[tm_id][mk]["visits"] += 1
@@ -1073,6 +1080,16 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             for mk, d in months.items()
         }
         for tm_id, months in _tm_rebook_agg.items()
+        if tm_id in team_map
+    }
+
+    team_cat_monthly = {
+        team_map[tm_id]: {
+            cat: {mk: {"revenue": round(d["revenue"]), "visits": d["visits"]}
+                  for mk, d in months.items()}
+            for cat, months in cats.items()
+        }
+        for tm_id, cats in _tm_cat_agg.items()
         if tm_id in team_map
     }
 
@@ -1515,6 +1532,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         'service_salon_monthly': service_salon_monthly,
         'booking_stats':         booking_stats,
         'team_rebook_monthly':   team_rebook_monthly,
+        'team_cat_monthly':      team_cat_monthly,
         'team_day_stats':        team_day_stats,
         'team_week_stats':       team_week_stats,
         'team_kpis':             team_kpis,
@@ -2343,6 +2361,7 @@ def build_analysis_context(question="", ctx=None):
     utilisation          = (ctx or {}).get('utilisation', [])
     team_kpis            = (ctx or {}).get('team_kpis', {})
     team_rebook_monthly  = (ctx or {}).get('team_rebook_monthly', {})
+    team_cat_monthly     = (ctx or {}).get('team_cat_monthly', {})
     team_day_stats       = (ctx or {}).get('team_day_stats', {})
     team_week_stats      = (ctx or {}).get('team_week_stats', {})
     loaded_salon_name    = (ctx or {}).get('loaded_salon_name', '')
@@ -2647,6 +2666,19 @@ def build_analysis_context(question="", ctx=None):
                 if d and d["revenue"] > 0:
                     lines.append(f"{mk},{cat},£{d['revenue']:,},{d['visits']}")
 
+        if team_cat_monthly:
+            recent_months = _sort_months(service_monthly)[:3]
+            lines += ["", "STYLIST REVENUE BY SERVICE CATEGORY (last 3 months, paid bookings only — "
+                          "use this to answer questions like 'which stylist generated the most revenue "
+                          "from colour services this month'):",
+                      "Month,Stylist,Category,Revenue£,Visits"]
+            for mk in recent_months:
+                for name in sorted(team_cat_monthly):
+                    for cat in top_cats_ranked:
+                        d = team_cat_monthly[name].get(cat, {}).get(mk)
+                        if d and d["revenue"] > 0:
+                            lines.append(f"{mk},{name},{cat},£{d['revenue']:,},{d['visits']}")
+
     # Retail product aggregates — use transaction-level data if available,
     # fall back to counting product names across client records
     if retail_summary.get("products"):
@@ -2941,6 +2973,11 @@ def analyse():
                     "which contains actual per-stylist rebooking rates sourced directly from the "
                     "HasBeenRebooked field in the booking API. Use this table when asked about "
                     "rebooking rates — do NOT say the data is unavailable if this section is present. "
+                    "IMPORTANT: The data includes a section called 'STYLIST REVENUE BY SERVICE CATEGORY' "
+                    "(last 3 months) which breaks down each stylist's revenue by service category "
+                    "(e.g. Colour, Cut & Finish). Use this table to answer questions like 'which stylist "
+                    "generated the most revenue from colour services this month' — do NOT say stylist-level "
+                    "category revenue is unavailable if this section is present. "
                     "IMPORTANT: 'Request clients' or 'request rate' means clients who specifically "
                     "requested a team member. The daily, weekly, and monthly service tables include "
                     "RequestClients (count) and RequestRate% (RequestClients ÷ UniqueClients × 100) columns. "
