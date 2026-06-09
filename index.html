@@ -149,9 +149,14 @@
   .merge-btn:hover { background:var(--green);color:#fff;border-color:var(--green); }
 
   .sms-preset { width:100%;text-align:left;background:#fff;border:1px solid var(--border);
-                border-radius:10px;padding:10px 12px;cursor:pointer;font-family:inherit;
-                transition:all 0.15s; }
+                border-radius:10px;padding:10px 12px 28px;cursor:pointer;font-family:inherit;
+                transition:all 0.15s;position:relative; }
   .sms-preset:hover { border-color:var(--green);background:#F4FAF5; }
+  .sms-cycle-btn { position:absolute;bottom:6px;right:7px;padding:2px 7px;font-size:10px;
+                   font-weight:600;font-family:inherit;border:1px solid var(--border);
+                   border-radius:20px;background:#F0F3F6;color:var(--muted);cursor:pointer;
+                   line-height:1.6;transition:all 0.15s; }
+  .sms-cycle-btn:hover { border-color:var(--green);background:#E6F5EB;color:var(--green); }
 
   /* Email template picker */
   .email-tmpl-btn { background:#fff;border:1.5px solid var(--border);border-radius:11px;
@@ -712,25 +717,30 @@
         <div style="padding:16px 20px;border-bottom:1px solid var(--border);background:#F6F8FB">
           <div class="eyebrow" style="margin-bottom:10px">Templates</div>
           <div style="display:flex;flex-direction:column;gap:7px">
-            <button class="sms-preset" onclick="applyPreset(0)">
+            <button class="sms-preset" id="sms-tmpl-0" onclick="applyPreset(0)">
               <div style="font-size:12px;font-weight:600;color:var(--text)">Win-back</div>
-              <div style="font-size:11px;color:var(--muted);margin-top:2px">Hi {first_name}, we've missed you! It's been {days_since} since your last visit. {stylist} would love to see you at {salon} again — give us a call.</div>
+              <div id="sms-desc-0" style="font-size:11px;color:var(--muted);margin-top:2px">Hi {first_name}, we've missed you! It's been {days_since} since your last visit. {stylist} would love to see you at {salon} again — give us a call.</div>
+              <button class="sms-cycle-btn" id="sms-cycle-0" onclick="cycleVariant(0,event)">1 / 4</button>
             </button>
-            <button class="sms-preset" onclick="applyPreset(1)">
+            <button class="sms-preset" id="sms-tmpl-1" onclick="applyPreset(1)">
               <div style="font-size:12px;font-weight:600;color:var(--text)">Overdue reminder</div>
-              <div style="font-size:11px;color:var(--muted);margin-top:2px">Hi {first_name}, your hair is {overdue} — time to treat yourself! Book with {stylist} at {salon}. Call us to get in the diary.</div>
+              <div id="sms-desc-1" style="font-size:11px;color:var(--muted);margin-top:2px">Hi {first_name}, your hair is {overdue} — time to treat yourself! Book with {stylist} at {salon}. Call us to get in the diary.</div>
+              <button class="sms-cycle-btn" id="sms-cycle-1" onclick="cycleVariant(1,event)">1 / 4</button>
             </button>
-            <button class="sms-preset" onclick="applyPreset(2)">
+            <button class="sms-preset" id="sms-tmpl-2" onclick="applyPreset(2)">
               <div style="font-size:12px;font-weight:600;color:var(--text)">Colour refresh</div>
-              <div style="font-size:11px;color:var(--muted);margin-top:2px">Hi {first_name}, your colour is ready for a refresh! Book with {stylist} at {salon} and keep those tones looking gorgeous.</div>
+              <div id="sms-desc-2" style="font-size:11px;color:var(--muted);margin-top:2px">Hi {first_name}, your colour is ready for a refresh! Book with {stylist} at {salon} and keep those tones looking gorgeous.</div>
+              <button class="sms-cycle-btn" id="sms-cycle-2" onclick="cycleVariant(2,event)">1 / 4</button>
             </button>
-            <button class="sms-preset" onclick="applyPreset(3)">
+            <button class="sms-preset" id="sms-tmpl-3" onclick="applyPreset(3)">
               <div style="font-size:12px;font-weight:600;color:var(--text)">Prebook nudge</div>
-              <div style="font-size:11px;color:var(--muted);margin-top:2px">Hi {first_name}, lovely seeing you on {last_visit}! Why not prebook your next visit with {stylist} before the diary fills up?</div>
+              <div id="sms-desc-3" style="font-size:11px;color:var(--muted);margin-top:2px">Hi {first_name}, lovely seeing you on {last_visit}! Why not prebook your next visit with {stylist} before the diary fills up?</div>
+              <button class="sms-cycle-btn" id="sms-cycle-3" onclick="cycleVariant(3,event)">1 / 4</button>
             </button>
-            <button class="sms-preset" onclick="applyPreset(4)">
+            <button class="sms-preset" id="sms-tmpl-4" onclick="applyPreset(4)">
               <div style="font-size:12px;font-weight:600;color:var(--text)">General offer</div>
-              <div style="font-size:11px;color:var(--muted);margin-top:2px">Hi {first_name}! We have some exciting availability at {salon} — why not treat yourself? Call us to book with {stylist}.</div>
+              <div id="sms-desc-4" style="font-size:11px;color:var(--muted);margin-top:2px">Hi {first_name}! We have some exciting availability at {salon} — why not treat yourself? Call us to book with {stylist}.</div>
+              <button class="sms-cycle-btn" id="sms-cycle-4" onclick="cycleVariant(4,event)">1 / 4</button>
             </button>
           </div>
         </div>
@@ -1111,17 +1121,63 @@
 
 <script>
 // ── SMS Blast ─────────────────────────────────────────────────
-const _SMS_PRESETS = [
-  "Hi {first_name}, we've missed you! It's been {days_since} since your last visit. {stylist} would love to see you at {salon} again — give us a call.",
-  "Hi {first_name}, your hair is {overdue} — time to treat yourself! Book with {stylist} at {salon}. Call us to get in the diary.",
-  "Hi {first_name}, your colour is ready for a refresh! Book with {stylist} at {salon} and keep those tones looking gorgeous.",
-  "Hi {first_name}, lovely seeing you on {last_visit}! Why not prebook your next visit with {stylist} before the diary fills up?",
-  "Hi {first_name}! We have some exciting availability at {salon} — why not treat yourself? Call us to book with {stylist}.",
+const _SMS_TEMPLATES = [
+  { name: 'Win-back', variants: [
+    "Hi {first_name}, we've missed you! It's been {days_since} since your last visit. {stylist} would love to see you at {salon} again — give us a call.",
+    "Hi {first_name}! It's been {days_since} and we'd love to see you back. {stylist} is ready when you are — just give {salon} a call.",
+    "{first_name}, we haven't seen you in {days_since} and we miss you! Pop in or call {salon} to book with {stylist}.",
+    "Hey {first_name} — {days_since} since we last saw you! Your next appointment with {stylist} at {salon} awaits. Give us a call.",
+  ]},
+  { name: 'Overdue reminder', variants: [
+    "Hi {first_name}, your hair is {overdue} — time to treat yourself! Book with {stylist} at {salon}. Call us to get in the diary.",
+    "Hi {first_name}, looks like you're {overdue} — your hair deserves some love! Call {salon} and we'll get you booked in with {stylist}.",
+    "{first_name}, it's been a while — you're {overdue}! Let {stylist} work their magic. Call {salon} to book your next visit.",
+    "Hi {first_name}! Your hair is {overdue} — don't leave it any longer. Call {salon} today and let {stylist} take care of you.",
+  ]},
+  { name: 'Colour refresh', variants: [
+    "Hi {first_name}, your colour is ready for a refresh! Book with {stylist} at {salon} and keep those tones looking gorgeous.",
+    "Hi {first_name}! Time to refresh that colour — {stylist} at {salon} will have you looking amazing. Give us a call to book.",
+    "{first_name}, your colour needs some love! Book with {stylist} at {salon} before your tones start to fade.",
+    "Hi {first_name}, don't let your colour lose its shine! {stylist} at {salon} is ready to give it a fresh boost — call us to book.",
+  ]},
+  { name: 'Prebook nudge', variants: [
+    "Hi {first_name}, lovely seeing you on {last_visit}! Why not prebook your next visit with {stylist} before the diary fills up?",
+    "Great seeing you {first_name}! {stylist}'s diary is filling fast — prebook your next visit now so you don't miss out.",
+    "Hi {first_name}, thanks for coming in on {last_visit}! Secure your next appointment with {stylist} — call {salon} to prebook.",
+    "{first_name}, don't lose your slot! Prebook your next visit with {stylist} at {salon} while the diary is still open.",
+  ]},
+  { name: 'General offer', variants: [
+    "Hi {first_name}! We have some exciting availability at {salon} — why not treat yourself? Call us to book with {stylist}.",
+    "Hi {first_name}, there's a gap in {stylist}'s diary at {salon} with your name on it! Give us a call to book.",
+    "{first_name}, we have some last-minute availability at {salon} — treat yourself! Book with {stylist} by calling us today.",
+    "Hi {first_name}! Looking for some 'me time'? {stylist} at {salon} has some availability — give us a call to grab it.",
+  ]},
 ];
+const _smsVariantIdx = [0, 0, 0, 0, 0];
 
-function applyPreset(index) {
+function cycleVariant(i, e) {
+  e.stopPropagation();
+  const tmpl = _SMS_TEMPLATES[i];
+  _smsVariantIdx[i] = (_smsVariantIdx[i] + 1) % tmpl.variants.length;
+  const v = _smsVariantIdx[i];
+  document.getElementById(`sms-desc-${i}`).textContent = tmpl.variants[v];
+  document.getElementById(`sms-cycle-${i}`).textContent = `${v + 1} / ${tmpl.variants.length}`;
+  // If this template is currently loaded, update the textarea live
   const ta = document.getElementById('smsTemplate');
-  ta.value = _SMS_PRESETS[index] || '';
+  if (ta.dataset.activePreset === String(i)) {
+    ta.value = tmpl.variants[v];
+    updateSmsPreview();
+  }
+}
+
+function applyPreset(i) {
+  const ta = document.getElementById('smsTemplate');
+  ta.value = _SMS_TEMPLATES[i].variants[_smsVariantIdx[i]];
+  ta.dataset.activePreset = String(i);
+  document.querySelectorAll('.sms-preset').forEach((b, idx) => {
+    b.style.borderColor = idx === i ? 'var(--green)' : 'var(--border)';
+    b.style.background  = idx === i ? '#E6F5EB' : '#fff';
+  });
   ta.focus();
   updateSmsPreview();
 }
