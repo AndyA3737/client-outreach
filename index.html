@@ -765,11 +765,14 @@
       </div>
 
       <!-- RIGHT: phone preview -->
-      <div style="width:260px;flex-shrink:0;display:flex;flex-direction:column;padding:16px 16px 0;background:#F6F8FB;overflow:hidden">
-        <div class="eyebrow" style="margin-bottom:12px;flex-shrink:0">Preview</div>
+      <div style="width:280px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;padding:16px;background:#F6F8FB;overflow:hidden">
+        <div class="eyebrow" style="margin-bottom:12px;flex-shrink:0;align-self:flex-start">Preview</div>
 
-        <!-- Phone frame — stretches to fill panel height -->
-        <div style="flex:1;display:flex;flex-direction:column;background:#1A2332;border-radius:40px;padding:10px 7px;box-shadow:0 16px 48px rgba(26,35,50,0.35),inset 0 0 0 1px rgba(255,255,255,0.08);overflow:hidden;margin-bottom:16px">
+        <!-- Centred vertically in remaining space -->
+        <div style="flex:1;display:flex;align-items:center;justify-content:center;width:100%">
+
+        <!-- Phone frame — fixed realistic iPhone proportions -->
+        <div style="width:230px;height:460px;flex-shrink:0;display:flex;flex-direction:column;background:#1A2332;border-radius:44px;padding:10px 7px;box-shadow:0 20px 56px rgba(26,35,50,0.4),inset 0 0 0 1px rgba(255,255,255,0.08);overflow:hidden">
           <!-- Screen -->
           <div style="flex:1;display:flex;flex-direction:column;background:#fff;border-radius:32px;overflow:hidden">
             <!-- Dynamic island / status bar -->
@@ -804,7 +807,9 @@
           </div>
         </div>
 
-        <div id="smsPreviewMeta" style="font-size:11px;color:var(--muted);margin-bottom:12px;text-align:center;line-height:1.5;flex-shrink:0"></div>
+        </div><!-- end centre wrapper -->
+
+        <div id="smsPreviewMeta" style="font-size:11px;color:var(--muted);margin-top:10px;text-align:center;line-height:1.5;flex-shrink:0"></div>
       </div>
 
     </div><!-- end two-column -->
