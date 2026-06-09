@@ -3041,7 +3041,7 @@ def analyse():
                 print(f"[analyse] q={question!r} fmt={fmt} chars={len(context)} "
                       f"rebook_in_ctx={'TEAM REBOOKING' in context}", flush=True)
 
-                _jobs[job_id]["step"] = "Asking Claude…"
+                _jobs[job_id]["step"] = "Asking Aria…"
                 ai  = _anthropic.Anthropic(api_key=api_key)
                 msg = ai.messages.create(
                     model="claude-sonnet-4-6",
