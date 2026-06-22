@@ -82,6 +82,10 @@
               padding:8px 20px; font-size:13px; font-weight:600; cursor:pointer; transition:background 0.15s; font-family:inherit; }
   .btn-teal:hover { background:var(--green); }
   .btn-teal:disabled { opacity:0.35; cursor:not-allowed; }
+  .btn-soon { background:#e7e9ee; color:#8a93a3; }
+  .btn-soon:hover { background:#e7e9ee; }
+  .soon-badge { font-size:9px; font-weight:700; letter-spacing:.3px; background:#fff; color:#8a93a3; padding:1px 6px; border-radius:6px; }
+  .soon-tip { position:fixed; background:#1a1d29; color:#fff; font-size:11px; font-weight:600; padding:6px 10px; border-radius:7px; white-space:nowrap; z-index:9999; pointer-events:none; opacity:0; transition:opacity .15s; }
 
   .nav-tab { padding:14px 22px; font-size:13px; font-weight:400; cursor:pointer;
              border:none; background:transparent; color:var(--muted); border-bottom:2px solid transparent;
@@ -594,17 +598,20 @@
     <button id="selectAllBtn" onclick="selectAllClients()" style="display:none;background:none;border:none;color:var(--green);font-size:12px;font-weight:600;cursor:pointer;padding:0;font-family:inherit">Select all</button>
     <input type="search" id="selectionSearch" placeholder="Filter results by name…"
            oninput="filterSelectionResults()" style="width:220px">
-    <button id="btnSendSms" onclick="openSmsModal()" class="btn-teal" style="height:34px;padding:0 16px;font-size:12px;border-radius:8px;display:flex;align-items:center;gap:6px">
+    <button id="btnSendSms" onclick="showComingSoon(event)" class="btn-teal btn-soon" style="height:34px;padding:0 16px;font-size:12px;border-radius:8px;display:flex;align-items:center;gap:6px">
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
       Send SMS
+      <span class="soon-badge">Soon</span>
     </button>
-    <button id="btnSendEmail" onclick="openEmailModal()" class="btn-teal" style="height:34px;padding:0 16px;font-size:12px;border-radius:8px;display:flex;align-items:center;gap:6px">
+    <button id="btnSendEmail" onclick="showComingSoon(event)" class="btn-teal btn-soon" style="height:34px;padding:0 16px;font-size:12px;border-radius:8px;display:flex;align-items:center;gap:6px">
       <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 7L2 7"/></svg>
       Email Blast
+      <span class="soon-badge">Soon</span>
     </button>
-    <button onclick="exportCSV()" class="btn-teal" style="height:34px;padding:0 14px;font-size:12px;display:flex;align-items:center;gap:6px">
+    <button onclick="showComingSoon(event)" class="btn-teal btn-soon" style="height:34px;padding:0 14px;font-size:12px;display:flex;align-items:center;gap:6px">
       <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Export CSV
+      <span class="soon-badge">Soon</span>
     </button>
   </div>
 
@@ -1211,6 +1218,23 @@ function _applyLiveModalGuard(sendBtnId) {
   btn.style.opacity = isLive ? '0.45' : '';
   btn.style.cursor  = isLive ? 'not-allowed' : '';
   btn.title         = isLive ? 'Sending is disabled on the LIVE server' : '';
+}
+
+function showComingSoon(e) {
+  e.stopPropagation();
+  const btn = e.currentTarget;
+  const tip = document.createElement('div');
+  tip.className = 'soon-tip';
+  tip.textContent = 'Coming soon — feature in testing';
+  document.body.appendChild(tip);
+  const r = btn.getBoundingClientRect();
+  tip.style.left = (r.left + r.width / 2 - tip.offsetWidth / 2) + 'px';
+  tip.style.top  = (r.top - tip.offsetHeight - 8) + 'px';
+  requestAnimationFrame(() => tip.style.opacity = 1);
+  setTimeout(() => {
+    tip.style.opacity = 0;
+    setTimeout(() => tip.remove(), 150);
+  }, 1600);
 }
 
 function openSmsModal() {
