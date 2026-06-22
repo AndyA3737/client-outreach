@@ -510,7 +510,7 @@ SERVERS = {
         "html_email_base":"https://apihub.saloniq.co.uk/api/SendHTMLEmail",
         "token":          "517a41d9-48e3-4af7-ae6c-0e30688f9325",
         "default_tenant": "1E7D7624-FEB7-4950-A6BE-5FBB1498EE39",
-        "date_fmt":       "%m/%d/%Y",
+        "date_fmt":       "%d/%m/%Y",
     },
     "DEMO": {
         "base":           "https://demohub.saloniq.co.uk/api/GETAPIReport",
