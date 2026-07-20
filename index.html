@@ -236,16 +236,8 @@
   }
 
   /* ── PDF export / print ─────────────────────────────────────── */
-  #printArea { display:none; }
-  @media print {
-    body.printing-analysis > #layoutWrapper,
-    body.printing-analysis > #sidebarOverlay { display:none !important; }
-    body.printing-analysis #printArea {
-      display:block !important;
-      padding:0 8px;
-    }
-    @page { margin:16mm 14mm; }
-  }
+  #printArea { display:none; padding:0 8px; }
+  @page { margin:16mm 14mm; }
 </style>
 </head>
 <body>
@@ -2280,13 +2272,28 @@ function exportAnalysisPDF() {
     printArea.appendChild(preparedClone(followupBox));
   }
 
-  document.body.classList.add('printing-analysis');
+  // Toggle inline styles directly rather than relying on an @media print
+  // selector cascade — the app shell uses fixed viewport heights and a
+  // sticky follow-up bar that a CSS-only approach failed to suppress reliably.
+  const layoutWrapper  = document.getElementById('layoutWrapper');
+  const sidebarOverlay = document.getElementById('sidebarOverlay');
+  const prevLayoutDisplay  = layoutWrapper.style.display;
+  const prevOverlayDisplay = sidebarOverlay ? sidebarOverlay.style.display : null;
+
+  function restore() {
+    layoutWrapper.style.display = prevLayoutDisplay;
+    if (sidebarOverlay) sidebarOverlay.style.display = prevOverlayDisplay;
+    printArea.style.display = '';
+    window.removeEventListener('afterprint', restore);
+  }
+
+  layoutWrapper.style.display = 'none';
+  if (sidebarOverlay) sidebarOverlay.style.display = 'none';
+  printArea.style.display = 'block';
+
+  window.addEventListener('afterprint', restore);
   window.print();
 }
-
-window.addEventListener('afterprint', () => {
-  document.body.classList.remove('printing-analysis');
-});
 
 // ── Chart renderer ────────────────────────────────────────────
 let _chartSeq = 0;   // ever-increasing counter — guarantees unique canvas IDs across all renders
