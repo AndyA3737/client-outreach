@@ -234,6 +234,18 @@
     #promptGrid { grid-template-columns:1fr !important; }
     .fmt-btn { padding:5px 8px !important; font-size:10px !important; }
   }
+
+  /* ── PDF export / print ─────────────────────────────────────── */
+  #printArea { display:none; }
+  @media print {
+    body.printing-analysis > #layoutWrapper,
+    body.printing-analysis > #sidebarOverlay { display:none !important; }
+    body.printing-analysis #printArea {
+      display:block !important;
+      padding:0 8px;
+    }
+    @page { margin:16mm 14mm; }
+  }
 </style>
 </head>
 <body>
@@ -676,6 +688,13 @@
   </div>
 
   <!-- Results -->
+  <div id="exportPdfBar" style="display:none;justify-content:flex-end;margin-bottom:10px">
+    <button onclick="exportAnalysisPDF()" style="background:#fff;border:1px solid var(--border);color:var(--text);border-radius:9px;padding:8px 16px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;transition:all 0.15s"
+            onmouseover="this.style.borderColor='var(--green)';this.style.color='var(--green)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text)'">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9V2h12v7"/><rect x="6" y="14" width="12" height="8"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/></svg>
+      Export PDF
+    </button>
+  </div>
   <div id="analysisResults"></div>
   <div id="followupResult"></div>
 
@@ -700,6 +719,9 @@
 
 </div><!-- end right column -->
 </div><!-- end flex wrapper -->
+
+<!-- ── Print-only container, populated by exportAnalysisPDF() ── -->
+<div id="printArea"></div>
 
 <!-- ── SMS Blast Modal ─────────────────────────────────────── -->
 <div id="smsModal" style="display:none;position:fixed;inset:0;background:rgba(26,35,50,0.55);z-index:300;align-items:center;justify-content:center;padding:20px">
@@ -1976,6 +1998,8 @@ async function runAnalysis() {
   if (fbar) fbar.style.display = 'none';
   // floating button removed
   document.getElementById('followupResult').innerHTML = '';
+  const exportBar = document.getElementById('exportPdfBar');
+  if (exportBar) exportBar.style.display = 'none';
   await _submitAnalysis(question, null,
     document.getElementById('analysisResults'),
     document.getElementById('analyseBtn'));
@@ -2208,7 +2232,61 @@ function renderAnalysis(data, box) {
     document.getElementById('followupInput').value = '';
     // floating button removed
   }
+
+  // Reveal the PDF export button once the main analysis result is on screen
+  if (box.id === 'analysisResults') {
+    const exportBar = document.getElementById('exportPdfBar');
+    if (exportBar) exportBar.style.display = 'flex';
+  }
 }
+
+// ── PDF export ──────────────────────────────────────────────────
+function exportAnalysisPDF() {
+  const resultsBox  = document.getElementById('analysisResults');
+  const followupBox = document.getElementById('followupResult');
+  if (!resultsBox || !resultsBox.innerHTML.trim()) return;
+
+  function preparedClone(box) {
+    const clone = box.cloneNode(true);
+    // cloneNode does not copy rendered canvas pixels — swap each chart canvas
+    // for a static image captured from the live canvas before printing
+    const liveCanvases   = box.querySelectorAll('canvas');
+    const clonedCanvases = clone.querySelectorAll('canvas');
+    liveCanvases.forEach((cv, i) => {
+      const img = document.createElement('img');
+      try { img.src = cv.toDataURL('image/png'); } catch { return; }
+      img.style.maxWidth = '100%';
+      clonedCanvases[i].replaceWith(img);
+    });
+    return clone;
+  }
+
+  const heading = document.createElement('div');
+  heading.style.cssText = 'margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid #1A2332';
+  const salonLabel = selectedAccountCode ? `${selectedAccountCode} – ${selectedTenantName || ''}` : (selectedTenantName || '');
+  heading.innerHTML = `
+    <div style="font-size:20px;font-weight:700;color:#1A2332;font-family:inherit">SalonIQ Aria — Data Analysis</div>
+    <div style="font-size:12px;color:#6B7A8A;margin-top:2px">${escHtml(salonLabel)}${salonLabel ? ' · ' : ''}Exported ${new Date().toLocaleString('en-GB')}</div>
+  `;
+
+  const printArea = document.getElementById('printArea');
+  printArea.innerHTML = '';
+  printArea.appendChild(heading);
+  printArea.appendChild(preparedClone(resultsBox));
+  if (followupBox && followupBox.innerHTML.trim()) {
+    const divider = document.createElement('div');
+    divider.style.cssText = 'margin:24px 0;border-top:1px solid #E2E6EC';
+    printArea.appendChild(divider);
+    printArea.appendChild(preparedClone(followupBox));
+  }
+
+  document.body.classList.add('printing-analysis');
+  window.print();
+}
+
+window.addEventListener('afterprint', () => {
+  document.body.classList.remove('printing-analysis');
+});
 
 // ── Chart renderer ────────────────────────────────────────────
 let _chartSeq = 0;   // ever-increasing counter — guarantees unique canvas IDs across all renders
