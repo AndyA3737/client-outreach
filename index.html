@@ -2529,6 +2529,9 @@ function renderSelectionResults(clients) {
       <td style="padding:10px 12px;font-size:12px;color:var(--muted)">${escHtml(c.last_visit || '—')}</td>
       <td style="padding:10px 12px;font-size:12px;color:var(--muted)">${c.days_since != null ? c.days_since + 'd' : '—'}</td>
       <td style="padding:10px 12px;font-size:12px;text-align:center">${c.n_visits}</td>
+      <td style="padding:10px 12px;font-size:12px;text-align:center">${c.no_shows > 0
+        ? `<span class="tip-wrap" style="color:var(--risk);font-weight:600">⚠ ${c.no_shows}<span class="tip-box" style="white-space:normal;width:180px;text-align:left">${(c.no_show_dates || []).slice(0,8).join(', ') || 'No dates recorded'}</span></span>`
+        : '<span style="color:#A0AEBC">—</span>'}</td>
       <td style="padding:10px 12px;font-size:12px">£${c.avg_spend}</td>
       <td style="padding:10px 12px;font-size:12px">${escHtml(c.pref_tm)}</td>
       <td style="padding:10px 12px;font-size:12px;color:var(--muted)">${c.n_stylists} stylist${c.n_stylists !== 1 ? 's' : ''}</td>
@@ -2556,6 +2559,7 @@ function renderSelectionResults(clients) {
           <th style="${thStyle}">Last Visit</th>
           <th style="${thStyle}">Days Since</th>
           <th style="${thStyle}">Visits</th>
+          <th style="${thStyle}">No-shows</th>
           <th style="${thStyle}">Avg Spend</th>
           <th style="${thStyle}">Stylist</th>
           <th style="${thStyle}">Stylists Seen</th>
@@ -2582,7 +2586,7 @@ function _activeSelection() {
 
 function exportCSV() {
   if (!_selectionResults.length) return;
-  const cols = ['name','mobile','email','status','last_visit','days_since','n_visits','avg_spend','total_spend','pref_salon','pref_tm','n_stylists','no_shows','pref_day','pref_time','age_group','gender','points','top_cats','sms'];
+  const cols = ['name','mobile','email','status','last_visit','days_since','n_visits','avg_spend','total_spend','pref_salon','pref_tm','n_stylists','no_shows','no_show_dates','pref_day','pref_time','age_group','gender','points','top_cats','sms'];
   const header = cols.join(',');
   const lines  = _activeSelection().map(c =>
     cols.map(k => {
