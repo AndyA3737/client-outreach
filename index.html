@@ -634,10 +634,19 @@
       <h2 style="font-size:32px;margin-bottom:6px">Data Analysis</h2>
       <p style="color:var(--muted);font-size:13px">Ask Aria anything about your salon data — choose how you'd like the answer presented.</p>
     </div>
-    <div id="usageBar" style="display:none;flex-shrink:0;text-align:right">
-      <div class="eyebrow" style="margin-bottom:3px">Session usage</div>
-      <div id="usageDetails" style="font-size:12px;color:var(--text)"></div>
-      <div id="usageCost" style="font-size:12px;font-weight:600;color:var(--green);margin-top:2px"></div>
+    <div style="display:flex;align-items:center;gap:18px;flex-shrink:0">
+      <div id="vatToggleWrap" style="display:flex;align-items:center;gap:8px" title="Toggle whether monetary figures include VAT. Applies to new questions.">
+        <span id="vatToggleLabel" style="font-size:12px;color:var(--text);font-weight:600;white-space:nowrap">Including VAT</span>
+        <button id="vatToggleBtn" onclick="toggleVatMode()" role="switch" aria-checked="true" aria-label="Include VAT in figures"
+                style="position:relative;width:40px;height:22px;border-radius:999px;border:none;cursor:pointer;background:var(--green);transition:background 0.15s;flex-shrink:0;padding:0">
+          <span id="vatToggleKnob" style="position:absolute;top:2px;left:20px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left 0.15s;box-shadow:0 1px 3px rgba(0,0,0,0.25)"></span>
+        </button>
+      </div>
+      <div id="usageBar" style="display:none;flex-shrink:0;text-align:right">
+        <div class="eyebrow" style="margin-bottom:3px">Session usage</div>
+        <div id="usageDetails" style="font-size:12px;color:var(--text)"></div>
+        <div id="usageCost" style="font-size:12px;font-weight:600;color:var(--green);margin-top:2px"></div>
+      </div>
     </div>
   </div>
 
@@ -1921,6 +1930,33 @@ function _recordUsage(data) {
 let _analysisFmt    = 'dashboard';
 let _lastAnalysis   = null;   // stores the most recent result for follow-up context
 
+// ── VAT toggle — defaults to the tenant's ReportsIncVat setting (see init()),
+// falling back to "including VAT" until that's known; remembers the user's
+// choice per tenant once they override it ──
+let _vatIncluded = true;
+
+function _vatStorageKey() {
+  return 'aria_vat_included_' + (selectedTenantId || 'default');
+}
+
+function _applyVatToggleUI() {
+  const btn   = document.getElementById('vatToggleBtn');
+  const knob  = document.getElementById('vatToggleKnob');
+  const label = document.getElementById('vatToggleLabel');
+  if (!btn) return;
+  btn.style.background = _vatIncluded ? 'var(--green)' : '#A0AEBC';
+  btn.setAttribute('aria-checked', _vatIncluded ? 'true' : 'false');
+  knob.style.left = _vatIncluded ? '20px' : '2px';
+  label.textContent = _vatIncluded ? 'Including VAT' : 'Excluding VAT';
+}
+_applyVatToggleUI();
+
+function toggleVatMode() {
+  _vatIncluded = !_vatIncluded;
+  localStorage.setItem(_vatStorageKey(), String(_vatIncluded));
+  _applyVatToggleUI();
+}
+
 function setAnalysisFmt(fmt) {
   _analysisFmt = fmt;
   ['dashboard','list','report','chart'].forEach(f =>
@@ -2089,7 +2125,7 @@ async function _submitAnalysis(question, previousResult, resultBox, triggerBtn) 
     const kickRes  = await fetch('/api/analyse', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ question, format: _analysisFmt, previous_result: previousResult, tenant_id: selectedTenantId, server: selectedServer }),
+      body:    JSON.stringify({ question, format: _analysisFmt, previous_result: previousResult, tenant_id: selectedTenantId, server: selectedServer, exclude_vat: !_vatIncluded }),
     });
     const kickData = await kickRes.json();
     if (kickData.error) { showError(kickData.error); return; }
@@ -2969,6 +3005,12 @@ async function init() {
     selectedAccountCode = data.account_code || '';
 
     if (!selectedTenantId) { window.location.href = '/login'; return; }
+
+    // VAT toggle default: this tenant's ReportsIncVat setting, unless the
+    // user has already overridden it for this tenant on this device
+    const storedVat = localStorage.getItem(_vatStorageKey());
+    _vatIncluded = storedVat !== null ? (storedVat === 'true') : (data.reports_inc_vat !== false);
+    _applyVatToggleUI();
 
     // Only admins see the Logs button
     if (appMode !== 'admin') {

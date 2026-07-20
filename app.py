@@ -2,6 +2,7 @@
 """Salon SMS Marketing Dashboard — scores clients for SMS targeting."""
 
 import os
+import re
 import json
 import secrets
 import psycopg2
@@ -398,10 +399,25 @@ def _build_email_html(template_id, brand, content, recipient=None):
 </body></html>'''
 
 
+def _parse_bool(v, default=True):
+    if isinstance(v, bool):
+        return v
+    if v is None:
+        return default
+    s = str(v).strip().lower()
+    if s in ('true', '1', 'yes', 'y'):
+        return True
+    if s in ('false', '0', 'no', 'n'):
+        return False
+    return default
+
+
 def _saloniq_login(account_code, username, password):
     """Validate credentials via the SalonIQ Aria LogOn API.
-    Returns (tenant_id, server) on success, or (None, None) on failure.
+    Returns (tenant_id, server, reports_inc_vat) on success, or (None, None, True) on failure.
     GRT001 routes to the BETA (greathairhub) server; all others go to LIVE (apihub).
+    reports_inc_vat reflects the tenant's ReportsIncVat setting — used to set the
+    default position of the VAT toggle on the Data Analysis screen.
     """
     _ac = account_code.strip().upper()
     server = 'BETA' if _ac == 'GRT001' else 'DEMO' if _ac == 'DEM001' else 'LIVE'
@@ -434,15 +450,16 @@ def _saloniq_login(account_code, username, password):
         arr = (data.get('Data') or {}).get('Array') or []
         if arr and isinstance(arr, list):
             tenant_id = (arr[0].get('TenantId') or arr[0].get('TenantID') or '').strip()
-            print(f"[login] tenant_id found: {tenant_id!r}", flush=True)
+            reports_inc_vat = _parse_bool(arr[0].get('ReportsIncVat'), default=True)
+            print(f"[login] tenant_id found: {tenant_id!r} reports_inc_vat={reports_inc_vat!r}", flush=True)
             if tenant_id:
-                return tenant_id, server
+                return tenant_id, server, reports_inc_vat
         print(f"[login] no tenant_id in response — login failed", flush=True)
-        return None, None
+        return None, None, True
     except Exception as e:
         print(f"[login] EXCEPTION: {e}", flush=True)
         app.logger.warning("SalonIQ login API error: %s", e)
-        return None, None
+        return None, None, True
 
 def _session_role():
     """Return the role stored in the Flask session, or None."""
@@ -2361,7 +2378,7 @@ def _sort_months(keys):
     return sorted(keys, key=parse, reverse=True)
 
 
-def _named_client_block(question, all_clients):
+def _named_client_block(question, all_clients, exclude_vat=False):
     """Render a 'NAMED CLIENT RECORDS' block for any client named in the question.
 
     Kept separate from build_analysis_context so the (large, mostly-static) salon
@@ -2400,10 +2417,34 @@ def _named_client_block(question, all_clients):
             f"  SMS opt-out: {c.get('sms_optout',False)} | Email opt-out: {c.get('email_optout',False)}",
             "",
         ]
-    return "\n".join(lines)
+    result = "\n".join(lines)
+    if exclude_vat:
+        result = _strip_vat_from_text(result)
+    return result
 
 
-def build_analysis_context(ctx=None):
+_UK_VAT_RATE = 1.20  # standard UK VAT rate — all salon revenue figures from SalonIQ are VAT-inclusive
+
+def _strip_vat_from_text(text):
+    """Deflate every £-prefixed figure in a context block by the standard UK VAT
+    rate, preserving the original thousands separators and decimal precision."""
+    def repl(m):
+        raw = m.group(1)
+        neg = raw.startswith('-')
+        num_str = raw.lstrip('-').replace(',', '')
+        try:
+            val = float(num_str)
+        except ValueError:
+            return m.group(0)
+        val = val / _UK_VAT_RATE
+        decimals = len(num_str.split('.')[1]) if '.' in num_str else 0
+        return f"£{'-' if neg else ''}{val:,.{decimals}f}"
+    text = re.sub(r'£(-?[\d,]+(?:\.\d+)?)', repl, text)
+    text = re.sub(r'\(incVAT\)', '(exVAT)', text, flags=re.IGNORECASE)
+    return text
+
+
+def build_analysis_context(ctx=None, exclude_vat=False):
     # Unpack per-tenant context
     all_clients          = (ctx or {}).get('all_clients', [])
     all_scored           = (ctx or {}).get('all_scored', [])
@@ -2924,7 +2965,10 @@ def build_analysis_context(ctx=None):
                 lines.append(f"{salon},{stylist},{d['future_days']},{d['future_client_mins']},"
                              f"{d['future_avail_mins']},{booked}%,{avail}%")
 
-    return "\n".join(lines)
+    result = "\n".join(lines)
+    if exclude_vat:
+        result = _strip_vat_from_text(result)
+    return result
 
 
 @app.route("/api/analyse", methods=["POST"])
@@ -2940,6 +2984,7 @@ def analyse():
         previous_result = body.get("previous_result")  # optional JSON of prior analysis
         tenant_id       = body.get("tenant_id") or None
         server          = body.get("server") or "BETA"
+        exclude_vat     = bool(body.get("exclude_vat"))
         ctx             = _get_ctx(tenant_id, server)
         if not question:
             return jsonify(error="No question provided"), 400
@@ -2987,11 +3032,19 @@ def analyse():
                         "pie/doughnut for proportions. Keep labels short. Numbers only in data arrays (no £ symbols)."
                     ),
                 }
+                vat_instruction = (
+                    "IMPORTANT: All monetary values are in British Pounds (£) and are INCLUSIVE OF VAT. "
+                    "When presenting revenue or spend figures, note they include VAT where relevant. "
+                    if not exclude_vat else
+                    "IMPORTANT: All monetary values are in British Pounds (£) and are EXCLUSIVE OF VAT — "
+                    "VAT has already been deducted from every figure in the data at the standard UK rate "
+                    "of 20%. When presenting revenue or spend figures, note they exclude VAT. Do NOT deduct "
+                    "VAT again yourself; the figures you have already have it removed. "
+                )
                 system = (
                     "You are an expert salon business analyst with access to live UK hair salon data. "
                     "Analyse the data carefully and answer the user's question accurately. "
-                    "IMPORTANT: All monetary values are in British Pounds (£) and are INCLUSIVE OF VAT. "
-                    "When presenting revenue or spend figures, note they include VAT where relevant. "
+                    + vat_instruction +
                     "IMPORTANT: The data includes a section called 'TEAM REBOOKING RATES BY MONTH' "
                     "which contains actual per-stylist rebooking rates sourced directly from the "
                     "HasBeenRebooked field in the booking API. Use this table when asked about "
@@ -3023,8 +3076,8 @@ def analyse():
                 # SALON DATA is large but identical for every question against this
                 # tenant — cache it so repeat/follow-up questions in a session only
                 # pay full input-token price for the small per-question block below.
-                context  = build_analysis_context(ctx=ctx)
-                named_block = _named_client_block(question, ctx.get('all_clients', []))
+                context  = build_analysis_context(ctx=ctx, exclude_vat=exclude_vat)
+                named_block = _named_client_block(question, ctx.get('all_clients', []), exclude_vat=exclude_vat)
                 prev_block = ""
                 if previous_result:
                     prev_block = (
@@ -3369,9 +3422,10 @@ def login():
                 flask_session['tenant_id']    = _fb_tenant
                 flask_session['server']       = _fb_server
                 flask_session['account_code'] = account_code
+                flask_session['reports_inc_vat'] = True
                 return redirect(next_url)
 
-        tenant_id, server = _saloniq_login(account_code, username, password)
+        tenant_id, server, reports_inc_vat = _saloniq_login(account_code, username, password)
         if tenant_id:
             role = 'admin' if username.lower() == 'admin' else 'user'
             flask_session.permanent       = True
@@ -3380,6 +3434,7 @@ def login():
             flask_session['tenant_id']    = tenant_id
             flask_session['server']       = server
             flask_session['account_code'] = account_code
+            flask_session['reports_inc_vat'] = reports_inc_vat
             return redirect(next_url)
         return _login_page(next_url, '<div class="err err-red"><div class="err-icon">✕</div>Invalid account code, username, or password.</div>'), 401
     return _login_page(next_url, '')
@@ -3399,10 +3454,11 @@ def logout():
 @require_auth
 def api_mode():
     return jsonify(
-        mode         = _session_role(),
-        tenant_id    = flask_session.get('tenant_id', ''),
-        server       = flask_session.get('server', 'BETA'),
-        account_code = flask_session.get('account_code', ''),
+        mode            = _session_role(),
+        tenant_id       = flask_session.get('tenant_id', ''),
+        server          = flask_session.get('server', 'BETA'),
+        account_code    = flask_session.get('account_code', ''),
+        reports_inc_vat = flask_session.get('reports_inc_vat', True),
     )
 
 
