@@ -1769,9 +1769,13 @@ function _renderSidebarHistory(items, type) {
     const sub    = type === 'selection' && item.result_count != null
       ? `<div style="font-size:11px;color:var(--muted);margin-top:1px"><span style="color:var(--green)">${item.result_count} clients matched</span> · ${_relTime(item.ts)}</div>`
       : `<div style="font-size:11px;color:var(--muted);margin-top:1px">${_relTime(item.ts)}</div>`;
+    const fav = !!item.is_favorite;
     return `<div class="sidebar-hist-item" style="display:flex;align-items:center;gap:4px;padding:8px 10px;border-radius:8px;cursor:pointer;transition:background 0.15s"
               onmouseover="this.style.background='#F6F8FB';this.querySelector('.del-btn').style.opacity='1'"
               onmouseout="this.style.background='transparent';this.querySelector('.del-btn').style.opacity='0'">
+      <button class="fav-btn" onclick="event.stopPropagation();toggleFavorite(${item.id},'${type}',${fav})" title="${fav ? 'Remove from favourites' : 'Add to favourites'}"
+              style="background:none;border:none;cursor:pointer;font-size:13px;padding:0 2px;line-height:1;flex-shrink:0;color:${fav ? '#F0A500' : 'var(--muted)'};opacity:${fav ? '1' : '0.5'};transition:all 0.15s"
+              onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='${fav ? '1' : '0.5'}'">${fav ? '★' : '☆'}</button>
       <div onclick="${action}" title="${escHtml(item.question)}" style="flex:1;min-width:0">
         <div style="font-size:12px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(label)}</div>
         ${sub}
@@ -1802,7 +1806,10 @@ async function loadHistory(type) {
       const replayBtn = item.type === 'analysis'
         ? `<button onclick="replayAnalysis(${item.id})" style="background:#E6F5EB;color:#2D6A4F;border:1px solid #C0DECA;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;transition:all 0.15s" onmouseover="this.style.background='#3A7A50';this.style.color='#fff'" onmouseout="this.style.background='#E6F5EB';this.style.color='#2D6A4F'">Replay</button>`
         : `<button onclick="replaySelection(${item.id})" style="background:#E6F5EB;color:#2D6A4F;border:1px solid #C0DECA;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;transition:all 0.15s" onmouseover="this.style.background='#3A7A50';this.style.color='#fff'" onmouseout="this.style.background='#E6F5EB';this.style.color='#2D6A4F'">Re-run</button>`;
+      const fav = !!item.is_favorite;
+      const favBtn = `<button onclick="toggleFavorite(${item.id},'${type}',${fav})" title="${fav ? 'Remove from favourites' : 'Add to favourites'}" style="background:none;border:none;cursor:pointer;font-size:15px;padding:0 2px;line-height:1;flex-shrink:0;color:${fav ? '#F0A500' : '#A0AEBC'};transition:color 0.15s" onmouseover="this.style.color='#F0A500'" onmouseout="this.style.color='${fav ? '#F0A500' : '#A0AEBC'}'">${fav ? '★' : '☆'}</button>`;
       return `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);background:#fff" data-hid="${item.id}">
+        ${favBtn}
         <div style="flex:1;min-width:0">
           <div style="font-size:12px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(item.question)}${meta}</div>
           ${subtitle}
@@ -1853,6 +1860,20 @@ async function deleteHistoryItem(id, type) {
   try {
     await fetch(`/api/history/${id}?account_code=${encodeURIComponent(selectedAccountCode)}`, { method: 'DELETE' });
     delete _historyCache[id];
+    await loadHistory(type);
+  } catch {}
+}
+
+async function toggleFavorite(id, type, current) {
+  if (!selectedAccountCode) return;
+  try {
+    const res  = await fetch(`/api/history/${id}/favorite?account_code=${encodeURIComponent(selectedAccountCode)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_favorite: !current }),
+    });
+    const data = await res.json();
+    if (_historyCache[id]) _historyCache[id].is_favorite = data.is_favorite;
     await loadHistory(type);
   } catch {}
 }

@@ -84,6 +84,7 @@ def _db_setup():
             )
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS history_account_ts ON history(account_code, ts DESC)")
+        cur.execute("ALTER TABLE history ADD COLUMN IF NOT EXISTS is_favorite BOOLEAN NOT NULL DEFAULT FALSE")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS brand_settings (
                 account_code  TEXT PRIMARY KEY,
@@ -160,7 +161,7 @@ def _write_history(account_code, type_, question, result_json=None,
         con = _get_db()
         cur = con.cursor()
         cur.execute(
-            "DELETE FROM history WHERE account_code=%s AND ts < NOW() - INTERVAL '90 days'",
+            "DELETE FROM history WHERE account_code=%s AND ts < NOW() - INTERVAL '90 days' AND is_favorite=FALSE",
             (account_code,)
         )
         cur.execute("""
@@ -3143,14 +3144,14 @@ def get_history():
         con = _get_db()
         cur = con.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         q   = """SELECT id, ts, type, username, question, format,
-                        result_json, result_title, result_summary, result_count, is_followup
+                        result_json, result_title, result_summary, result_count, is_followup, is_favorite
                  FROM history
-                 WHERE account_code=%s AND ts > NOW() - INTERVAL '90 days'"""
+                 WHERE account_code=%s AND (ts > NOW() - INTERVAL '90 days' OR is_favorite=TRUE)"""
         params = [account_code]
         if type_filter:
             q += " AND type=%s"
             params.append(type_filter)
-        q += " ORDER BY ts DESC LIMIT 100"
+        q += " ORDER BY is_favorite DESC, ts DESC LIMIT 100"
         cur.execute(q, params)
         rows = cur.fetchall()
         cur.close()
@@ -3167,6 +3168,7 @@ def get_history():
             'result_summary': r['result_summary'] or '',
             'result_count':   r['result_count'],
             'is_followup':    r['is_followup'] or 0,
+            'is_favorite':    bool(r['is_favorite']),
         } for r in rows])
     except Exception as e:
         app.logger.warning("get_history failed: %s", e)
@@ -3198,6 +3200,27 @@ def delete_history(history_id):
                  salon=account_code,
                  question=f"[{row[0]}] {row[1][:400]}")
         return jsonify(ok=True)
+    except Exception as e:
+        return jsonify(error=str(e)), 500
+
+
+@app.route("/api/history/<int:history_id>/favorite", methods=["PATCH"])
+@require_auth
+def set_history_favorite(history_id):
+    account_code = request.args.get('account_code', '').strip()
+    body         = request.get_json(silent=True) or {}
+    is_favorite  = bool(body.get('is_favorite'))
+    try:
+        con = _get_db()
+        cur = con.cursor()
+        cur.execute(
+            "UPDATE history SET is_favorite=%s WHERE id=%s AND account_code=%s",
+            (is_favorite, history_id, account_code)
+        )
+        con.commit()
+        cur.close()
+        con.close()
+        return jsonify(ok=True, is_favorite=is_favorite)
     except Exception as e:
         return jsonify(error=str(e)), 500
 
