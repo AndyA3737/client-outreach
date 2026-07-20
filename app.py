@@ -2,7 +2,6 @@
 """Salon SMS Marketing Dashboard — scores clients for SMS targeting."""
 
 import os
-import re
 import json
 import secrets
 import psycopg2
@@ -450,8 +449,11 @@ def _saloniq_login(account_code, username, password):
         arr = (data.get('Data') or {}).get('Array') or []
         if arr and isinstance(arr, list):
             tenant_id = (arr[0].get('TenantId') or arr[0].get('TenantID') or '').strip()
-            reports_inc_vat = _parse_bool(arr[0].get('ReportsIncVat'), default=True)
-            print(f"[login] tenant_id found: {tenant_id!r} reports_inc_vat={reports_inc_vat!r}", flush=True)
+            # SalonIQ's ReportsIncVat flag is inverted relative to its name —
+            # invert it here so reports_inc_vat means what it says.
+            reports_inc_vat = not _parse_bool(arr[0].get('ReportsIncVat'), default=False)
+            print(f"[login] tenant_id found: {tenant_id!r} reports_inc_vat={reports_inc_vat!r} "
+                  f"(raw ReportsIncVat={arr[0].get('ReportsIncVat')!r})", flush=True)
             if tenant_id:
                 return tenant_id, server, reports_inc_vat
         print(f"[login] no tenant_id in response — login failed", flush=True)
@@ -2378,6 +2380,8 @@ def _sort_months(keys):
     return sorted(keys, key=parse, reverse=True)
 
 
+_UK_VAT_RATE = 1.20  # standard UK VAT rate — all salon revenue figures from SalonIQ are VAT-inclusive
+
 def _named_client_block(question, all_clients, exclude_vat=False):
     """Render a 'NAMED CLIENT RECORDS' block for any client named in the question.
 
@@ -2387,6 +2391,7 @@ def _named_client_block(question, all_clients, exclude_vat=False):
     """
     if not question:
         return ""
+    money = (lambda v: round(v / _UK_VAT_RATE, 2)) if exclude_vat else (lambda v: v)
     q_lower = question.lower()
     q_words = set(q_lower.split())
     named_clients = []
@@ -2407,44 +2412,22 @@ def _named_client_block(question, all_clients, exclude_vat=False):
             f"  Name: {c['name']}",
             f"  Status: {c.get('status','')} | Score: {c.get('score','')} | Days since visit: {c.get('days_since','')}",
             f"  Visits: {c.get('n_visits',0)} | Last visit: {c.get('last_visit','')} | Avg gap: {c.get('avg_gap','')}d",
-            f"  Service revenue: £{c.get('total_spend',0)} | Avg spend: £{c.get('avg_spend',0)} | Overdue: {c.get('overdue','')}d",
-            f"  Retail: {c.get('retail_count',0)} purchases, £{c.get('retail_total',0)} total",
-            f"  Gift cards: {c.get('giftcard_count',0)}, £{c.get('giftcard_total',0)} total",
+            f"  Service revenue: £{money(c.get('total_spend',0))} | Avg spend: £{money(c.get('avg_spend',0))} | Overdue: {c.get('overdue','')}d",
+            f"  Retail: {c.get('retail_count',0)} purchases, £{money(c.get('retail_total',0))} total",
+            f"  Gift cards: {c.get('giftcard_count',0)}, £{money(c.get('giftcard_total',0))} total",
             f"  Promotions: {c.get('promo_count',0)} — {', '.join(c.get('promo_names') or [])}",
             f"  Preferred stylist: {c.get('pref_tm','')} | Day: {c.get('pref_day','')} {c.get('pref_time','')}",
             f"  Services: {', '.join(c.get('top_cats',[]))}",
-            f"  No-shows: {c.get('no_shows',0)} | Points: {c.get('points',0)} | Balance: £{c.get('account_balance',0)}",
+            f"  No-shows: {c.get('no_shows',0)} | Points: {c.get('points',0)} | Balance: £{money(c.get('account_balance',0))}",
             f"  SMS opt-out: {c.get('sms_optout',False)} | Email opt-out: {c.get('email_optout',False)}",
             "",
         ]
-    result = "\n".join(lines)
-    if exclude_vat:
-        result = _strip_vat_from_text(result)
-    return result
-
-
-_UK_VAT_RATE = 1.20  # standard UK VAT rate — all salon revenue figures from SalonIQ are VAT-inclusive
-
-def _strip_vat_from_text(text):
-    """Deflate every £-prefixed figure in a context block by the standard UK VAT
-    rate, preserving the original thousands separators and decimal precision."""
-    def repl(m):
-        raw = m.group(1)
-        neg = raw.startswith('-')
-        num_str = raw.lstrip('-').replace(',', '')
-        try:
-            val = float(num_str)
-        except ValueError:
-            return m.group(0)
-        val = val / _UK_VAT_RATE
-        decimals = len(num_str.split('.')[1]) if '.' in num_str else 0
-        return f"£{'-' if neg else ''}{val:,.{decimals}f}"
-    text = re.sub(r'£(-?[\d,]+(?:\.\d+)?)', repl, text)
-    text = re.sub(r'\(incVAT\)', '(exVAT)', text, flags=re.IGNORECASE)
-    return text
+    return "\n".join(lines)
 
 
 def build_analysis_context(ctx=None, exclude_vat=False):
+    money = (lambda v: round(v / _UK_VAT_RATE, 2)) if exclude_vat else (lambda v: v)
+    vat_tag = "exVAT" if exclude_vat else "incVAT"
     # Unpack per-tenant context
     all_clients          = (ctx or {}).get('all_clients', [])
     all_scored           = (ctx or {}).get('all_scored', [])
@@ -2550,17 +2533,17 @@ def build_analysis_context(ctx=None, exclude_vat=False):
         f"IMPORTANT: When answering questions, make clear whether figures are for a specific salon or the whole group. "
         f"Use the PrefSalon field on client records to attribute clients to their home salon.",
         f"Total clients: {len(all_clients)} | Active scoring pool: {len(all_scored)}",
-        f"Total 2yr service revenue: £{sum(c.get('total_spend',0) for c in all_clients):,.0f}",
-        f"Total 2yr retail spend:    £{sum(c.get('retail_total',0) for c in all_clients):,.0f}",
-        f"Total 2yr gift card spend: £{sum(c.get('giftcard_total',0) for c in all_clients):,.0f}",
+        f"Total 2yr service revenue: £{money(sum(c.get('total_spend',0) for c in all_clients)):,.0f}",
+        f"Total 2yr retail spend:    £{money(sum(c.get('retail_total',0) for c in all_clients)):,.0f}",
+        f"Total 2yr gift card spend: £{money(sum(c.get('giftcard_total',0) for c in all_clients)):,.0f}",
         "",
         "CLIENT STATUS BREAKDOWN:",
     ]
     for seg, d in segments.items():
         lines.append(
             f"  {seg.title()} — {d['count']} clients | "
-            f"£{d['total_revenue']:,.0f} total revenue | "
-            f"£{d['avg_spend']} avg spend/visit | "
+            f"£{money(d['total_revenue']):,.0f} total revenue | "
+            f"£{money(d['avg_spend'])} avg spend/visit | "
             f"{d['avg_visits']} avg visits | "
             f"{d['retail_buyers']} retail buyers"
         )
@@ -2570,16 +2553,16 @@ def build_analysis_context(ctx=None, exclude_vat=False):
         avg_per_visit = d["revenue"] / d["visits"] if d["visits"] else 0
         rebook_pct    = round(d["rebooked"] / d["visits"] * 100) if d["visits"] else 0
         lines.append(f"  {nm}: {d['clients']} pref-clients, {d['visits']} visits, "
-                     f"£{d['revenue']:,.0f} revenue, £{avg_per_visit:.0f} avg/visit, "
+                     f"£{money(d['revenue']):,.0f} revenue, £{money(avg_per_visit):.0f} avg/visit, "
                      f"{rebook_pct}% rebooking rate")
 
     if salon_kpis:
         lines += ["", "SALON KPI TARGETS:",
-                  "Salon,Period,ServicesTarget,RetailTarget£(incVAT),CareFactorTarget%,ReBookingsTarget%,"
+                  f"Salon,Period,ServicesTarget,RetailTarget£({vat_tag}),CareFactorTarget%,ReBookingsTarget%,"
                   "ClientCountTarget,RequestRateTarget%,AvgServicesTarget,UtilizationTarget%"]
         for _, k in sorted(salon_kpis.items(), key=lambda x: x[1].get('name', '')):
             lines.append(
-                f"{k['name']},{k['period']},{k['kpi_services']:.0f},£{k['kpi_retail']:.0f},"
+                f"{k['name']},{k['period']},{k['kpi_services']:.0f},£{money(k['kpi_retail']):.0f},"
                 f"{k['kpi_care_factor']:.1f}%,{k['kpi_rebookings']:.1f}%,"
                 f"{k['kpi_client_count']:.0f},{k['kpi_request_count']:.1f}%,"
                 f"{k['kpi_avg_services']:.1f},{k['kpi_utilization']:.1f}%"
@@ -2587,11 +2570,11 @@ def build_analysis_context(ctx=None, exclude_vat=False):
 
     if team_kpis:
         lines += ["", "TEAM MEMBER KPI TARGETS:",
-                  "Name,Period,RetailTarget£(incVAT),CareFactorTarget%,ReBookingsTarget%,"
+                  f"Name,Period,RetailTarget£({vat_tag}),CareFactorTarget%,ReBookingsTarget%,"
                   "ClientCountTarget,RequestRateTarget%,AvgServicesTarget,UtilizationTarget%"]
         for name, k in sorted(team_kpis.items()):
             lines.append(
-                f"{name},{k['period']},£{k['kpi_retail']:.0f},{k['kpi_care_factor']:.1f}%,"
+                f"{name},{k['period']},£{money(k['kpi_retail']):.0f},{k['kpi_care_factor']:.1f}%,"
                 f"{k['kpi_rebookings']:.1f}%,{k['kpi_client_count']:.0f},"
                 f"{k['kpi_req_count']:.1f}%,{k['kpi_avg_services']:.1f},{k['kpi_utilization']:.1f}%"
             )
@@ -2651,7 +2634,7 @@ def build_analysis_context(ctx=None, exclude_vat=False):
             for m in all_months:
                 d = months.get(m, {"visits": 0, "clients": 0, "revenue": 0, "rebooked": 0, "rate": 0, "requests": 0})
                 req_rate = round(d.get('requests', 0) / d['visits'] * 100, 1) if d['visits'] else 0
-                row += f",{d['visits']},{d['clients']},£{d['revenue']},{d['rebooked']},{d['rate']}%,{d.get('requests',0)},{req_rate}%"
+                row += f",{d['visits']},{d['clients']},£{money(d['revenue'])},{d['rebooked']},{d['rate']}%,{d.get('requests',0)},{req_rate}%"
             lines.append(f"  {row}")
 
     if team_week_stats:
@@ -2666,7 +2649,7 @@ def build_analysis_context(ctx=None, exclude_vat=False):
                 for wk in all_weeks:
                     d = team_week_stats[name].get(wk, {"visits": 0, "clients": 0, "revenue": 0, "rebooked": 0, "requests": 0})
                     req_rate = round(d.get('requests', 0) / d['visits'] * 100, 1) if d['visits'] else 0
-                    row += f",{d['visits']},{d['clients']},£{d['revenue']},{d['rebooked']},{d.get('requests',0)},{req_rate}%"
+                    row += f",{d['visits']},{d['clients']},£{money(d['revenue'])},{d['rebooked']},{d.get('requests',0)},{req_rate}%"
                 lines.append(f"  {row}")
 
     if team_day_stats:
@@ -2681,47 +2664,47 @@ def build_analysis_context(ctx=None, exclude_vat=False):
                 for day in all_days:
                     d = team_day_stats[name].get(day, {"visits": 0, "clients": 0, "revenue": 0, "rebooked": 0, "requests": 0})
                     req_rate = round(d.get('requests', 0) / d['visits'] * 100, 1) if d['visits'] else 0
-                    row += f",{d['visits']},{d['clients']},£{d['revenue']},{d['rebooked']},{d.get('requests',0)},{req_rate}%"
+                    row += f",{d['visits']},{d['clients']},£{money(d['revenue'])},{d['rebooked']},{d.get('requests',0)},{req_rate}%"
                 lines.append(f"  {row}")
 
     if service_daily:
         cutoff = (today - timedelta(days=90)).isoformat()
         recent_days = sorted(d for d in service_daily if d >= cutoff)
         lines += ["", "DAILY SERVICE DATA (last 90 days — use for specific dates, 'yesterday', 'today', daily questions):",
-                  "Date,ServiceRevenue£(incVAT),Visits,NoShows,NoShowValue£(incVAT),OnlineBookings,UniqueClients,RequestClients,RequestRate%"]
+                  f"Date,ServiceRevenue£({vat_tag}),Visits,NoShows,NoShowValue£({vat_tag}),OnlineBookings,UniqueClients,RequestClients,RequestRate%"]
         for day in recent_days:
             d = service_daily[day]
             day_label = date.fromisoformat(day).strftime("%a %-d %b %Y")
             rc = d.get('request_clients', 0)
             rr = round(rc / d['clients'] * 100, 1) if d['clients'] else 0
-            lines.append(f"{day_label},£{d['revenue']:,},{d['visits']},"
-                         f"{d.get('no_shows',0)},£{d.get('no_show_value',0):,},{d.get('online',0)},"
+            lines.append(f"{day_label},£{money(d['revenue']):,},{d['visits']},"
+                         f"{d.get('no_shows',0)},£{money(d.get('no_show_value',0)):,},{d.get('online',0)},"
                          f"{d['clients']},{rc},{rr}%")
 
     if service_weekly:
         recent_wks = sorted(service_weekly.keys(), reverse=True)[:52]
         lines += ["", "WEEKLY SERVICE DATA (most recent 52 weeks — use this for 'last week', 'this week', weekly questions):",
-                  "WeekCommencing,ServiceRevenue£(incVAT),Visits,NoShows,NoShowValue£(incVAT),OnlineBookings,UniqueClients,RequestClients,RequestRate%"]
+                  f"WeekCommencing,ServiceRevenue£({vat_tag}),Visits,NoShows,NoShowValue£({vat_tag}),OnlineBookings,UniqueClients,RequestClients,RequestRate%"]
         for wk in sorted(recent_wks):
             w = service_weekly[wk]
             wk_label = date.fromisoformat(wk).strftime("%-d %b %Y")
             rc = w.get('request_clients', 0)
             rr = round(rc / w['clients'] * 100, 1) if w['clients'] else 0
-            lines.append(f"w/c {wk_label},£{w['revenue']:,},{w['visits']},"
-                         f"{w.get('no_shows',0)},£{w.get('no_show_value',0):,},{w.get('online',0)},"
+            lines.append(f"w/c {wk_label},£{money(w['revenue']):,},{w['visits']},"
+                         f"{w.get('no_shows',0)},£{money(w.get('no_show_value',0)):,},{w.get('online',0)},"
                          f"{w['clients']},{rc},{rr}%")
 
     if service_monthly:
         lines += ["", "MONTHLY SERVICE REVENUE & VISITS:",
-                  "Month,ServiceRevenue£(incVAT),Visits,NoShows,NoShowValue£(incVAT),OnlineBookings,UniqueClients,NewClients,RequestClients,RequestRate%",
+                  f"Month,ServiceRevenue£({vat_tag}),Visits,NoShows,NoShowValue£({vat_tag}),OnlineBookings,UniqueClients,NewClients,RequestClients,RequestRate%",
                   "NOTE: NewClients = clients whose first ever recorded paid visit was in that month (first-time salon clients within the 2-year booking window)"]
         for mk in _sort_months(service_monthly)[:24]:
             m = service_monthly[mk]
             rc = m.get('request_clients', 0)
             rr = round(rc / m['clients'] * 100, 1) if m['clients'] else 0
             nc = m.get('new_clients', 0)
-            lines.append(f"{mk},£{m['revenue']:,},{m['visits']},"
-                         f"{m.get('no_shows',0)},£{m.get('no_show_value',0):,},{m.get('online',0)},"
+            lines.append(f"{mk},£{money(m['revenue']):,},{m['visits']},"
+                         f"{m.get('no_shows',0)},£{money(m.get('no_show_value',0)):,},{m.get('online',0)},"
                          f"{m['clients']},{nc},{rc},{rr}%")
 
     if service_salon_monthly:
@@ -2733,8 +2716,8 @@ def build_analysis_context(ctx=None, exclude_vat=False):
             for salon in sorted(salon_totals, key=lambda s: -salon_totals[s]):
                 d = service_salon_monthly.get(salon, {}).get(mk)
                 if d and d["revenue"] > 0:
-                    lines.append(f"{mk},{salon},£{d['revenue']:,},{d['visits']},"
-                                 f"{d['no_shows']},£{d['no_show_value']:,}")
+                    lines.append(f"{mk},{salon},£{money(d['revenue']):,},{d['visits']},"
+                                 f"{d['no_shows']},£{money(d['no_show_value']):,}")
 
     if service_cat_monthly:
         # Rank categories by total 2yr revenue; include top 15
@@ -2747,7 +2730,7 @@ def build_analysis_context(ctx=None, exclude_vat=False):
             for cat in top_cats_ranked:
                 d = service_cat_monthly.get(cat, {}).get(mk)
                 if d and d["revenue"] > 0:
-                    lines.append(f"{mk},{cat},£{d['revenue']:,},{d['visits']}")
+                    lines.append(f"{mk},{cat},£{money(d['revenue']):,},{d['visits']}")
 
         if team_cat_monthly:
             recent_months = _sort_months(service_monthly)[:3]
@@ -2760,7 +2743,7 @@ def build_analysis_context(ctx=None, exclude_vat=False):
                     for cat in top_cats_ranked:
                         d = team_cat_monthly[name].get(cat, {}).get(mk)
                         if d and d["revenue"] > 0:
-                            lines.append(f"{mk},{name},{cat},£{d['revenue']:,},{d['visits']}")
+                            lines.append(f"{mk},{name},{cat},£{money(d['revenue']):,},{d['visits']}")
 
     # Retail product aggregates — use transaction-level data if available,
     # fall back to counting product names across client records
@@ -2769,24 +2752,24 @@ def build_analysis_context(ctx=None, exclude_vat=False):
         lines += ["", "TOP RETAIL PRODUCTS (transaction data — units sold + revenue):",
                   "Product,ClientsBuying,UnitsSold,Revenue£"]
         for name, d in sorted(rs["products"].items(), key=lambda x: -x[1]["revenue"])[:30]:
-            lines.append(f"{name},{d['clients']},{d['units']},£{d['revenue']}")
+            lines.append(f"{name},{d['clients']},{d['units']},£{money(d['revenue'])}")
 
         lines += ["", "TOP RETAIL BRANDS (by revenue):",
                   "Brand,ClientsBuying,UnitsSold,Revenue£"]
         for brand, d in sorted(rs["brands"].items(), key=lambda x: -x[1]["revenue"])[:15]:
-            lines.append(f"{brand},{d['clients']},{d['units']},£{d['revenue']}")
+            lines.append(f"{brand},{d['clients']},{d['units']},£{money(d['revenue'])}")
 
         lines += ["", "TOP RETAIL LINES (by revenue):",
                   "Line,ClientsBuying,UnitsSold,Revenue£"]
         for line, d in sorted(rs["lines"].items(), key=lambda x: -x[1]["revenue"])[:15]:
-            lines.append(f"{line},{d['clients']},{d['units']},£{d['revenue']}")
+            lines.append(f"{line},{d['clients']},{d['units']},£{money(d['revenue'])}")
 
         if rs.get("monthly"):
             lines += ["", "MONTHLY RETAIL SALES (from transaction data):",
                       "Month,UnitsSold,Revenue£"]
             for mk in _sort_months(rs["monthly"])[:24]:
                 m = rs["monthly"][mk]
-                lines.append(f"{mk},{m['units']},£{m['revenue']}")
+                lines.append(f"{mk},{m['units']},£{money(m['revenue'])}")
 
         if rs.get("monthly_products"):
             lines += ["", "TOP RETAIL PRODUCTS BY MONTH (top 20 per month by revenue):",
@@ -2794,7 +2777,7 @@ def build_analysis_context(ctx=None, exclude_vat=False):
             for mk in _sort_months(rs["monthly_products"])[:24]:
                 prods = rs["monthly_products"][mk]
                 for prod, d in sorted(prods.items(), key=lambda x: -x[1]["revenue"])[:20]:
-                    lines.append(f"{mk},{prod},{d['units']},£{d['revenue']}")
+                    lines.append(f"{mk},{prod},{d['units']},£{money(d['revenue'])}")
 
         if rs.get("monthly_brands"):
             lines += ["", "TOP RETAIL BRANDS BY MONTH (top 10 per month by revenue):",
@@ -2802,7 +2785,7 @@ def build_analysis_context(ctx=None, exclude_vat=False):
             for mk in _sort_months(rs["monthly_brands"])[:24]:
                 brands = rs["monthly_brands"][mk]
                 for brand, d in sorted(brands.items(), key=lambda x: -x[1]["revenue"])[:10]:
-                    lines.append(f"{mk},{brand},{d['units']},£{d['revenue']}")
+                    lines.append(f"{mk},{brand},{d['units']},£{money(d['revenue'])}")
 
         if rs.get("salon_monthly"):
             salon_totals = {s: sum(d["revenue"] for d in months.values())
@@ -2813,7 +2796,7 @@ def build_analysis_context(ctx=None, exclude_vat=False):
                 for salon in sorted(salon_totals, key=lambda s: -salon_totals[s]):
                     d = rs["salon_monthly"].get(salon, {}).get(mk)
                     if d and d["revenue"] > 0:
-                        lines.append(f"{mk},{salon},{d['units']},£{d['revenue']}")
+                        lines.append(f"{mk},{salon},{d['units']},£{money(d['revenue'])}")
     else:
         # Fallback: aggregate product/brand names from client records (buyer counts only)
         prod_counts  = Counter()
@@ -2839,7 +2822,7 @@ def build_analysis_context(ctx=None, exclude_vat=False):
             lines += ["", "MONTHLY RETAIL SPEND (estimated):", "Month,BuyerCount,EstRevenue£"]
             for mk in _sort_months(monthly_retail)[:24]:
                 m = monthly_retail[mk]
-                lines.append(f"{mk},{m['clients']},~£{m['spend']:,.0f}")
+                lines.append(f"{mk},{m['clients']},~£{money(m['spend']):,.0f}")
 
     if monthly_gc:
         lines += ["", "MONTHLY GIFT CARD BUYERS:"]
@@ -2865,8 +2848,8 @@ def build_analysis_context(ctx=None, exclude_vat=False):
         cats = "|".join(c.get("top_cats", []))
         lines.append(
             f"{c['name']},{c.get('scls','')},{c.get('days_since','')},{c.get('n_visits',0)},"
-            f"£{c.get('total_spend',0)},£{c.get('avg_spend',0)},"
-            f"£{c.get('retail_total',0)},£{c.get('giftcard_total',0)},"
+            f"£{money(c.get('total_spend',0))},£{money(c.get('avg_spend',0))},"
+            f"£{money(c.get('retail_total',0))},£{money(c.get('giftcard_total',0))},"
             f"{c.get('pref_tm','')},{c.get('pref_salon','')},{cats}"
         )
 
@@ -2965,10 +2948,7 @@ def build_analysis_context(ctx=None, exclude_vat=False):
                 lines.append(f"{salon},{stylist},{d['future_days']},{d['future_client_mins']},"
                              f"{d['future_avail_mins']},{booked}%,{avail}%")
 
-    result = "\n".join(lines)
-    if exclude_vat:
-        result = _strip_vat_from_text(result)
-    return result
+    return "\n".join(lines)
 
 
 @app.route("/api/analyse", methods=["POST"])
