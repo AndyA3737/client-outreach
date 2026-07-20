@@ -1325,8 +1325,16 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         recent_svcs     = list(dict.fromkeys(b["svc"] for b in recent_visits if b["svc"]))
         recent_cats     = list(dict.fromkeys(b["cat"] for b in recent_visits if b["cat"]))
         no_shows        = int(cli.get("NoShows") or 0)
-        booking_noshows = len({b.get("bid") or b["dt"].date().isoformat()
-                               for b in bkgs if b.get("status") == 3})
+        noshow_seen, noshow_dated = set(), []
+        for b in bkgs:
+            if b.get("status") == 3:
+                key = b.get("bid") or b["dt"].date().isoformat()
+                if key not in noshow_seen:
+                    noshow_seen.add(key)
+                    noshow_dated.append(b)
+        noshow_dated.sort(key=lambda x: x["dt"], reverse=True)
+        no_show_dates   = [b["dt"].strftime("%-d %b %Y") for b in noshow_dated]
+        booking_noshows = len(noshow_dated)
         online_bookings = len({b.get("bid") or b["dt"].date().isoformat()
                                for b in bkgs if b.get("source") == 1})
         future_online   = sum(1 for b in fb   if b.get("source") == 1)
@@ -1428,6 +1436,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             future_cats=future_cats,
             next_booking=next_booking,
             no_shows=no_shows,
+            no_show_dates=no_show_dates,
             booking_noshows=booking_noshows,
             online_bookings=online_bookings,
             future_online=future_online,
@@ -1498,6 +1507,15 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         future_svcs = [b["svc"] for b in sorted(fb, key=lambda x: x["dt"]) if b["svc"]]
         future_cats = list({b["cat"] for b in fb if b["cat"]})
         next_booking = min(fb, key=lambda x: x["dt"])["dt"].strftime("%-d %b %Y") if fb else None
+        _ns_seen, _ns_dated = set(), []
+        for b in by_client.get(cid, []):
+            if b.get("status") == 3:
+                key = b.get("bid") or b["dt"].date().isoformat()
+                if key not in _ns_seen:
+                    _ns_seen.add(key)
+                    _ns_dated.append(b)
+        _ns_dated.sort(key=lambda x: x["dt"], reverse=True)
+        no_show_dates = [b["dt"].strftime("%-d %b %Y") for b in _ns_dated]
         no_history.append(dict(
             id=cid, name=full_name, score=0, status="No Visit (2yrs)", scls="never",
             days_since=None, last_visit=None, n_visits=0, total_spend=0, avg_spend=0,
@@ -1505,7 +1523,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             pref_tm=None, pref_salon=None, top_cats=[], all_cats=[], departments=[], top_svcs=[],
             has_future_booking=has_future, future_svcs=future_svcs,
             future_cats=future_cats, next_booking=next_booking,
-            no_shows=int(cli.get("NoShows") or 0), n_stylists=0,
+            no_shows=int(cli.get("NoShows") or 0), no_show_dates=no_show_dates, n_stylists=0,
             giftcard_count=len(giftcard_by_client.get(cid, [])),
             giftcard_total=round(sum(g["amount"] for g in giftcard_by_client.get(cid, []))),
             last_giftcard=max((g for g in giftcard_by_client.get(cid, []) if g["dt"]), key=lambda x: x["dt"], default={"dt": None})["dt"].strftime("%-d %b %Y") if any(g["dt"] for g in giftcard_by_client.get(cid, [])) else None,
@@ -2135,6 +2153,7 @@ Fields available on each client record:
 - future_cats (array of strings): service categories for future appointments
 - next_booking (string or null): date of their next appointment e.g. "5 May 2026"
 - no_shows (int): number of recorded no-shows
+- no_show_dates (array of strings): ALL no-show dates e.g. ["12 Jun 2026","3 Feb 2026"]. Use this to find no-shows in a specific month or period.
 - n_stylists (int): number of distinct stylists visited
 - pref_salon (string): name of the salon they visit most
 - mobile (string): mobile phone number
@@ -2208,6 +2227,8 @@ IMPORTANT: when a query mentions a time window ("last 6 months", "recently", "in
 "clients that have had a hair service but not a beauty service" → logic AND, [{{"field":"departments","op":"contains","value":"hair"}},{{"field":"departments","op":"not_contains","value":"beauty"}}]
 "only ever seen one stylist" → [{{"field":"n_stylists","op":"eq","value":1}}]
 "no-show history" → [{{"field":"no_shows","op":"gte","value":1}}]
+"no-shows in June 2026" → [{{"field":"no_show_dates","op":"contains","value":"Jun 2026"}}]
+"clients that were a no-show in December 2025" → [{{"field":"no_show_dates","op":"contains","value":"Dec 2025"}}]
 "clients with a future booking" → [{{"field":"has_future_booking","op":"eq","value":true}}]
 "clients with no future booking" → [{{"field":"has_future_booking","op":"eq","value":false}}]
 IMPORTANT: when the query mentions a specific future service or treatment, ALWAYS use future_svcs (not has_future_booking):
@@ -2707,6 +2728,27 @@ def build_analysis_context(ctx=None, exclude_vat=False):
                          f"{m.get('no_shows',0)},£{money(m.get('no_show_value',0)):,},{m.get('online',0)},"
                          f"{m['clients']},{nc},{rc},{rr}%")
 
+    # Per-client, per-day no-show detail — the tables above only give day/week/month
+    # NoShows COUNTS; this gives the actual client + date for each no-show so
+    # questions like "list clients who no-showed in June 2026" can be answered directly.
+    noshow_events = []
+    for c in all_clients:
+        for d_str in (c.get('no_show_dates') or []):
+            noshow_events.append((d_str, c.get('name', '')))
+    if noshow_events:
+        def _parse_ns_date(s):
+            try:
+                return datetime.strptime(s, "%d %b %Y")
+            except ValueError:
+                return datetime.min
+        noshow_events.sort(key=lambda x: _parse_ns_date(x[0]), reverse=True)
+        shown = noshow_events[:300]
+        lines += ["", f"NO-SHOW DETAIL BY CLIENT (most recent {len(shown)} of {len(noshow_events)} no-shows, last 2 years) — "
+                       "use this for 'list clients who no-showed in <month/period>' or any day-level no-show question:",
+                  "Date,Client"]
+        for d_str, name in shown:
+            lines.append(f"{d_str},{name}")
+
     if service_salon_monthly:
         salon_totals = {s: sum(d["revenue"] for d in months.values())
                         for s, months in service_salon_monthly.items()}
@@ -3034,6 +3076,12 @@ def analyse():
                     "(e.g. Colour, Cut & Finish). Use this table to answer questions like 'which stylist "
                     "generated the most revenue from colour services this month' — do NOT say stylist-level "
                     "category revenue is unavailable if this section is present. "
+                    "IMPORTANT: The DAILY/WEEKLY/MONTHLY SERVICE DATA tables only give NoShows COUNTS per "
+                    "day/week/month. For which SPECIFIC clients no-showed and on what date, use the "
+                    "'NO-SHOW DETAIL BY CLIENT' section instead — it lists every no-show as Date,Client. "
+                    "Use it to answer questions like 'list clients who no-showed in June 2026' or 'break "
+                    "down no-shows by day' directly. It's capped at the most recent 300 no-shows (of the "
+                    "last 2 years) — if the user's requested period may exceed that cap, say so. "
                     "IMPORTANT: 'Request clients' or 'request rate' means clients who specifically "
                     "requested a team member. The daily, weekly, and monthly service tables include "
                     "RequestClients (count) and RequestRate% (RequestClients ÷ UniqueClients × 100) columns. "
