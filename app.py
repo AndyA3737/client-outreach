@@ -1343,6 +1343,29 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                                for b in bkgs if b.get("source") == 1})
         future_online   = sum(1 for b in fb   if b.get("source") == 1)
 
+        # Row-level visit log (last 90 days only, to bound size) — lets the AI
+        # compute exact per-stylist figures for a custom date range by
+        # filtering and counting rows, instead of summing pre-aggregated
+        # daily/weekly "Clients" counts (which double-counts repeat visitors
+        # and can't be safely added across periods).
+        visit_seen, visit_raw = set(), []
+        for b in actual_visits:
+            if (today - b["dt"].date()).days > 90:
+                continue
+            key = b.get("bid") or b["dt"].date().isoformat()
+            if key not in visit_seen:
+                visit_seen.add(key)
+                visit_raw.append(b)
+        visit_raw.sort(key=lambda b: b["dt"], reverse=True)
+        visit_log = [{
+            "date":      b["dt"].strftime("%-d %b %Y"),
+            "stylist":   team_map.get(b.get("tm", ""), "?"),
+            "category":  b.get("cat", ""),
+            "revenue":   round(b["price"], 2),
+            "rebooked":  bool(b.get("rebooked")),
+            "requested": bool(b.get("requested")),
+        } for b in visit_raw]
+
         gc_list        = giftcard_by_client.get(cid, [])
         giftcard_count = len(gc_list)
         giftcard_total = round(sum(g["amount"] for g in gc_list))
@@ -1441,6 +1464,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             next_booking=next_booking,
             no_shows=no_shows,
             no_show_dates=no_show_dates,
+            visit_log=visit_log,
             booking_noshows=booking_noshows,
             online_bookings=online_bookings,
             future_online=future_online,
@@ -1527,7 +1551,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             pref_tm=None, pref_salon=None, top_cats=[], all_cats=[], departments=[], top_svcs=[],
             has_future_booking=has_future, future_svcs=future_svcs,
             future_cats=future_cats, next_booking=next_booking,
-            no_shows=int(cli.get("NoShows") or 0), no_show_dates=no_show_dates, n_stylists=0,
+            no_shows=int(cli.get("NoShows") or 0), no_show_dates=no_show_dates, visit_log=[], n_stylists=0,
             giftcard_count=len(giftcard_by_client.get(cid, [])),
             giftcard_total=round(sum(g["amount"] for g in giftcard_by_client.get(cid, []))),
             last_giftcard=max((g for g in giftcard_by_client.get(cid, []) if g["dt"]), key=lambda x: x["dt"], default={"dt": None})["dt"].strftime("%-d %b %Y") if any(g["dt"] for g in giftcard_by_client.get(cid, [])) else None,
@@ -2768,6 +2792,42 @@ def build_analysis_context(ctx=None, exclude_vat=False):
         for d_str, name in shown:
             lines.append(f"{d_str},{name}")
 
+    # Row-level paid-visit log (last 90 days) — TEAM DAILY/WEEKLY/MONTHLY STATS
+    # above give pre-aggregated, pre-deduplicated "Clients" counts that are only
+    # valid for a SINGLE whole day/week/month each — they cannot be summed
+    # across periods to get a unique-client count for a custom range (a client
+    # seen twice in the range would be double-counted). This table gives the
+    # actual per-visit rows so exact figures can be computed for ANY custom
+    # date range and/or specific stylist by filtering rows directly.
+    appt_events = []
+    for c in all_clients:
+        for v in (c.get('visit_log') or []):
+            appt_events.append((v.get('date', ''), v.get('stylist', '?'), c.get('name', ''),
+                                 v.get('category', ''), v.get('revenue', 0),
+                                 v.get('rebooked'), v.get('requested')))
+    if appt_events:
+        def _parse_ap_date(s):
+            try:
+                return datetime.strptime(s, "%d %b %Y")
+            except ValueError:
+                return datetime.min
+        appt_events.sort(key=lambda x: _parse_ap_date(x[0]), reverse=True)
+        shown = appt_events[:1500]
+        lines += ["", f"APPOINTMENT DETAIL BY STYLIST (last 90 days, most recent {len(shown)} of {len(appt_events)} paid visits) — "
+                       "use this for EXACT client counts, revenue, or rebooking rates for a SPECIFIC STYLIST over a CUSTOM "
+                       "date range, especially one that doesn't align to a single Mon-Sun week or calendar month (e.g. "
+                       "'last week' spanning two week buckets in TEAM WEEKLY STATS, or any arbitrary date range). Filter "
+                       "rows to the stylist + date range, then count DISTINCT clients yourself — do NOT sum the 'Clients' "
+                       "column from TEAM DAILY/WEEKLY/MONTHLY STATS across more than one period, since that double-counts "
+                       "any client seen more than once in the range. If the requested range is fully covered by a single "
+                       "row in TEAM WEEKLY STATS or TEAM MONTHLY STATS, prefer that pre-verified figure instead. If the "
+                       "range extends beyond the last 90 days (or beyond how far back this table's rows go), say so rather "
+                       "than presenting an incomplete count as exact.",
+                  "Date,Stylist,Client,Category,Revenue£,Rebooked,Requested"]
+        for d_str, stylist, name, cat, rev, rebooked, requested in shown:
+            lines.append(f"{d_str},{stylist},{name},{cat},£{money(rev)},"
+                         f"{'Y' if rebooked else 'N'},{'Y' if requested else 'N'}")
+
     if service_salon_monthly:
         salon_totals = {s: sum(d["revenue"] for d in months.values())
                         for s, months in service_salon_monthly.items()}
@@ -3303,6 +3363,17 @@ def analyse():
                     "Use it to answer questions like 'list clients who no-showed in June 2026' or 'break "
                     "down no-shows by day' directly. It's capped at the most recent 300 no-shows (of the "
                     "last 2 years) — if the user's requested period may exceed that cap, say so. "
+                    "IMPORTANT: For 'full performance review' or any other question asking for exact figures "
+                    "(client count, revenue, rebooking rate, etc.) for a SPECIFIC STYLIST over a CUSTOM date "
+                    "range — especially one that doesn't line up with a single row in TEAM WEEKLY/MONTHLY "
+                    "STATS — use the 'APPOINTMENT DETAIL BY STYLIST' section (Date,Stylist,Client,Category,"
+                    "Revenue£,Rebooked,Requested), filtering to that stylist and date range and computing "
+                    "from the individual rows. NEVER sum the 'Clients' column from TEAM DAILY/WEEKLY/MONTHLY "
+                    "STATS across more than one row/period to get a client count for a range — each of those "
+                    "counts is only a valid unique-client figure for its own single day/week/month, and a "
+                    "client seen more than once in the range would be double-counted. Appointment-level detail "
+                    "only covers the last 90 days; for ranges (or parts of ranges) further back, say the exact "
+                    "figure isn't available rather than presenting an estimate as precise. "
                     "IMPORTANT: 'Request clients' or 'request rate' means clients who specifically "
                     "requested a team member. The daily, weekly, and monthly service tables include "
                     "RequestClients (count) and RequestRate% (RequestClients ÷ UniqueClients × 100) columns. "
