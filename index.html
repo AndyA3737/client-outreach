@@ -1794,7 +1794,7 @@ function _renderSidebarHistory(items, type) {
   if (!sidebarEl) return;
   if (!items.length) { if (sectionEl) sectionEl.style.display = 'none'; sidebarEl.innerHTML = ''; return; }
   if (sectionEl) sectionEl.style.display = '';
-  sidebarEl.innerHTML = items.slice(0, 20).map(item => {
+  sidebarEl.innerHTML = items.slice(0, 100).map(item => {
     const action = type === 'analysis' ? `replayAnalysis(${item.id})` : `replaySelection(${item.id})`;
     const rawLabel = item.result_title || item.question;
     const label  = type === 'selection' ? _trimSelectionLabel(rawLabel) : rawLabel;
