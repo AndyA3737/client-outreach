@@ -642,6 +642,12 @@
           <span id="vatToggleKnob" style="position:absolute;top:2px;left:20px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left 0.15s;box-shadow:0 1px 3px rgba(0,0,0,0.25)"></span>
         </button>
       </div>
+      <button onclick="downloadAnalysisData()" title="Download the aggregated data Aria uses, as an Excel workbook — check it against SalonIQ directly"
+              style="background:#fff;border:1px solid var(--border);color:var(--text);border-radius:9px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;white-space:nowrap;flex-shrink:0;transition:all 0.15s"
+              onmouseover="this.style.borderColor='var(--green)';this.style.color='var(--green)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text)'">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download Data
+      </button>
       <div id="usageBar" style="display:none;flex-shrink:0;text-align:right">
         <div class="eyebrow" style="margin-bottom:3px">Session usage</div>
         <div id="usageDetails" style="font-size:12px;color:var(--text)"></div>
@@ -1964,6 +1970,16 @@ function toggleVatMode() {
   _vatIncluded = !_vatIncluded;
   localStorage.setItem(_vatStorageKey(), String(_vatIncluded));
   _applyVatToggleUI();
+}
+
+function downloadAnalysisData() {
+  if (!selectedTenantId) return;
+  const params = new URLSearchParams({
+    tenant_id: selectedTenantId,
+    server: selectedServer,
+    exclude_vat: (!_vatIncluded).toString(),
+  });
+  window.location.href = `/api/analyse/export?${params}`;
 }
 
 function setAnalysisFmt(fmt) {

@@ -2,6 +2,7 @@
 """Salon SMS Marketing Dashboard — scores clients for SMS targeting."""
 
 import os
+import io
 import json
 import secrets
 import psycopg2
@@ -10,13 +11,16 @@ import threading
 import uuid
 from functools import wraps
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from flask import (Flask, jsonify, request, send_from_directory,
+from flask import (Flask, jsonify, request, send_from_directory, send_file,
                    session as flask_session, redirect, make_response)
 import requests
 from datetime import datetime, date, timedelta
 from collections import defaultdict, Counter
 from zoneinfo import ZoneInfo
 import time
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.utils import get_column_letter
 
 _TZ_LONDON = ZoneInfo('Europe/London')
 
@@ -2993,6 +2997,208 @@ def build_analysis_context(ctx=None, exclude_vat=False):
     return "\n".join(lines)
 
 
+def _xlsx_sheet(wb, title, headers, rows):
+    """Create a worksheet with a bold header row, sane column widths, and a frozen top row."""
+    ws = wb.create_sheet(title=title[:31])
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill("solid", fgColor="1A2332")
+    for col, h in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="left")
+    for r, row in enumerate(rows, 2):
+        for col, val in enumerate(row, 1):
+            ws.cell(row=r, column=col, value=val)
+    for col in range(1, len(headers) + 1):
+        maxlen = len(str(headers[col - 1]))
+        for row in rows:
+            if col - 1 < len(row):
+                maxlen = max(maxlen, len(str(row[col - 1])))
+        ws.column_dimensions[get_column_letter(col)].width = min(max(maxlen + 2, 10), 40)
+    ws.freeze_panes = "A2"
+    return ws
+
+
+def build_analysis_workbook(ctx=None, exclude_vat=False):
+    """Build an .xlsx workbook of the same aggregated data fed to the AI in
+    build_analysis_context(), as real tabular sheets rather than a text blob,
+    so figures can be checked directly against SalonIQ."""
+    money   = (lambda v: round(v / _UK_VAT_RATE, 2)) if exclude_vat else (lambda v: v)
+    vat_tag = "ex VAT" if exclude_vat else "inc VAT"
+
+    all_clients          = (ctx or {}).get('all_clients', [])
+    service_daily        = (ctx or {}).get('service_daily', {})
+    service_weekly       = (ctx or {}).get('service_weekly', {})
+    service_monthly      = (ctx or {}).get('service_monthly', {})
+    retail_summary       = (ctx or {}).get('retail_summary', {})
+    team_kpis            = (ctx or {}).get('team_kpis', {})
+    team_rebook_monthly  = (ctx or {}).get('team_rebook_monthly', {})
+    loaded_salon_name    = (ctx or {}).get('loaded_salon_name', '')
+    loaded_tenant_name   = (ctx or {}).get('loaded_tenant_name', '')
+    loaded_account_code  = (ctx or {}).get('loaded_account_code', '')
+    loaded_tenant_id     = (ctx or {}).get('loaded_tenant_id', '')
+    loaded_server        = (ctx or {}).get('loaded_server', 'BETA')
+    salon_kpis           = (ctx or {}).get('salon_kpis', {})
+
+    today        = date.today()
+    tenant_label = (' – '.join(p for p in [loaded_account_code, loaded_tenant_name] if p)) \
+                   or loaded_salon_name or loaded_tenant_id or 'Unknown'
+
+    wb = Workbook()
+
+    # ── Overview ──────────────────────────────────────────────
+    ws = wb.active
+    ws.title = "Overview"
+    ws["A1"] = "SalonIQ Aria — Data Analysis Export"
+    ws["A1"].font = Font(bold=True, size=14)
+    overview_rows = [
+        ("Tenant", tenant_label),
+        ("Server", loaded_server),
+        ("Generated", today.strftime("%-d %b %Y")),
+        ("VAT basis", f"Figures shown {vat_tag}" + (
+            " — deflated from SalonIQ's VAT-inclusive figures at the standard UK 20% rate"
+            if exclude_vat else " — as returned by SalonIQ (VAT-inclusive)")),
+        ("", ""),
+        ("Total clients", len(all_clients)),
+        (f"Total 2yr service revenue ({vat_tag})", money(sum(c.get('total_spend', 0) for c in all_clients))),
+        (f"Total 2yr retail spend ({vat_tag})", money(sum(c.get('retail_total', 0) for c in all_clients))),
+        (f"Total 2yr gift card spend ({vat_tag})", money(sum(c.get('giftcard_total', 0) for c in all_clients))),
+    ]
+    for i, (label, value) in enumerate(overview_rows, 3):
+        ws.cell(row=i, column=1, value=label).font = Font(bold=True)
+        ws.cell(row=i, column=2, value=value)
+    ws.column_dimensions["A"].width = 42
+    ws.column_dimensions["B"].width = 50
+
+    # ── Client status breakdown ──────────────────────────────
+    segments = {}
+    for seg in ("active", "due", "lapsing", "lapsed", "never"):
+        grp = [c for c in all_clients if c.get("scls") == seg]
+        if grp:
+            segments[seg] = {
+                "count":        len(grp),
+                "total_revenue": sum(c.get("total_spend", 0) for c in grp),
+                "avg_spend":    round(sum(c.get("avg_spend", 0) for c in grp) / len(grp)),
+                "avg_visits":   round(sum(c.get("n_visits", 0) for c in grp) / len(grp), 1),
+                "retail_buyers": sum(1 for c in grp if c.get("retail_count", 0) > 0),
+            }
+    rows = [[seg.title(), d["count"], money(d["total_revenue"]), money(d["avg_spend"]), d["avg_visits"], d["retail_buyers"]]
+            for seg, d in segments.items()]
+    _xlsx_sheet(wb, "Client Status", ["Segment", "Clients", f"Total Revenue ({vat_tag})",
+                                       f"Avg Spend ({vat_tag})", "Avg Visits", "Retail Buyers"], rows)
+
+    # ── Stylist revenue ───────────────────────────────────────
+    stylist_data = {}
+    for name, months in team_rebook_monthly.items():
+        stylist_data[name] = {
+            "visits":   sum(d["visits"]   for d in months.values()),
+            "revenue":  sum(d["revenue"]  for d in months.values()),
+            "rebooked": sum(d["rebooked"] for d in months.values()),
+        }
+    rows = []
+    for nm, d in sorted(stylist_data.items(), key=lambda x: -x[1]["revenue"]):
+        avg_per_visit = d["revenue"] / d["visits"] if d["visits"] else 0
+        rebook_pct    = round(d["rebooked"] / d["visits"] * 100) if d["visits"] else 0
+        rows.append([nm, d["visits"], money(round(d["revenue"])), money(round(avg_per_visit)), rebook_pct])
+    _xlsx_sheet(wb, "Stylist Revenue", ["Stylist", "Visits", f"Revenue ({vat_tag})",
+                                         f"Avg per Visit ({vat_tag})", "Rebooking %"], rows)
+
+    # ── Salon / team KPI targets ─────────────────────────────
+    if salon_kpis:
+        rows = [[k['name'], k['period'], round(k['kpi_services']), money(round(k['kpi_retail'])),
+                 k['kpi_care_factor'], k['kpi_rebookings'], round(k['kpi_client_count']),
+                 k['kpi_request_count'], k['kpi_avg_services'], k['kpi_utilization']]
+                for _, k in sorted(salon_kpis.items(), key=lambda x: x[1].get('name', ''))]
+        _xlsx_sheet(wb, "Salon KPI Targets", ["Salon", "Period", "Services Target",
+                    f"Retail Target ({vat_tag})", "Care Factor Target %", "Rebookings Target %",
+                    "Client Count Target", "Request Rate Target %", "Avg Services Target",
+                    "Utilization Target %"], rows)
+
+    if team_kpis:
+        rows = [[name, k['period'], money(round(k['kpi_retail'])), k['kpi_care_factor'],
+                 k['kpi_rebookings'], round(k['kpi_client_count']), k['kpi_req_count'],
+                 k['kpi_avg_services'], k['kpi_utilization']]
+                for name, k in sorted(team_kpis.items())]
+        _xlsx_sheet(wb, "Team KPI Targets", ["Name", "Period", f"Retail Target ({vat_tag})",
+                    "Care Factor Target %", "Rebookings Target %", "Client Count Target",
+                    "Request Rate Target %", "Avg Services Target", "Utilization Target %"], rows)
+
+    # ── Daily / weekly / monthly service data ────────────────
+    if service_daily:
+        cutoff = (today - timedelta(days=90)).isoformat()
+        rows = []
+        for day in sorted(d for d in service_daily if d >= cutoff):
+            d = service_daily[day]
+            day_label = date.fromisoformat(day).strftime("%a %-d %b %Y")
+            rc = d.get('request_clients', 0)
+            rr = round(rc / d['clients'] * 100, 1) if d['clients'] else 0
+            rows.append([day_label, money(d['revenue']), d['visits'], d.get('no_shows', 0),
+                         money(d.get('no_show_value', 0)), d.get('online', 0), d['clients'], rc, rr])
+        _xlsx_sheet(wb, "Daily Service Data", ["Date", f"Revenue ({vat_tag})", "Visits", "No-shows",
+                    f"No-show Value ({vat_tag})", "Online Bookings", "Unique Clients",
+                    "Request Clients", "Request Rate %"], rows)
+
+    if service_weekly:
+        rows = []
+        for wk in sorted(sorted(service_weekly.keys(), reverse=True)[:52]):
+            w = service_weekly[wk]
+            wk_label = date.fromisoformat(wk).strftime("%-d %b %Y")
+            rc = w.get('request_clients', 0)
+            rr = round(rc / w['clients'] * 100, 1) if w['clients'] else 0
+            rows.append([f"w/c {wk_label}", money(w['revenue']), w['visits'], w.get('no_shows', 0),
+                         money(w.get('no_show_value', 0)), w.get('online', 0), w['clients'], rc, rr])
+        _xlsx_sheet(wb, "Weekly Service Data", ["Week Commencing", f"Revenue ({vat_tag})", "Visits",
+                    "No-shows", f"No-show Value ({vat_tag})", "Online Bookings", "Unique Clients",
+                    "Request Clients", "Request Rate %"], rows)
+
+    if service_monthly:
+        rows = []
+        for mk in _sort_months(service_monthly)[:24]:
+            m = service_monthly[mk]
+            rc = m.get('request_clients', 0)
+            rr = round(rc / m['clients'] * 100, 1) if m['clients'] else 0
+            rows.append([mk, money(m['revenue']), m['visits'], m.get('no_shows', 0),
+                         money(m.get('no_show_value', 0)), m.get('online', 0), m['clients'],
+                         m.get('new_clients', 0), rc, rr])
+        _xlsx_sheet(wb, "Monthly Service Data", ["Month", f"Revenue ({vat_tag})", "Visits", "No-shows",
+                    f"No-show Value ({vat_tag})", "Online Bookings", "Unique Clients", "New Clients",
+                    "Request Clients", "Request Rate %"], rows)
+
+    # ── No-show detail ────────────────────────────────────────
+    noshow_events = []
+    for c in all_clients:
+        for d_str in (c.get('no_show_dates') or []):
+            noshow_events.append((d_str, c.get('name', '')))
+    if noshow_events:
+        def _parse_ns_date(s):
+            try:
+                return datetime.strptime(s, "%d %b %Y")
+            except ValueError:
+                return datetime.min
+        noshow_events.sort(key=lambda x: _parse_ns_date(x[0]), reverse=True)
+        _xlsx_sheet(wb, "No-Show Detail", ["Date", "Client"], noshow_events)
+
+    # ── Retail ────────────────────────────────────────────────
+    rs = retail_summary
+    if rs.get("products"):
+        rows = [[name, d['clients'], d['units'], money(d['revenue'])]
+                for name, d in sorted(rs["products"].items(), key=lambda x: -x[1]["revenue"])]
+        _xlsx_sheet(wb, "Retail Products", ["Product", "Clients Buying", "Units Sold",
+                    f"Revenue ({vat_tag})"], rows)
+    if rs.get("brands"):
+        rows = [[name, d['clients'], d['units'], money(d['revenue'])]
+                for name, d in sorted(rs["brands"].items(), key=lambda x: -x[1]["revenue"])]
+        _xlsx_sheet(wb, "Retail Brands", ["Brand", "Clients Buying", "Units Sold",
+                    f"Revenue ({vat_tag})"], rows)
+    if rs.get("monthly"):
+        rows = [[mk, rs["monthly"][mk]['units'], money(rs["monthly"][mk]['revenue'])]
+                for mk in _sort_months(rs["monthly"])[:24]]
+        _xlsx_sheet(wb, "Monthly Retail Sales", ["Month", "Units Sold", f"Revenue ({vat_tag})"], rows)
+
+    return wb
+
+
 @app.route("/api/analyse", methods=["POST"])
 @require_auth
 def analyse():
@@ -3212,6 +3418,33 @@ def analyse():
     except Exception as e:
         app.logger.exception("ANALYSE error: %s", e)
         return jsonify(error=str(e)), 500
+
+
+@app.route("/api/analyse/export")
+@require_auth
+def export_analysis_data():
+    """Download the aggregated data fed to the AI as a multi-sheet .xlsx
+    workbook, so it can be checked directly against SalonIQ's own reports."""
+    tenant_id   = request.args.get('tenant_id') or None
+    server      = request.args.get('server', 'BETA')
+    exclude_vat = request.args.get('exclude_vat', '').strip().lower() in ('1', 'true', 'yes')
+    ctx = _get_ctx(tenant_id, server)
+    if tenant_id and not ctx:
+        return jsonify(error="Salon data not found — please reload the salon data."), 400
+    if not ctx:
+        return jsonify(error="No data loaded — load a salon first."), 400
+
+    wb  = build_analysis_workbook(ctx=ctx, exclude_vat=exclude_vat)
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    account_code = ctx.get('loaded_account_code') or tenant_id or 'export'
+    filename = f"aria-data-{account_code}-{date.today().isoformat()}.xlsx".replace(' ', '-')
+    return send_file(
+        buf, as_attachment=True, download_name=filename,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
 
 
 @app.route("/api/history")
