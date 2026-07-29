@@ -3421,7 +3421,7 @@ def analyse():
 
 
 @app.route("/api/analyse/export")
-@require_auth
+@require_admin
 def export_analysis_data():
     """Download the aggregated data fed to the AI as a multi-sheet .xlsx
     workbook, so it can be checked directly against SalonIQ's own reports."""
