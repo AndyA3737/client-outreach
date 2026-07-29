@@ -675,7 +675,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     loaded_tenant_name = ""; loaded_account_code = ""
     load_timings['t_start'] = time.time()
     service_monthly = {}; service_weekly = {}; service_daily = {}
-    service_cat_monthly = {}; service_salon_monthly = {}; booking_stats = {}
+    service_cat_monthly = {}; service_name_monthly = {}; service_salon_monthly = {}; booking_stats = {}
     loaded_salon_ids = []; loaded_salon_name = ""
     loaded_server    = server
     loaded_tenant_id = tenant_id or SERVERS.get(server, SERVERS["BETA"])["default_tenant"]
@@ -900,8 +900,10 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     _seen_odk = set()   # (bid, day) — dedup online count per day
     _seen_cmk  = set()   # (bid, cat, mk)    — dedup category visits per month
     _seen_smk  = set()   # (bid, salon, mk)  — dedup salon visits per month
+    _seen_svmk = set()   # (bid, svc, mk)    — dedup individual-service visits per month
     _day_agg   = defaultdict(_zero)
     _cat_agg   = defaultdict(lambda: defaultdict(lambda: {"revenue": 0.0, "visits": 0}))
+    _svc_name_agg = defaultdict(lambda: defaultdict(lambda: {"revenue": 0.0, "visits": 0}))
     _salon_agg = defaultdict(lambda: defaultdict(lambda: {"revenue": 0.0, "visits": 0,
                                                            "no_shows": 0, "no_show_value": 0.0}))
     _hour_agg  = defaultdict(lambda: {"visits": 0, "no_shows": 0, "revenue": 0.0})
@@ -955,6 +957,12 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                     if (bid, cat, mk) not in _seen_cmk:
                         _seen_cmk.add((bid, cat, mk))
                         _cat_agg[cat][mk]["visits"] += 1
+                svc_name_b = b.get("svc", "")
+                if svc_name_b:  # individual service × month breakdown
+                    _svc_name_agg[svc_name_b][mk]["revenue"] += b["price"]
+                    if (bid, svc_name_b, mk) not in _seen_svmk:
+                        _seen_svmk.add((bid, svc_name_b, mk))
+                        _svc_name_agg[svc_name_b][mk]["visits"] += 1
                 if salon:  # salon × month breakdown
                     _salon_agg[salon][mk]["revenue"] += b["price"]
                     if (bid, salon, mk) not in _seen_smk:
@@ -1062,6 +1070,11 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         cat: {mk: {"revenue": round(d["revenue"]), "visits": d["visits"]}
               for mk, d in months.items()}
         for cat, months in _cat_agg.items()
+    }
+    service_name_monthly = {
+        svc: {mk: {"revenue": round(d["revenue"]), "visits": d["visits"]}
+              for mk, d in months.items()}
+        for svc, months in _svc_name_agg.items()
     }
     service_weekly  = {wk: _agg_to_dict(d) for wk, d in _wk_agg.items()}
     service_daily   = {day: _agg_to_dict(d) for day, d in _day_agg.items()}
@@ -1597,6 +1610,7 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
         'service_weekly':        service_weekly,
         'service_daily':         service_daily,
         'service_cat_monthly':   service_cat_monthly,
+        'service_name_monthly':  service_name_monthly,
         'service_salon_monthly': service_salon_monthly,
         'booking_stats':         booking_stats,
         'team_rebook_monthly':   team_rebook_monthly,
@@ -2501,6 +2515,7 @@ def build_analysis_context(ctx=None, exclude_vat=False):
     service_monthly      = (ctx or {}).get('service_monthly', {})
     service_salon_monthly= (ctx or {}).get('service_salon_monthly', {})
     service_cat_monthly  = (ctx or {}).get('service_cat_monthly', {})
+    service_name_monthly = (ctx or {}).get('service_name_monthly', {})
     retail_summary       = (ctx or {}).get('retail_summary', {})
     utilisation          = (ctx or {}).get('utilisation', [])
     team_kpis            = (ctx or {}).get('team_kpis', {})
@@ -2865,6 +2880,21 @@ def build_analysis_context(ctx=None, exclude_vat=False):
                         d = team_cat_monthly[name].get(cat, {}).get(mk)
                         if d and d["revenue"] > 0:
                             lines.append(f"{mk},{name},{cat},£{money(d['revenue']):,},{d['visits']}")
+
+    if service_name_monthly:
+        # Rank individual services (not just their category) by total 2yr revenue
+        svc_totals = {svc: sum(d["revenue"] for d in months.values())
+                      for svc, months in service_name_monthly.items()}
+        top_svcs_ranked = sorted(svc_totals, key=lambda s: -svc_totals[s])[:40]
+        lines += ["", "MONTHLY REVENUE & VISITS BY INDIVIDUAL SERVICE (paid bookings only, top 40 services "
+                      "by 2yr revenue — use this for 'ranking of service sales' or any question about a "
+                      "SPECIFIC named service e.g. 'Full Head Colour', not just its category):",
+                  "Month,Service,Revenue£,Visits"]
+        for mk in _sort_months(service_monthly)[:24]:
+            for svc in top_svcs_ranked:
+                d = service_name_monthly.get(svc, {}).get(mk)
+                if d and d["revenue"] > 0:
+                    lines.append(f"{mk},{svc},£{money(d['revenue']):,},{d['visits']}")
 
     # Retail product aggregates — use transaction-level data if available,
     # fall back to counting product names across client records
@@ -3357,6 +3387,13 @@ def analyse():
                     "(e.g. Colour, Cut & Finish). Use this table to answer questions like 'which stylist "
                     "generated the most revenue from colour services this month' — do NOT say stylist-level "
                     "category revenue is unavailable if this section is present. "
+                    "IMPORTANT: 'MONTHLY REVENUE & VISITS BY SERVICE CATEGORY' is grouped by CATEGORY (e.g. "
+                    "'Colour', 'Cut & Finish') — a category contains many individual services. When asked to "
+                    "rank/list SERVICE SALES, or for any specific named service (e.g. 'Full Head Colour', "
+                    "'Balayage', 'Ladies Cut & Blow Dry'), use 'MONTHLY REVENUE & VISITS BY INDIVIDUAL "
+                    "SERVICE' instead — do NOT substitute the category-level table and call it a service "
+                    "ranking. It covers the top 40 services by 2yr revenue; if a requested service isn't in "
+                    "that top 40, say so rather than omitting it silently. "
                     "IMPORTANT: The DAILY/WEEKLY/MONTHLY SERVICE DATA tables only give NoShows COUNTS per "
                     "day/week/month. For which SPECIFIC clients no-showed and on what date, use the "
                     "'NO-SHOW DETAIL BY CLIENT' section instead — it lists every no-show as Date,Client. "
