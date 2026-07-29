@@ -2211,6 +2211,11 @@ Return ONLY a JSON object — no markdown, no explanation — in this exact stru
 
 Supported operators: eq, ne, gt, gte, lt, lte, in (value is a list), contains (array field has an item containing the string as a substring), contains_exact (array field has an item that exactly equals the string — use for codes and tags), not_contains (array field does NOT contain string), every_contains (ALL items in array contain string — use for "only" queries), exists (value true=not null, false=null)
 
+CRITICAL — mixing AND with OR: the top-level "logic" applies to ALL items in "filters" — it cannot express "A AND (B OR C)" on its own. NEVER approximate a mixed query by just picking AND or OR for everything — AND-across-the-board will silently return too few/zero results (it demands every alternative at once), and OR-across-the-board will return too many (it drops the required condition entirely). Instead, nest a nested group filter item for the OR part, alongside the required filter(s) under a top-level "logic":"AND":
+{{"op": "group", "logic": "OR", "filters": [ {{"field":...,"op":...,"value":...}}, ... ]}}
+"clients who have purchased Davroe retail products and have had either Conditioning Treatments or Smoothing services" → logic AND, [{{"field":"retail_brands","op":"contains","value":"Davroe"}},{{"op":"group","logic":"OR","filters":[{{"field":"all_cats","op":"contains","value":"Conditioning Treatments"}},{{"field":"all_cats","op":"contains","value":"Smoothing"}}]}}]
+"colour clients who used a gift card or a promotion" → logic AND, [{{"field":"top_cats","op":"contains","value":"Colour"}},{{"op":"group","logic":"OR","filters":[{{"field":"giftcard_count","op":"gte","value":1}},{{"field":"promo_count","op":"gte","value":1}}]}}]
+
 Examples:
 "last visit in January 2026" → [{{"field":"last_visit","op":"contains","value":"Jan 2026"}}]
 "visited only once" → [{{"field":"n_visits","op":"eq","value":1}}]
@@ -2325,6 +2330,16 @@ IMPORTANT: always use contains_exact (not contains) for promo_codes — these ar
     description = criteria.get("description", q)
 
     def matches(client, f):
+        # Nested group — lets a query mix a required (AND) condition with a
+        # set of alternatives (OR), e.g. "bought Davroe AND (had Colour OR
+        # Conditioning)" — the top-level logic alone can't express that mix.
+        if f.get("op") == "group":
+            sub_filters = f.get("filters", [])
+            sub_logic   = (f.get("logic") or "OR").upper()
+            if not sub_filters:
+                return True
+            return (any if sub_logic == "OR" else all)(matches(client, sf) for sf in sub_filters)
+
         field, op, val = f.get("field"), f.get("op"), f.get("value")
         cv = client.get(field)
         # normalise strings for case-insensitive comparison; handle bool specially
