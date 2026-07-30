@@ -1217,6 +1217,44 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
     except Exception as e:
         print(f"RETAIL fetch failed: {e}", flush=True)
 
+    step("Fetching cancellations")
+    cancel_by_client = defaultdict(list)
+    try:
+        # Cancelled appointments can be in the past or future relative to today
+        # (a client cancelling next month's booking is the common case), so use
+        # the same wide past+future window as the main bookings fetch rather
+        # than the past-only window used for gift cards/promotions/retail.
+        cn_sd = bounds[0].strftime(date_fmt)
+        cn_ed = bounds[-1].strftime(date_fmt)
+        cancel_rows = fetch("XXX_Export_Admin_Aria_CancelledBookings", cn_sd, cn_ed,
+                            tenant_id=tenant_id, server=server)
+        for cb in cancel_rows:
+            cid = (cb.get("ClientId") or "").lower()
+            if not cid:
+                continue
+            appt_dt   = parse_dt(cb.get("Start") or "")
+            cancel_dt = parse_dt(cb.get("DeletedDate") or "")
+            rebook_raw = (cb.get("ReBookingDate") or "").strip()
+            rebook_dt  = parse_dt(rebook_raw) if rebook_raw else None
+            svc = svc_map.get(cb.get("ServiceId"), {})
+            sid = str(cb.get("salonID") or cb.get("SalonId") or cb.get("Salonid") or "")
+            notice_hrs = round((appt_dt - cancel_dt).total_seconds() / 3600, 1) if (appt_dt and cancel_dt) else None
+            cancel_by_client[cid].append({
+                "appt_dt":    appt_dt,
+                "cancel_dt":  cancel_dt,
+                "svc":        svc.get("Description", ""),
+                "cat":        svc.get("Categoty", "").replace("HAIR - ", ""),
+                "tm":         cb.get("TeamMemberId", ""),
+                "sid":        sid,
+                "price":      float(cb.get("DefaultPrice") or 0),
+                "late":       _parse_bool(cb.get("isLateCancellation"), default=False),
+                "by":         (cb.get("DeletedBy") or "").strip(),
+                "rebook_dt":  rebook_dt,
+                "notice_hrs": notice_hrs,
+            })
+    except Exception as e:
+        print(f"CANCELLATIONS fetch failed: {e}", flush=True)
+
     # Aggregate retail transactions into summary tables while retail_by_client is in scope
     prod_agg          = defaultdict(lambda: {"clients": set(), "units": 0, "revenue": 0.0})
     brand_agg         = defaultdict(lambda: {"clients": set(), "units": 0, "revenue": 0.0})
@@ -1379,6 +1417,26 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             "requested": bool(b.get("requested")),
         } for b in visit_raw]
 
+        # Cancellations — kept for the full 2yr window (unlike visit_log) since
+        # cancellation volume per client is inherently small.
+        cancel_raw = sorted(cancel_by_client.get(cid, []),
+                            key=lambda c: c["appt_dt"] or datetime.min, reverse=True)
+        cancel_dates = [c["appt_dt"].strftime("%-d %b %Y") for c in cancel_raw if c["appt_dt"]]
+        cancel_log = [{
+            "date":        c["appt_dt"].strftime("%-d %b %Y") if c["appt_dt"] else "",
+            "stylist":     team_map.get(c.get("tm", ""), "?"),
+            "category":    c.get("cat", ""),
+            "service":     c.get("svc", ""),
+            "value":       round(c.get("price", 0), 2),
+            "notice_hrs":  c.get("notice_hrs"),
+            "late":        bool(c.get("late")),
+            "by":          c.get("by", ""),
+            "rebooked":    c.get("rebook_dt") is not None,
+            "rebook_date": c["rebook_dt"].strftime("%-d %b %Y") if c.get("rebook_dt") else None,
+        } for c in cancel_raw]
+        cancel_count = len(cancel_log)
+        cancel_value = round(sum(c.get("price", 0) for c in cancel_raw), 2)
+
         gc_list        = giftcard_by_client.get(cid, [])
         giftcard_count = len(gc_list)
         giftcard_total = round(sum(g["amount"] for g in gc_list))
@@ -1478,6 +1536,10 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             no_shows=no_shows,
             no_show_dates=no_show_dates,
             visit_log=visit_log,
+            cancel_count=cancel_count,
+            cancel_value=cancel_value,
+            cancel_dates=cancel_dates,
+            cancel_log=cancel_log,
             booking_noshows=booking_noshows,
             online_bookings=online_bookings,
             future_online=future_online,
@@ -1557,6 +1619,21 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
                     _ns_dated.append(b)
         _ns_dated.sort(key=lambda x: x["dt"], reverse=True)
         no_show_dates = [b["dt"].strftime("%-d %b %Y") for b in _ns_dated]
+        _cn_raw = sorted(cancel_by_client.get(cid, []),
+                         key=lambda c: c["appt_dt"] or datetime.min, reverse=True)
+        _cn_dates = [c["appt_dt"].strftime("%-d %b %Y") for c in _cn_raw if c["appt_dt"]]
+        _cn_log = [{
+            "date":        c["appt_dt"].strftime("%-d %b %Y") if c["appt_dt"] else "",
+            "stylist":     team_map.get(c.get("tm", ""), "?"),
+            "category":    c.get("cat", ""),
+            "service":     c.get("svc", ""),
+            "value":       round(c.get("price", 0), 2),
+            "notice_hrs":  c.get("notice_hrs"),
+            "late":        bool(c.get("late")),
+            "by":          c.get("by", ""),
+            "rebooked":    c.get("rebook_dt") is not None,
+            "rebook_date": c["rebook_dt"].strftime("%-d %b %Y") if c.get("rebook_dt") else None,
+        } for c in _cn_raw]
         no_history.append(dict(
             id=cid, name=full_name, score=0, status="No Visit (2yrs)", scls="never",
             days_since=None, last_visit=None, n_visits=0, total_spend=0, avg_spend=0,
@@ -1565,6 +1642,8 @@ def build_data(tenant_id=None, server="BETA", step_fn=None):
             has_future_booking=has_future, future_svcs=future_svcs,
             future_cats=future_cats, next_booking=next_booking,
             no_shows=int(cli.get("NoShows") or 0), no_show_dates=no_show_dates, visit_log=[], n_stylists=0,
+            cancel_count=len(_cn_log), cancel_value=round(sum(c.get("price", 0) for c in _cn_raw), 2),
+            cancel_dates=_cn_dates, cancel_log=_cn_log,
             giftcard_count=len(giftcard_by_client.get(cid, [])),
             giftcard_total=round(sum(g["amount"] for g in giftcard_by_client.get(cid, []))),
             last_giftcard=max((g for g in giftcard_by_client.get(cid, []) if g["dt"]), key=lambda x: x["dt"], default={"dt": None})["dt"].strftime("%-d %b %Y") if any(g["dt"] for g in giftcard_by_client.get(cid, [])) else None,
@@ -2196,6 +2275,9 @@ Fields available on each client record:
 - next_booking (string or null): date of their next appointment e.g. "5 May 2026"
 - no_shows (int): number of recorded no-shows
 - no_show_dates (array of strings): ALL no-show dates e.g. ["12 Jun 2026","3 Feb 2026"]. Use this to find no-shows in a specific month or period.
+- cancel_count (int): number of appointments this client has cancelled (2yr)
+- cancel_value (float £): total value of this client's cancelled appointments (2yr)
+- cancel_dates (array of strings): ALL cancelled-appointment dates e.g. ["9 Jul 2026","2 Jun 2026"]. Use this to find cancellations in a specific month or period.
 - n_stylists (int): number of distinct stylists visited
 - pref_salon (string): name of the salon they visit most
 - mobile (string): mobile phone number
@@ -2276,6 +2358,9 @@ IMPORTANT: when a query mentions a time window ("last 6 months", "recently", "in
 "no-show history" → [{{"field":"no_shows","op":"gte","value":1}}]
 "no-shows in June 2026" → [{{"field":"no_show_dates","op":"contains","value":"Jun 2026"}}]
 "clients that were a no-show in December 2025" → [{{"field":"no_show_dates","op":"contains","value":"Dec 2025"}}]
+"clients who cancel repeatedly" / "clients with a high number of cancellations" → [{{"field":"cancel_count","op":"gte","value":3}}]
+"cancellations in July 2026" → [{{"field":"cancel_dates","op":"contains","value":"Jul 2026"}}]
+IMPORTANT: "clients who cancelled and haven't rebooked" cannot be answered here — cancel_count/cancel_dates are per-client totals, not per-cancellation, so there's no rebooked flag to filter on at this level. Tell the user to ask this in Data Analysis instead, which has row-level cancellation + rebooking detail.
 "clients with a future booking" → [{{"field":"has_future_booking","op":"eq","value":true}}]
 "clients with no future booking" → [{{"field":"has_future_booking","op":"eq","value":false}}]
 IMPORTANT: when the query mentions a specific future service or treatment, ALWAYS use future_svcs (not has_future_booking):
@@ -2842,6 +2927,115 @@ def build_analysis_context(ctx=None, exclude_vat=False):
         for d_str, stylist, name, cat, rev, rebooked, requested in shown:
             lines.append(f"{d_str},{stylist},{name},{cat},£{money(rev)},"
                          f"{'Y' if rebooked else 'N'},{'Y' if requested else 'N'}")
+
+    # Cancellations — gathered across all clients, full 2yr window (cancellation
+    # volume per client is small, unlike paid visits, so no 90-day cap needed).
+    cancel_events = []
+    for c in all_clients:
+        for v in (c.get('cancel_log') or []):
+            cancel_events.append({
+                "date": v.get('date', ''), "stylist": v.get('stylist', '?'),
+                "client": c.get('name', ''), "service": v.get('service', ''),
+                "category": v.get('category', ''), "value": v.get('value', 0) or 0,
+                "notice_hrs": v.get('notice_hrs'), "late": v.get('late'),
+                "by": v.get('by', ''), "rebooked": v.get('rebooked'),
+                "rebook_date": v.get('rebook_date'),
+            })
+
+    if cancel_events:
+        def _parse_cn_date(s):
+            try:
+                return datetime.strptime(s, "%d %b %Y")
+            except ValueError:
+                return datetime.min
+        cancel_events.sort(key=lambda e: _parse_cn_date(e["date"]), reverse=True)
+
+        # Row-level detail — exact per-stylist/per-client figures for a custom range
+        shown_cn = cancel_events[:1000]
+        lines += ["", f"CANCELLATION DETAIL BY STYLIST (most recent {len(shown_cn)} of {len(cancel_events)} "
+                       "cancellations, last 2 years) — Date is the ORIGINAL appointment date that was cancelled, "
+                       "not when it was cancelled. Use this for exact client/stylist/service cancellation counts "
+                       "or values over a custom date range, cancelled-but-not-rebooked lists, or 'which clients "
+                       "cancel repeatedly' (count rows per client). Rebooked=Y means the client has a later "
+                       "booking on record; RebookDate is when that's for.",
+                  "Date,Stylist,Client,Service,Category,Value£,NoticeHours,Late,CancelledBy,Rebooked,RebookDate"]
+        for e in shown_cn:
+            nh = e["notice_hrs"]
+            nh_str = f"{nh:.1f}" if nh is not None else ""
+            lines.append(f"{e['date']},{e['stylist']},{e['client']},{e['service']},{e['category']},"
+                         f"£{money(e['value'])},{nh_str},{'Y' if e['late'] else 'N'},{e['by']},"
+                         f"{'Y' if e['rebooked'] else 'N'},{e.get('rebook_date') or ''}")
+
+        # Monthly trend — full 2yr, split by rebooked vs not, for "is this improving" questions
+        cn_monthly = defaultdict(lambda: {"count": 0, "value": 0.0, "rebooked": 0,
+                                          "rebooked_value": 0.0, "not_rebooked": 0, "not_rebooked_value": 0.0})
+        for e in cancel_events:
+            mk = _month_key(e["date"])
+            if not mk:
+                continue
+            m = cn_monthly[mk]
+            m["count"] += 1
+            m["value"] += e["value"]
+            if e["rebooked"]:
+                m["rebooked"] += 1
+                m["rebooked_value"] += e["value"]
+            else:
+                m["not_rebooked"] += 1
+                m["not_rebooked_value"] += e["value"]
+        lines += ["", "MONTHLY CANCELLATIONS (last 24 months) — for revenue-cost and trend questions:",
+                  "Month,Cancellations,ValueLost£,Rebooked,RebookedValue£,NotRebooked,NotRebookedValue£"]
+        for mk in _sort_months(cn_monthly)[:24]:
+            m = cn_monthly[mk]
+            lines.append(f"{mk},{m['count']},£{money(round(m['value'])):,},{m['rebooked']},"
+                         f"£{money(round(m['rebooked_value'])):,},{m['not_rebooked']},"
+                         f"£{money(round(m['not_rebooked_value'])):,}")
+
+        # Notice-period buckets — directly answers "when are cancellations happening"
+        buckets = [("7+ days before", lambda h: h >= 168),
+                   ("3-7 days before", lambda h: 72 <= h < 168),
+                   ("24-72 hours before", lambda h: 24 <= h < 72),
+                   ("Within 24 hours", lambda h: h < 24)]
+        bucket_stats = {label: {"count": 0, "value": 0.0} for label, _ in buckets}
+        unknown_notice = 0
+        for e in cancel_events:
+            h = e["notice_hrs"]
+            if h is None:
+                unknown_notice += 1
+                continue
+            for label, test in buckets:
+                if test(h):
+                    bucket_stats[label]["count"] += 1
+                    bucket_stats[label]["value"] += e["value"]
+                    break
+        lines += ["", "CANCELLATIONS BY NOTICE PERIOD (last 2 years, based on time between cancellation and the "
+                      "original appointment):",
+                  "NoticePeriod,Cancellations,ValueLost£"]
+        for label, _ in buckets:
+            s = bucket_stats[label]
+            lines.append(f"{label},{s['count']},£{money(round(s['value'])):,}")
+        if unknown_notice:
+            lines.append(f"Unknown (missing timestamp),{unknown_notice},")
+
+        # Stylist / service rankings — 2yr totals
+        stylist_cn = defaultdict(lambda: {"count": 0, "value": 0.0})
+        service_cn = defaultdict(lambda: {"count": 0, "value": 0.0})
+        for e in cancel_events:
+            stylist_cn[e["stylist"]]["count"] += 1
+            stylist_cn[e["stylist"]]["value"] += e["value"]
+            if e["service"]:
+                service_cn[e["service"]]["count"] += 1
+                service_cn[e["service"]]["value"] += e["value"]
+        lines += ["", "STYLIST CANCELLATIONS (2yr total) — 'which team members are hit hardest':",
+                  "Stylist,Cancellations,ValueLost£"]
+        for name in sorted(stylist_cn, key=lambda n: -stylist_cn[n]["count"]):
+            s = stylist_cn[name]
+            lines.append(f"{name},{s['count']},£{money(round(s['value'])):,}")
+
+        lines += ["", "MOST CANCELLED SERVICES (2yr total, top 30):",
+                  "Service,Cancellations,ValueLost£"]
+        for name in sorted(service_cn, key=lambda n: -service_cn[n]["count"])[:30]:
+            s = service_cn[name]
+            lines.append(f"{name},{s['count']},£{money(round(s['value'])):,}")
 
     if service_salon_monthly:
         salon_totals = {s: sum(d["revenue"] for d in months.values())
@@ -3411,6 +3605,20 @@ def analyse():
                     "client seen more than once in the range would be double-counted. Appointment-level detail "
                     "only covers the last 90 days; for ranges (or parts of ranges) further back, say the exact "
                     "figure isn't available rather than presenting an estimate as precise. "
+                    "IMPORTANT: Cancellations (appointments actively cancelled beforehand) are DIFFERENT from "
+                    "no-shows (client simply didn't turn up) — never conflate the two when the user asks "
+                    "specifically about one. For cancellation questions, use: 'CANCELLATION DETAIL BY STYLIST' "
+                    "(exact row-level detail, last 2 years, for custom ranges/specific clients/rebooked-vs-not "
+                    "lists), 'MONTHLY CANCELLATIONS' (revenue lost and trend over time, split rebooked vs not), "
+                    "'CANCELLATIONS BY NOTICE PERIOD' (how much warning clients gave before cancelling — 7+ "
+                    "days, 3-7 days, 24-72 hours, within 24 hours), 'STYLIST CANCELLATIONS' (which team members "
+                    "are hit hardest), and 'MOST CANCELLED SERVICES'. 'Rebooked' on a cancellation comes "
+                    "directly from SalonIQ's own ReBookingDate field on that cancellation record — we haven't "
+                    "independently verified exactly what triggers it (e.g. any later booking vs specifically a "
+                    "replacement for the cancelled slot), so treat it as SalonIQ's own signal rather than an "
+                    "absolute guarantee if the user questions a specific figure. Do NOT say cancellation data is "
+                    "unavailable if these sections are present, and do NOT estimate cancellation figures from "
+                    "no-show or visit data instead. "
                     "IMPORTANT: 'Request clients' or 'request rate' means clients who specifically "
                     "requested a team member. The daily, weekly, and monthly service tables include "
                     "RequestClients (count) and RequestRate% (RequestClients ÷ UniqueClients × 100) columns. "
