@@ -568,29 +568,30 @@
 <div id="pageSelections" style="display:none;width:100%">
 <div style="padding:32px 32px 80px;width:100%">
 
-  <div style="margin-bottom:24px">
-    <div class="eyebrow" style="margin-bottom:6px">client selections</div>
-    <h2 style="font-size:26px;margin-bottom:4px">Client Selections</h2>
-    <p style="color:var(--muted);font-size:13px">Describe the clients you want in plain English — Aria will build the segment from your full client database.</p>
-  </div>
-
-  <div style="background:#F4FAF5;border:1px solid #C0DECA;border-radius:11px;padding:12px 16px;display:flex;align-items:flex-start;gap:12px;margin-bottom:24px">
-    <div style="width:28px;height:28px;background:#E6F5EB;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px">⚠️</div>
-    <span style="font-size:12px;color:#4A6A52;line-height:1.6">Booking history, gift cards, and promotions cover the last 2 years only. Client records, tags, and opt-out status are current.</span>
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:12px;flex-wrap:wrap">
+    <div>
+      <div class="eyebrow" style="margin-bottom:3px">client selections</div>
+      <h2 style="font-size:20px;margin-bottom:2px">Client Selections</h2>
+      <p style="color:var(--muted);font-size:12px">Describe the clients you want in plain English — Aria will build the segment from your full client database.</p>
+    </div>
+    <div style="background:#F4FAF5;border:1px solid #C0DECA;border-radius:10px;padding:7px 12px;display:flex;align-items:center;gap:8px;max-width:420px;flex-shrink:0">
+      <span style="font-size:12px;flex-shrink:0">⚠️</span>
+      <span style="font-size:11px;color:#4A6A52;line-height:1.45">Booking history, gift cards, and promotions cover the last 2 years only. Client records, tags, and opt-out status are current.</span>
+    </div>
   </div>
 
   <!-- Query input -->
-  <div style="background:#fff;border:1px solid var(--border);border-radius:18px;padding:22px;margin-bottom:16px">
+  <div style="background:#fff;border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:10px">
     <div style="display:flex;gap:12px;align-items:center">
       <input id="queryInput" type="text" placeholder="e.g. lapsing clients who spend over £50 on average…"
-             style="flex:1;border-radius:11px;padding:12px 15px;font-size:14px"
+             style="flex:1;border-radius:10px;padding:9px 14px;font-size:14px"
              onkeydown="if(event.key==='Enter')runQuery()">
-      <button onclick="runQuery()" id="queryBtn" class="btn-teal" style="flex-shrink:0;height:46px;border-radius:11px;padding:0 22px">Find Clients</button>
+      <button onclick="runQuery()" id="queryBtn" class="btn-teal" style="flex-shrink:0;height:40px;border-radius:10px;padding:0 20px">Find Clients</button>
     </div>
 
     <!-- Example chips -->
-    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:14px">
-      <span class="eyebrow" style="line-height:28px;margin-right:4px">Try</span>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">
+      <span class="eyebrow" style="line-height:26px;margin-right:4px">Try</span>
       <button class="query-chip" onclick="setQuery(this)">Clients who have never returned</button>
       <button class="query-chip" onclick="setQuery(this)">Only ever seen one stylist</button>
       <button class="query-chip" onclick="setQuery(this)">High value lapsed clients</button>
@@ -607,10 +608,10 @@
   <div id="selectionHistory" style="display:none"></div>
 
   <!-- Status / results summary -->
-  <div id="queryStatus" style="font-size:13px;color:var(--muted);min-height:22px;margin-bottom:12px"></div>
+  <div id="queryStatus" style="font-size:13px;color:var(--muted);min-height:20px;margin-bottom:8px"></div>
 
   <!-- Actions (hidden until results) -->
-  <div id="queryActions" style="display:none;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+  <div id="queryActions" style="display:none;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
     <span id="selectionCountBadge" style="font-size:13px;color:var(--text);font-weight:500;white-space:nowrap"></span>
     <button id="selectAllBtn" onclick="selectAllClients()" style="display:none;background:none;border:none;color:var(--green);font-size:12px;font-weight:600;cursor:pointer;padding:0;font-family:inherit">Select all</button>
     <input type="search" id="selectionSearch" placeholder="Filter results by name…"
