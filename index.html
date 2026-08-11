@@ -643,12 +643,12 @@
 
 <!-- ── Page: Data Analysis ────────────────────────────────── -->
 <div id="pageAnalysis" style="display:none;width:100%;min-width:0;box-sizing:border-box">
-<div style="padding:36px 32px 80px;width:100%;box-sizing:border-box">
+<div style="padding:24px 32px 80px;width:100%;box-sizing:border-box">
 
-  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:10px;flex-wrap:wrap">
     <div>
-      <h2 style="font-size:32px;margin-bottom:6px">Data Analysis</h2>
-      <p style="color:var(--muted);font-size:13px">Ask Aria anything about your salon data — choose how you'd like the answer presented.</p>
+      <h2 style="font-size:20px;margin-bottom:2px">Data Analysis</h2>
+      <p style="color:var(--muted);font-size:12px">Ask Aria anything about your salon data — choose how you'd like the answer presented.</p>
     </div>
     <div style="display:flex;align-items:center;gap:18px;flex-shrink:0">
       <div id="vatToggleWrap" style="display:flex;align-items:center;gap:8px" title="Toggle whether monetary figures include VAT. Applies to new questions.">
@@ -673,35 +673,35 @@
   </div>
 
   <!-- Alert bar — below heading -->
-  <div style="background:#F4FAF5;border:1px solid #C0DECA;border-radius:11px;padding:12px 16px;display:flex;align-items:flex-start;gap:12px;margin-bottom:24px">
-    <div style="width:24px;height:24px;background:#E6F5EB;border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:12px">⚠️</div>
-    <span style="font-size:12px;color:#4A6A52;line-height:1.6"><strong style="color:#2A5A3A">AI results are indicative, not definitive.</strong> Aria analyses your data and highlights patterns, but figures may not match your back-office reports exactly — always verify important numbers before acting on them.</span>
+  <div style="background:#F4FAF5;border:1px solid #C0DECA;border-radius:10px;padding:7px 12px;display:flex;align-items:center;gap:8px;margin-bottom:12px">
+    <span style="font-size:12px;flex-shrink:0">⚠️</span>
+    <span style="font-size:11px;color:#4A6A52;line-height:1.45"><strong style="color:#2A5A3A">AI results are indicative, not definitive.</strong> Aria analyses your data and highlights patterns, but figures may not match your back-office reports exactly — always verify important numbers before acting on them.</span>
   </div>
 
   <!-- Question input card — Ask Aria header + textarea + format/analyse toolbar -->
-  <div style="background:#fff;border:1px solid var(--border);border-radius:18px;overflow:hidden;margin-bottom:10px">
-    <div style="padding:14px 20px 0;display:flex;align-items:center;gap:8px">
+  <div style="background:#fff;border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:6px">
+    <div style="padding:10px 16px 0;display:flex;align-items:center;gap:8px">
       <div style="width:9px;height:9px;background:var(--green);border-radius:50%;flex-shrink:0"></div>
       <span style="font-size:12px;font-weight:500;color:var(--green)">Ask Aria</span>
     </div>
     <textarea id="analysisInput" placeholder="Ask anything about your salon data…"
-              style="width:100%;padding:12px 20px 16px;border:none;font-size:15px;resize:none;background:transparent;color:var(--text);font-family:inherit;outline:none;height:90px;line-height:1.55;display:block"
+              style="width:100%;padding:10px 16px 12px;border:none;font-size:14px;resize:none;background:transparent;color:var(--text);font-family:inherit;outline:none;height:56px;line-height:1.5;display:block"
               onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey))runAnalysis()"></textarea>
-    <div style="padding:10px 14px;border-top:1px solid var(--border);display:flex;align-items:center;gap:6px">
+    <div style="padding:8px 12px;border-top:1px solid var(--border);display:flex;align-items:center;gap:6px">
       <div style="flex:1;display:flex;gap:5px">
         <button onclick="setAnalysisFmt('dashboard')" id="fmtDashboard" class="fmt-btn active">Dashboard</button>
         <button onclick="setAnalysisFmt('list')"      id="fmtList"      class="fmt-btn">List / Grid</button>
         <button onclick="setAnalysisFmt('report')"    id="fmtReport"    class="fmt-btn">Report</button>
         <button onclick="setAnalysisFmt('chart')"     id="fmtChart"     class="fmt-btn">Chart</button>
       </div>
-      <button onclick="runAnalysis()" id="analyseBtn" class="btn-teal" style="height:38px;padding:0 22px;border-radius:10px;flex-shrink:0">Analyse →</button>
+      <button onclick="runAnalysis()" id="analyseBtn" class="btn-teal" style="height:34px;padding:0 20px;border-radius:9px;flex-shrink:0">Analyse →</button>
     </div>
   </div>
-  <div style="font-size:11px;color:var(--muted);margin-bottom:24px;padding-left:2px">⌘ + Enter to submit</div>
+  <div style="font-size:11px;color:var(--muted);margin-bottom:10px;padding-left:2px">⌘ + Enter to submit</div>
 
   <!-- Category tabs + 6-card prompt grid -->
-  <div style="margin-bottom:24px">
-    <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
+  <div style="margin-bottom:12px">
+    <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">
       <button class="prompt-cat-btn active" data-cat="Revenue"  onclick="switchPromptCat('Revenue')">Revenue</button>
       <button class="prompt-cat-btn"        data-cat="Clients"  onclick="switchPromptCat('Clients')">Clients</button>
       <button class="prompt-cat-btn"        data-cat="Team"     onclick="switchPromptCat('Team')">Team</button>
