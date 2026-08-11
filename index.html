@@ -108,7 +108,7 @@
   /* Scoped to #pageAnalysis so the PDF-export clone in #printArea (which
      shares the same id) isn't clipped to this on-screen scroll height. */
   #pageAnalysis #analysisResults:not(:empty), #pageAnalysis #followupResult:not(:empty) {
-    max-height:560px; overflow-y:auto; border:1px solid var(--border);
+    max-height:38vh; overflow-y:auto; border:1px solid var(--border);
     border-radius:14px; padding:18px; background:#fff;
   }
 
@@ -2680,7 +2680,7 @@ function renderSelectionResults(clients) {
   const stickyThStyle = thStyle + ';position:sticky;top:0;z-index:1';
   box.innerHTML = `
     <div style="border:1px solid var(--border);border-radius:14px;overflow:hidden;background:#fff">
-    <div style="overflow:auto;max-height:560px">
+    <div style="overflow:auto;max-height:38vh">
     <table style="width:100%;border-collapse:collapse">
       <thead>
         <tr>
