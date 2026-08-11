@@ -95,11 +95,14 @@ def _db_setup():
                 ts            TEXT NOT NULL,
                 username      TEXT,
                 account_code  TEXT,
-                page          TEXT NOT NULL,
+                page          TEXT,
                 score         INTEGER NOT NULL,
                 notes         TEXT
             )
         """)
+        cur.execute("ALTER TABLE feedback ALTER COLUMN page DROP NOT NULL")
+        cur.execute("ALTER TABLE feedback ADD COLUMN IF NOT EXISTS log_id INTEGER")
+        cur.execute("CREATE INDEX IF NOT EXISTS feedback_log_id ON feedback(log_id)")
         cur.execute("""
             CREATE TABLE IF NOT EXISTS brand_settings (
                 account_code  TEXT PRIMARY KEY,
@@ -157,15 +160,18 @@ def _log(event_type, **kwargs):
         cols = ['ts', 'event_type'] + list(kwargs.keys())
         vals = [datetime.now(timezone.utc).isoformat(timespec='seconds'), event_type] + list(kwargs.values())
         cur.execute(
-            f"INSERT INTO activity_log ({','.join(cols)}) VALUES ({','.join(['%s'] * len(cols))})",
+            f"INSERT INTO activity_log ({','.join(cols)}) VALUES ({','.join(['%s'] * len(cols))}) RETURNING id",
             vals,
         )
+        log_id = cur.fetchone()[0]
         con.commit()
         cur.close()
         con.close()
+        return log_id
     except Exception as e:
         print(f"[_log] WRITE FAILED ({event_type}): {e}", file=sys.stderr, flush=True)
         app.logger.warning("Activity log write failed: %s", e)
+        return None
 
 
 def _write_history(account_code, type_, question, result_json=None,
@@ -2520,7 +2526,7 @@ IMPORTANT: always use contains_exact (not contains) for promo_codes — these ar
         if (any if logic == "OR" else all)(matches(c, f) for f in filters)
     ] if filters else []
 
-    _log('query',
+    log_id = _log('query',
          salon=_salon_label(),
          question=q[:500],
          result_count=len(results),
@@ -2539,7 +2545,8 @@ IMPORTANT: always use contains_exact (not contains) for promo_codes — these ar
         username=flask_session.get('username', ''),
     )
     return jsonify({"clients": results, "total": len(results),
-                    "description": description, "criteria": criteria})
+                    "description": description, "criteria": criteria,
+                    "log_id": log_id})
 
 
 def _month_key(date_str):
@@ -3717,7 +3724,7 @@ def analyse():
                     "cache_write_tokens": _cache_write,
                     "cache_read_tokens":  _cache_read,
                 }
-                _log('analyse',
+                log_id = _log('analyse',
                      salon=_salon_label(ctx),
                      username=_current_user,
                      question=question[:500],
@@ -3742,6 +3749,7 @@ def analyse():
                     username=_current_user,
                     is_followup=_is_followup,
                 )
+                result["log_id"] = log_id
                 _jobs[job_id] = {"status": "done", "data": result}
             except Exception as e:
                 app.logger.exception("ANALYSE worker error: %s", e)
@@ -3904,25 +3912,33 @@ def client_log():
 def submit_feedback():
     from datetime import timezone
     body = request.get_json(silent=True) or {}
-    page = (body.get("page") or "").strip()[:50]
+    try:
+        log_id = int(body.get("log_id"))
+    except (TypeError, ValueError):
+        log_id = None
     try:
         score = int(body.get("score"))
     except (TypeError, ValueError):
         score = None
     notes = (body.get("notes") or "").strip()[:2000]
 
-    if page not in ("analysis", "selections") or score not in (1, 2, 3, 4, 5):
-        return jsonify(error="Invalid feedback — page and a score of 1-5 are required"), 400
+    if not log_id or score not in (1, 2, 3, 4, 5):
+        return jsonify(error="Invalid feedback — log_id and a score of 1-5 are required"), 400
 
     try:
         con = _get_db()
         cur = con.cursor()
+        cur.execute("SELECT id FROM activity_log WHERE id=%s", (log_id,))
+        if not cur.fetchone():
+            cur.close()
+            con.close()
+            return jsonify(error="Unknown log_id"), 404
         cur.execute(
-            "INSERT INTO feedback (ts, username, account_code, page, score, notes) VALUES (%s,%s,%s,%s,%s,%s)",
+            "INSERT INTO feedback (ts, username, account_code, log_id, score, notes) VALUES (%s,%s,%s,%s,%s,%s)",
             (datetime.now(timezone.utc).isoformat(timespec='seconds'),
              flask_session.get('username', ''),
              flask_session.get('account_code', ''),
-             page, score, notes),
+             log_id, score, notes),
         )
         con.commit()
         cur.close()
@@ -4108,7 +4124,12 @@ def admin_logs():
     offset   = (page - 1) * per_page
     con = _get_db()
     cur = con.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute("SELECT * FROM activity_log ORDER BY id DESC LIMIT %s OFFSET %s", (per_page, offset))
+    cur.execute("""
+        SELECT a.*, f.score AS fb_score, f.notes AS fb_notes
+        FROM activity_log a
+        LEFT JOIN feedback f ON f.log_id = a.id
+        ORDER BY a.id DESC LIMIT %s OFFSET %s
+    """, (per_page, offset))
     rows = cur.fetchall()
     cur.execute("""
         SELECT
@@ -4127,8 +4148,6 @@ def admin_logs():
     """)
     totals = cur.fetchone()
 
-    cur.execute("SELECT * FROM feedback ORDER BY id DESC LIMIT 100")
-    feedback_rows = cur.fetchall()
     cur.execute("""
         SELECT COUNT(*) AS total, ROUND(AVG(score)::numeric, 1) AS avg_score
         FROM feedback
@@ -4188,6 +4207,10 @@ def admin_logs():
         except Exception:
             return str(ts)[:16]
 
+    def stars(score):
+        if score is None: return '—'
+        return '★' * score + '☆' * (5 - score)
+
     rows_html = ''
     for r in rows:
         tok = f"{r['input_tokens'] or 0:,} / {r['output_tokens'] or 0:,}" if (r['input_tokens'] or r['output_tokens']) else '—'
@@ -4197,6 +4220,13 @@ def admin_logs():
             f'<td style="font-size:13px;font-weight:700;color:#1A2332;text-align:center">{r["result_count"]}</td>'
             if r['event_type'] == 'query' and r['result_count'] is not None
             else '<td style="color:#A0AEBC;text-align:center">—</td>'
+        )
+        fb_cell = (
+            f'<td style="font-size:13px;color:#D9A441;white-space:nowrap" title="{r["fb_score"]}/5">{stars(r["fb_score"])}'
+            + (f'<div style="font-size:11px;color:#3A4A5A;font-weight:400;white-space:normal;max-width:220px;margin-top:2px">{esc(r["fb_notes"])}</div>' if r['fb_notes'] else '')
+            + '</td>'
+            if r['fb_score'] is not None
+            else '<td style="color:#A0AEBC">—</td>'
         )
         rows_html += f"""<tr>
             <td style="white-space:nowrap;color:#A0AEBC;font-size:12px" title="{esc(r['ts'])}">{fmt_ts(r['ts'])}</td>
@@ -4209,25 +4239,9 @@ def admin_logs():
             <td style="font-size:12px;color:#A0AEBC">{tok}</td>
             {count_cell}
             <td style="max-width:260px;font-size:12px;color:#3A4A5A" title="{esc(r['result_title'])}">{esc((r['result_title'] or '')[:60])}{'…' if len(r['result_title'] or '')>60 else ''}</td>
+            {fb_cell}
             {err_cell}
         </tr>"""
-
-    def stars(score):
-        if score is None: return '—'
-        return '★' * score + '☆' * (5 - score)
-
-    feedback_rows_html = ''
-    for r in feedback_rows:
-        feedback_rows_html += f"""<tr>
-            <td style="white-space:nowrap;color:#A0AEBC;font-size:12px" title="{esc(r['ts'])}">{fmt_ts(r['ts'])}</td>
-            <td style="font-size:12px;color:#3A4A5A;font-weight:600">{esc(r.get('username') or '—')}</td>
-            <td style="font-size:12px;color:#3A4A5A">{esc(r.get('account_code') or '—')}</td>
-            <td style="font-size:12px;color:#3A4A5A;text-transform:capitalize">{esc(r['page'])}</td>
-            <td style="font-size:13px;color:#D9A441;white-space:nowrap" title="{r['score']}/5">{stars(r['score'])}</td>
-            <td style="font-size:13px;color:#3A4A5A;max-width:420px">{esc(r['notes']) or '<span style="color:#A0AEBC">—</span>'}</td>
-        </tr>"""
-    if not feedback_rows_html:
-        feedback_rows_html = '<tr><td colspan="6" style="text-align:center;color:#A0AEBC;padding:20px">No feedback submitted yet.</td></tr>'
 
     total_rows  = totals['total'] or 0
     total_pages = max(1, -(-total_rows // per_page))  # ceiling division
@@ -4297,20 +4311,10 @@ def admin_logs():
   <div class="stat"><div class="val">{feedback_totals['total'] or 0}</div><div class="lbl">Feedback submitted</div></div>
 </div>
 <div class="tbl-wrap">
-<h2 style="font-size:15px;margin-bottom:10px;color:#1A2332">User Feedback <span style="font-size:11px;color:#A0AEBC;font-weight:400">— latest 100</span></h2>
-<table>
-<thead><tr>
-  <th>Time (UK)</th><th>User</th><th>Salon</th><th>Page</th><th>Score</th><th>Notes</th>
-</tr></thead>
-<tbody>{feedback_rows_html}</tbody>
-</table>
-</div>
-<div class="tbl-wrap">
-<h2 style="font-size:15px;margin-bottom:10px;color:#1A2332">Activity Log</h2>
 <table>
 <thead><tr>
   <th>Time (UK)</th><th>Type</th><th>Salon</th><th>User</th><th>Question</th>
-  <th>Format</th><th>Response</th><th>Tokens in/out</th><th style="text-align:center">Clients</th><th>Result title</th><th>Error</th>
+  <th>Format</th><th>Response</th><th>Tokens in/out</th><th style="text-align:center">Clients</th><th>Result title</th><th>Feedback</th><th>Error</th>
 </tr></thead>
 <tbody>{rows_html}</tbody>
 </table></div>

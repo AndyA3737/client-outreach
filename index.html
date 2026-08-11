@@ -628,24 +628,8 @@
   <!-- Results table -->
   <div id="queryResults"></div>
 
-  <!-- Feedback -->
-  <div class="feedback-widget" data-page="selections" style="background:#fff;border:1px solid var(--border);border-radius:18px;padding:20px 22px;margin-top:20px">
-    <div class="eyebrow" style="margin-bottom:6px">Feedback</div>
-    <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:10px">How's Client Selections working for you?</div>
-    <div class="fb-scores" style="display:flex;gap:6px;margin-bottom:10px">
-      <button type="button" class="fb-score-btn" data-score="1" onclick="setFeedbackScore(this)">1</button>
-      <button type="button" class="fb-score-btn" data-score="2" onclick="setFeedbackScore(this)">2</button>
-      <button type="button" class="fb-score-btn" data-score="3" onclick="setFeedbackScore(this)">3</button>
-      <button type="button" class="fb-score-btn" data-score="4" onclick="setFeedbackScore(this)">4</button>
-      <button type="button" class="fb-score-btn" data-score="5" onclick="setFeedbackScore(this)">5</button>
-    </div>
-    <textarea class="fb-notes" placeholder="Anything you'd like us to know? (optional)"
-              style="width:100%;border-radius:11px;padding:10px 13px;font-size:13px;resize:vertical;min-height:60px;font-family:inherit"></textarea>
-    <div style="display:flex;align-items:center;gap:12px;margin-top:10px">
-      <button type="button" class="btn-teal fb-submit" onclick="submitFeedback(this)" style="height:36px;padding:0 18px;border-radius:9px;font-size:13px">Send feedback</button>
-      <span class="fb-status" style="font-size:12px;color:var(--muted)"></span>
-    </div>
-  </div>
+  <!-- Feedback for the query just run — populated by runQuery() once results land -->
+  <div id="queryResultsFeedback"></div>
 
 </div>
 </div><!-- end #pageSelections -->
@@ -728,28 +712,14 @@
     </button>
   </div>
   <div id="analysisResults"></div>
+  <!-- Feedback for the main analysis result — populated by renderAnalysis() once results land -->
+  <div id="analysisResultsFeedback"></div>
+
   <div id="followupResult"></div>
+  <!-- Feedback for a follow-up answer — separate from the main result above -->
+  <div id="followupResultFeedback"></div>
 
   <div id="analysisHistory" style="display:none"></div>
-
-  <!-- Feedback -->
-  <div class="feedback-widget" data-page="analysis" style="background:#fff;border:1px solid var(--border);border-radius:18px;padding:20px 22px;margin-top:20px">
-    <div class="eyebrow" style="margin-bottom:6px">Feedback</div>
-    <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:10px">How's Data Analysis working for you?</div>
-    <div class="fb-scores" style="display:flex;gap:6px;margin-bottom:10px">
-      <button type="button" class="fb-score-btn" data-score="1" onclick="setFeedbackScore(this)">1</button>
-      <button type="button" class="fb-score-btn" data-score="2" onclick="setFeedbackScore(this)">2</button>
-      <button type="button" class="fb-score-btn" data-score="3" onclick="setFeedbackScore(this)">3</button>
-      <button type="button" class="fb-score-btn" data-score="4" onclick="setFeedbackScore(this)">4</button>
-      <button type="button" class="fb-score-btn" data-score="5" onclick="setFeedbackScore(this)">5</button>
-    </div>
-    <textarea class="fb-notes" placeholder="Anything you'd like us to know? (optional)"
-              style="width:100%;border-radius:11px;padding:10px 13px;font-size:13px;resize:vertical;min-height:60px;font-family:inherit"></textarea>
-    <div style="display:flex;align-items:center;gap:12px;margin-top:10px">
-      <button type="button" class="btn-teal fb-submit" onclick="submitFeedback(this)" style="height:36px;padding:0 18px;border-radius:9px;font-size:13px">Send feedback</button>
-      <span class="fb-status" style="font-size:12px;color:var(--muted)"></span>
-    </div>
-  </div>
 
 </div>
 </div><!-- end #pageAnalysis -->
@@ -1327,6 +1297,30 @@ function _enableSelectionActionsForAdmin() {
   });
 }
 
+// Renders a "rate this result" prompt into `container`, tied to a specific
+// activity_log row (logId) — shown only once that result is on screen.
+function renderFeedbackPrompt(container, logId) {
+  if (!container) return;
+  if (!logId) { container.innerHTML = ''; return; }
+  container.innerHTML = `
+    <div class="feedback-widget" data-log-id="${logId}" style="background:#fff;border:1px solid var(--border);border-radius:18px;padding:18px 20px;margin-top:16px">
+      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px">How useful was this result?</div>
+      <div class="fb-scores" style="display:flex;gap:6px;margin-bottom:10px">
+        <button type="button" class="fb-score-btn" data-score="1" onclick="setFeedbackScore(this)">1</button>
+        <button type="button" class="fb-score-btn" data-score="2" onclick="setFeedbackScore(this)">2</button>
+        <button type="button" class="fb-score-btn" data-score="3" onclick="setFeedbackScore(this)">3</button>
+        <button type="button" class="fb-score-btn" data-score="4" onclick="setFeedbackScore(this)">4</button>
+        <button type="button" class="fb-score-btn" data-score="5" onclick="setFeedbackScore(this)">5</button>
+      </div>
+      <textarea class="fb-notes" placeholder="Anything you'd like us to know? (optional)"
+                style="width:100%;border-radius:11px;padding:10px 13px;font-size:13px;resize:vertical;min-height:50px;font-family:inherit"></textarea>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:10px">
+        <button type="button" class="btn-teal fb-submit" onclick="submitFeedback(this)" style="height:34px;padding:0 16px;border-radius:9px;font-size:12px">Send feedback</button>
+        <span class="fb-status" style="font-size:12px;color:var(--muted)"></span>
+      </div>
+    </div>`;
+}
+
 function setFeedbackScore(btn) {
   const widget = btn.closest('.feedback-widget');
   widget.querySelectorAll('.fb-score-btn').forEach(b => b.classList.toggle('active', b === btn));
@@ -1334,7 +1328,7 @@ function setFeedbackScore(btn) {
 
 async function submitFeedback(btn) {
   const widget = btn.closest('.feedback-widget');
-  const page   = widget.dataset.page;
+  const logId  = widget.dataset.logId;
   const scoreBtn = widget.querySelector('.fb-score-btn.active');
   const status = widget.querySelector('.fb-status');
   if (!scoreBtn) {
@@ -1352,17 +1346,16 @@ async function submitFeedback(btn) {
     const res = await fetch('/api/feedback', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ page, score, notes }),
+      body: JSON.stringify({ log_id: logId, score, notes }),
     });
     if (!res.ok) throw new Error('Request failed');
-    widget.querySelectorAll('.fb-score-btn').forEach(b => b.classList.remove('active'));
-    widget.querySelector('.fb-notes').value = '';
+    widget.querySelector('.fb-notes').disabled = true;
     status.style.color = 'var(--green)';
     status.textContent = 'Thanks for your feedback!';
+    btn.textContent = 'Submitted ✓';
   } catch (e) {
     status.style.color = 'var(--risk)';
     status.textContent = 'Could not send feedback — please try again.';
-  } finally {
     btn.disabled = false;
   }
 }
@@ -2152,6 +2145,7 @@ async function runAnalysis() {
   if (fbar) fbar.style.display = 'none';
   // floating button removed
   document.getElementById('followupResult').innerHTML = '';
+  document.getElementById('followupResultFeedback').innerHTML = '';
   const exportBar = document.getElementById('exportPdfBar');
   if (exportBar) exportBar.style.display = 'none';
   await _submitAnalysis(question, null,
@@ -2211,6 +2205,8 @@ async function _submitAnalysis(question, previousResult, resultBox, triggerBtn) 
   triggerBtn.textContent = '⏳ Analysing…';
   triggerBtn.disabled    = true;
   resultBox.innerHTML    = _buildLoader();
+  const feedbackBox = document.getElementById(resultBox.id + 'Feedback');
+  if (feedbackBox) feedbackBox.innerHTML = '';
 
   let pollTimer   = null;
   let msgTimer    = null;
@@ -2392,6 +2388,8 @@ function renderAnalysis(data, box) {
     const exportBar = document.getElementById('exportPdfBar');
     if (exportBar) exportBar.style.display = 'flex';
   }
+
+  renderFeedbackPrompt(document.getElementById(box.id + 'Feedback'), data.log_id);
 }
 
 // ── PDF export ──────────────────────────────────────────────────
@@ -2603,6 +2601,7 @@ async function runQuery() {
   btn.disabled    = true;
   document.getElementById('queryStatus').textContent  = 'Asking Aria to interpret your query…';
   document.getElementById('queryResults').innerHTML   = '';
+  document.getElementById('queryResultsFeedback').innerHTML = '';
   document.getElementById('queryActions').style.display = 'none';
   try {
     const params = new URLSearchParams({ q, server: selectedServer });
@@ -2614,6 +2613,7 @@ async function runQuery() {
     document.getElementById('queryStatus').innerHTML =
       `<strong style="color:var(--navy)">${data.total.toLocaleString()} client${data.total !== 1 ? 's' : ''}</strong> matched &nbsp;·&nbsp; <em style="color:var(--muted)">${escHtml(data.description)}</em>`;
     renderSelectionResults(_selectionResults);
+    renderFeedbackPrompt(document.getElementById('queryResultsFeedback'), data.log_id);
     if (_selectionResults.length) {
       document.getElementById('queryActions').style.display = 'flex';
       _updateSendButtons();
