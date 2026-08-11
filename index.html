@@ -2670,31 +2670,32 @@ function renderSelectionResults(clients) {
     </tr>`;
   }).join('');
 
+  const stickyThStyle = thStyle + ';position:sticky;top:0;z-index:1';
   box.innerHTML = `
     <div style="border:1px solid var(--border);border-radius:14px;overflow:hidden;background:#fff">
-    <div style="overflow-x:auto">
+    <div style="overflow:auto;max-height:560px">
     <table style="width:100%;border-collapse:collapse">
       <thead>
         <tr>
-          <th style="${thStyle};width:36px;text-align:center">
+          <th style="${stickyThStyle};width:36px;text-align:center">
             <input type="checkbox" id="selectAllCb" checked onclick="toggleSelectAll(this)"
                    style="width:15px;height:15px;accent-color:var(--green);cursor:pointer;display:block;margin:0 auto">
           </th>
-          <th style="${thStyle}">Client</th>
-          <th style="${thStyle}"><span class="tip-wrap">Status<span class="tip-box tip-box-down" style="white-space:normal;width:220px;text-align:left;line-height:1.6"><b>Active</b> — visited within 60 days<br><b>Due Soon</b> — 60–120 days ago<br><b>Lapsing</b> — 120–365 days ago<br><b>Lapsed</b> — over 365 days ago<br><b>No Visit (2yrs)</b> — no visit in last 2 years</span></span></th>
-          <th style="${thStyle}">Last Visit</th>
-          <th style="${thStyle}">Days Since</th>
-          <th style="${thStyle}">Visits</th>
-          <th style="${thStyle}">No-shows</th>
-          <th style="${thStyle}">Avg Spend</th>
-          <th style="${thStyle}">Stylist</th>
-          <th style="${thStyle}">Stylists Seen</th>
-          <th style="${thStyle}">Services</th>
-          <th style="${thStyle}">Mobile</th>
-          <th style="${thStyle}">Email</th>
-          <th style="${thStyle}">SMS Opt-out</th>
-          <th style="${thStyle}">Email Opt-out</th>
-          <th style="${thStyle}">Salon Spy Opt-out</th>
+          <th style="${stickyThStyle}">Client</th>
+          <th style="${stickyThStyle}"><span class="tip-wrap">Status<span class="tip-box tip-box-down" style="white-space:normal;width:220px;text-align:left;line-height:1.6"><b>Active</b> — visited within 60 days<br><b>Due Soon</b> — 60–120 days ago<br><b>Lapsing</b> — 120–365 days ago<br><b>Lapsed</b> — over 365 days ago<br><b>No Visit (2yrs)</b> — no visit in last 2 years</span></span></th>
+          <th style="${stickyThStyle}">Last Visit</th>
+          <th style="${stickyThStyle}">Days Since</th>
+          <th style="${stickyThStyle}">Visits</th>
+          <th style="${stickyThStyle}">No-shows</th>
+          <th style="${stickyThStyle}">Avg Spend</th>
+          <th style="${stickyThStyle}">Stylist</th>
+          <th style="${stickyThStyle}">Stylists Seen</th>
+          <th style="${stickyThStyle}">Services</th>
+          <th style="${stickyThStyle}">Mobile</th>
+          <th style="${stickyThStyle}">Email</th>
+          <th style="${stickyThStyle}">SMS Opt-out</th>
+          <th style="${stickyThStyle}">Email Opt-out</th>
+          <th style="${stickyThStyle}">Salon Spy Opt-out</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
