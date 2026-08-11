@@ -612,7 +612,7 @@
       Email Blast
       <span class="soon-badge">Soon</span>
     </button>
-    <button onclick="showComingSoon(event)" class="btn-teal btn-soon" style="height:34px;padding:0 14px;font-size:12px;display:flex;align-items:center;gap:6px">
+    <button id="btnExportCsv" onclick="showComingSoon(event)" class="btn-teal btn-soon" style="height:34px;padding:0 14px;font-size:12px;display:flex;align-items:center;gap:6px">
       <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Export CSV
       <span class="soon-badge">Soon</span>
@@ -1264,6 +1264,23 @@ function showComingSoon(e) {
     tip.style.opacity = 0;
     setTimeout(() => tip.remove(), 150);
   }, 1600);
+}
+
+// Admins get working Send SMS / Email Blast / Export CSV buttons on the
+// Client Selections page; everyone else keeps the "Soon" placeholder.
+function _enableSelectionActionsForAdmin() {
+  const actions = [
+    ['btnSendSms',   openSmsModal],
+    ['btnSendEmail', openEmailModal],
+    ['btnExportCsv', exportCSV],
+  ];
+  actions.forEach(([id, handler]) => {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    btn.classList.remove('btn-soon');
+    btn.querySelector('.soon-badge')?.remove();
+    btn.onclick = handler;
+  });
 }
 
 function openSmsModal() {
@@ -3045,6 +3062,9 @@ async function init() {
     if (appMode !== 'admin') {
       document.getElementById('logsBtnHeader').style.display = 'none';
       document.getElementById('downloadDataBtn').style.display = 'none';
+    } else {
+      // Admins get working Send SMS / Email Blast / Export CSV on Client Selections
+      _enableSelectionActionsForAdmin();
     }
 
     // Resolve a display name from the tenant list
