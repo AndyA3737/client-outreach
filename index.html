@@ -2282,20 +2282,23 @@ async function _submitAnalysis(question, previousResult, resultBox, triggerBtn) 
 
 function renderAnalysis(data, box) {
   if (!box) box = document.getElementById('analysisResults');
+  const titleBlock = `<div>
+    <h3 class="text-xl font-bold mb-1" style="color:var(--navy)">${escHtml(data.title || '')}</h3>
+    ${data.summary ? `<p class="text-sm" style="color:var(--muted)">${escHtml(data.summary)}</p>` : ''}
+  </div>`;
   let html = '';
   if (box.id === 'analysisResults') {
-    html += `<div class="no-print" style="display:flex;justify-content:flex-end;margin-bottom:10px">
-      <button onclick="exportAnalysisPDF()" style="background:#fff;border:1px solid var(--border);color:var(--text);border-radius:9px;padding:8px 16px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;transition:all 0.15s"
+    html += `<div class="mb-5" style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
+      ${titleBlock}
+      <button class="no-print" onclick="exportAnalysisPDF()" style="background:#fff;border:1px solid var(--border);color:var(--text);border-radius:9px;padding:8px 16px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;transition:all 0.15s;flex-shrink:0;white-space:nowrap"
               onmouseover="this.style.borderColor='var(--green)';this.style.color='var(--green)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text)'">
         <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9V2h12v7"/><rect x="6" y="14" width="12" height="8"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/></svg>
         Export PDF
       </button>
     </div>`;
+  } else {
+    html += `<div class="mb-5">${titleBlock}</div>`;
   }
-  html += `<div class="mb-5">
-    <h3 class="text-xl font-bold mb-1" style="color:var(--navy)">${escHtml(data.title || '')}</h3>
-    ${data.summary ? `<p class="text-sm" style="color:var(--muted)">${escHtml(data.summary)}</p>` : ''}
-  </div>`;
 
   if (data.format === 'chart') {
     // Use globally unique IDs so follow-up charts never clash with earlier ones
