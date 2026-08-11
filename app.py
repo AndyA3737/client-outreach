@@ -90,6 +90,17 @@ def _db_setup():
         cur.execute("CREATE INDEX IF NOT EXISTS history_account_ts ON history(account_code, ts DESC)")
         cur.execute("ALTER TABLE history ADD COLUMN IF NOT EXISTS is_favorite BOOLEAN NOT NULL DEFAULT FALSE")
         cur.execute("""
+            CREATE TABLE IF NOT EXISTS feedback (
+                id            SERIAL PRIMARY KEY,
+                ts            TEXT NOT NULL,
+                username      TEXT,
+                account_code  TEXT,
+                page          TEXT NOT NULL,
+                score         INTEGER NOT NULL,
+                notes         TEXT
+            )
+        """)
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS brand_settings (
                 account_code  TEXT PRIMARY KEY,
                 logo_url      TEXT,
@@ -107,9 +118,11 @@ def _db_setup():
         count = cur.fetchone()[0]
         cur.execute("SELECT COUNT(*) FROM history")
         hcount = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM feedback")
+        fcount = cur.fetchone()[0]
         cur.close()
         con.close()
-        print(f"[startup] activity_log ready — {count} rows | history — {hcount} rows", flush=True)
+        print(f"[startup] activity_log ready — {count} rows | history — {hcount} rows | feedback — {fcount} rows", flush=True)
     except Exception as e:
         print(f"[startup] DB setup FAILED: {e}", file=sys.stderr, flush=True)
         app.logger.warning("DB setup failed: %s", e)
@@ -3886,6 +3899,39 @@ def client_log():
     return jsonify(ok=True)
 
 
+@app.route("/api/feedback", methods=["POST"])
+@require_auth
+def submit_feedback():
+    from datetime import timezone
+    body = request.get_json(silent=True) or {}
+    page = (body.get("page") or "").strip()[:50]
+    try:
+        score = int(body.get("score"))
+    except (TypeError, ValueError):
+        score = None
+    notes = (body.get("notes") or "").strip()[:2000]
+
+    if page not in ("analysis", "selections") or score not in (1, 2, 3, 4, 5):
+        return jsonify(error="Invalid feedback — page and a score of 1-5 are required"), 400
+
+    try:
+        con = _get_db()
+        cur = con.cursor()
+        cur.execute(
+            "INSERT INTO feedback (ts, username, account_code, page, score, notes) VALUES (%s,%s,%s,%s,%s,%s)",
+            (datetime.now(timezone.utc).isoformat(timespec='seconds'),
+             flask_session.get('username', ''),
+             flask_session.get('account_code', ''),
+             page, score, notes),
+        )
+        con.commit()
+        cur.close()
+        con.close()
+        return jsonify(ok=True)
+    except Exception as e:
+        return jsonify(error=str(e)), 500
+
+
 _LOGIN_PAGE = """<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -4080,6 +4126,15 @@ def admin_logs():
         FROM activity_log
     """)
     totals = cur.fetchone()
+
+    cur.execute("SELECT * FROM feedback ORDER BY id DESC LIMIT 100")
+    feedback_rows = cur.fetchall()
+    cur.execute("""
+        SELECT COUNT(*) AS total, ROUND(AVG(score)::numeric, 1) AS avg_score
+        FROM feedback
+    """)
+    feedback_totals = cur.fetchone()
+
     cur.close()
     con.close()
 
@@ -4157,6 +4212,23 @@ def admin_logs():
             {err_cell}
         </tr>"""
 
+    def stars(score):
+        if score is None: return '—'
+        return '★' * score + '☆' * (5 - score)
+
+    feedback_rows_html = ''
+    for r in feedback_rows:
+        feedback_rows_html += f"""<tr>
+            <td style="white-space:nowrap;color:#A0AEBC;font-size:12px" title="{esc(r['ts'])}">{fmt_ts(r['ts'])}</td>
+            <td style="font-size:12px;color:#3A4A5A;font-weight:600">{esc(r.get('username') or '—')}</td>
+            <td style="font-size:12px;color:#3A4A5A">{esc(r.get('account_code') or '—')}</td>
+            <td style="font-size:12px;color:#3A4A5A;text-transform:capitalize">{esc(r['page'])}</td>
+            <td style="font-size:13px;color:#D9A441;white-space:nowrap" title="{r['score']}/5">{stars(r['score'])}</td>
+            <td style="font-size:13px;color:#3A4A5A;max-width:420px">{esc(r['notes']) or '<span style="color:#A0AEBC">—</span>'}</td>
+        </tr>"""
+    if not feedback_rows_html:
+        feedback_rows_html = '<tr><td colspan="6" style="text-align:center;color:#A0AEBC;padding:20px">No feedback submitted yet.</td></tr>'
+
     total_rows  = totals['total'] or 0
     total_pages = max(1, -(-total_rows // per_page))  # ceiling division
     pgn_parts = []
@@ -4221,8 +4293,20 @@ def admin_logs():
   <div class="stat"><div class="val">${cost_usd:.2f}</div><div class="lbl">Est. API cost (USD)</div></div>
   <div class="stat"><div class="val" style="color:#3A7A50">${cache_savings_usd:.2f}</div><div class="lbl">Saved by prompt caching</div></div>
   <div class="stat"><div class="val" style="color:{'#C0392B' if totals['errors'] else '#3A7A50'}">{totals['errors']}</div><div class="lbl">Errors</div></div>
+  <div class="stat"><div class="val">{feedback_totals['avg_score'] or '—'}</div><div class="lbl">Avg feedback score</div></div>
+  <div class="stat"><div class="val">{feedback_totals['total'] or 0}</div><div class="lbl">Feedback submitted</div></div>
 </div>
 <div class="tbl-wrap">
+<h2 style="font-size:15px;margin-bottom:10px;color:#1A2332">User Feedback <span style="font-size:11px;color:#A0AEBC;font-weight:400">— latest 100</span></h2>
+<table>
+<thead><tr>
+  <th>Time (UK)</th><th>User</th><th>Salon</th><th>Page</th><th>Score</th><th>Notes</th>
+</tr></thead>
+<tbody>{feedback_rows_html}</tbody>
+</table>
+</div>
+<div class="tbl-wrap">
+<h2 style="font-size:15px;margin-bottom:10px;color:#1A2332">Activity Log</h2>
 <table>
 <thead><tr>
   <th>Time (UK)</th><th>Type</th><th>Salon</th><th>User</th><th>Question</th>

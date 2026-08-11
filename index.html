@@ -99,6 +99,12 @@
   .query-chip:hover { background:#F2F8F4; border-color:#B0C8B8; color:var(--green-d); }
   .query-chip.active { background:var(--navy); border-color:var(--navy); color:#fff; font-weight:500; }
 
+  .fb-score-btn { width:34px; height:34px; border-radius:9px; border:1px solid var(--border);
+                  background:#F6F8FB; color:#6A7A8A; font-size:13px; font-weight:600; cursor:pointer;
+                  transition:all 0.15s; font-family:inherit; }
+  .fb-score-btn:hover { border-color:#B0C8B8; color:var(--green-d); }
+  .fb-score-btn.active { background:var(--green); border-color:var(--green); color:#fff; }
+
   .fmt-btn { padding:7px 15px; font-size:12px; font-weight:400; border:1px solid var(--border);
              cursor:pointer; background:#fff; color:#6A7A8A; transition:all 0.15s; font-family:inherit;
              border-radius:8px; margin-right:4px; }
@@ -622,6 +628,25 @@
   <!-- Results table -->
   <div id="queryResults"></div>
 
+  <!-- Feedback -->
+  <div class="feedback-widget" data-page="selections" style="background:#fff;border:1px solid var(--border);border-radius:18px;padding:20px 22px;margin-top:20px">
+    <div class="eyebrow" style="margin-bottom:6px">Feedback</div>
+    <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:10px">How's Client Selections working for you?</div>
+    <div class="fb-scores" style="display:flex;gap:6px;margin-bottom:10px">
+      <button type="button" class="fb-score-btn" data-score="1" onclick="setFeedbackScore(this)">1</button>
+      <button type="button" class="fb-score-btn" data-score="2" onclick="setFeedbackScore(this)">2</button>
+      <button type="button" class="fb-score-btn" data-score="3" onclick="setFeedbackScore(this)">3</button>
+      <button type="button" class="fb-score-btn" data-score="4" onclick="setFeedbackScore(this)">4</button>
+      <button type="button" class="fb-score-btn" data-score="5" onclick="setFeedbackScore(this)">5</button>
+    </div>
+    <textarea class="fb-notes" placeholder="Anything you'd like us to know? (optional)"
+              style="width:100%;border-radius:11px;padding:10px 13px;font-size:13px;resize:vertical;min-height:60px;font-family:inherit"></textarea>
+    <div style="display:flex;align-items:center;gap:12px;margin-top:10px">
+      <button type="button" class="btn-teal fb-submit" onclick="submitFeedback(this)" style="height:36px;padding:0 18px;border-radius:9px;font-size:13px">Send feedback</button>
+      <span class="fb-status" style="font-size:12px;color:var(--muted)"></span>
+    </div>
+  </div>
+
 </div>
 </div><!-- end #pageSelections -->
 
@@ -706,6 +731,25 @@
   <div id="followupResult"></div>
 
   <div id="analysisHistory" style="display:none"></div>
+
+  <!-- Feedback -->
+  <div class="feedback-widget" data-page="analysis" style="background:#fff;border:1px solid var(--border);border-radius:18px;padding:20px 22px;margin-top:20px">
+    <div class="eyebrow" style="margin-bottom:6px">Feedback</div>
+    <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:10px">How's Data Analysis working for you?</div>
+    <div class="fb-scores" style="display:flex;gap:6px;margin-bottom:10px">
+      <button type="button" class="fb-score-btn" data-score="1" onclick="setFeedbackScore(this)">1</button>
+      <button type="button" class="fb-score-btn" data-score="2" onclick="setFeedbackScore(this)">2</button>
+      <button type="button" class="fb-score-btn" data-score="3" onclick="setFeedbackScore(this)">3</button>
+      <button type="button" class="fb-score-btn" data-score="4" onclick="setFeedbackScore(this)">4</button>
+      <button type="button" class="fb-score-btn" data-score="5" onclick="setFeedbackScore(this)">5</button>
+    </div>
+    <textarea class="fb-notes" placeholder="Anything you'd like us to know? (optional)"
+              style="width:100%;border-radius:11px;padding:10px 13px;font-size:13px;resize:vertical;min-height:60px;font-family:inherit"></textarea>
+    <div style="display:flex;align-items:center;gap:12px;margin-top:10px">
+      <button type="button" class="btn-teal fb-submit" onclick="submitFeedback(this)" style="height:36px;padding:0 18px;border-radius:9px;font-size:13px">Send feedback</button>
+      <span class="fb-status" style="font-size:12px;color:var(--muted)"></span>
+    </div>
+  </div>
 
 </div>
 </div><!-- end #pageAnalysis -->
@@ -1281,6 +1325,46 @@ function _enableSelectionActionsForAdmin() {
     btn.querySelector('.soon-badge')?.remove();
     btn.onclick = handler;
   });
+}
+
+function setFeedbackScore(btn) {
+  const widget = btn.closest('.feedback-widget');
+  widget.querySelectorAll('.fb-score-btn').forEach(b => b.classList.toggle('active', b === btn));
+}
+
+async function submitFeedback(btn) {
+  const widget = btn.closest('.feedback-widget');
+  const page   = widget.dataset.page;
+  const scoreBtn = widget.querySelector('.fb-score-btn.active');
+  const status = widget.querySelector('.fb-status');
+  if (!scoreBtn) {
+    status.style.color = 'var(--risk)';
+    status.textContent = 'Please pick a score from 1-5.';
+    return;
+  }
+  const score = parseInt(scoreBtn.dataset.score, 10);
+  const notes = widget.querySelector('.fb-notes').value.trim();
+
+  btn.disabled = true;
+  status.style.color = 'var(--muted)';
+  status.textContent = 'Sending…';
+  try {
+    const res = await fetch('/api/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ page, score, notes }),
+    });
+    if (!res.ok) throw new Error('Request failed');
+    widget.querySelectorAll('.fb-score-btn').forEach(b => b.classList.remove('active'));
+    widget.querySelector('.fb-notes').value = '';
+    status.style.color = 'var(--green)';
+    status.textContent = 'Thanks for your feedback!';
+  } catch (e) {
+    status.style.color = 'var(--risk)';
+    status.textContent = 'Could not send feedback — please try again.';
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 function openSmsModal() {
