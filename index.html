@@ -105,6 +105,13 @@
   .fb-score-btn:hover { border-color:#B0C8B8; color:var(--green-d); }
   .fb-score-btn.active { background:var(--green); border-color:var(--green); color:#fff; }
 
+  /* Scoped to #pageAnalysis so the PDF-export clone in #printArea (which
+     shares the same id) isn't clipped to this on-screen scroll height. */
+  #pageAnalysis #analysisResults:not(:empty), #pageAnalysis #followupResult:not(:empty) {
+    max-height:560px; overflow-y:auto; border:1px solid var(--border);
+    border-radius:14px; padding:18px; background:#fff;
+  }
+
   .fmt-btn { padding:7px 15px; font-size:12px; font-weight:400; border:1px solid var(--border);
              cursor:pointer; background:#fff; color:#6A7A8A; transition:all 0.15s; font-family:inherit;
              border-radius:8px; margin-right:4px; }
@@ -559,7 +566,7 @@
 
 <!-- ── Page: Client Selections ────────────────────────────── -->
 <div id="pageSelections" style="display:none;width:100%">
-<div style="padding:32px 32px;width:100%">
+<div style="padding:32px 32px 80px;width:100%">
 
   <div style="margin-bottom:24px">
     <div class="eyebrow" style="margin-bottom:6px">client selections</div>
@@ -1303,7 +1310,7 @@ function renderFeedbackPrompt(container, logId) {
   if (!container) return;
   if (!logId) { container.innerHTML = ''; return; }
   container.innerHTML = `
-    <div class="feedback-widget" data-log-id="${logId}" style="background:#fff;border:1px solid var(--border);border-radius:18px;padding:18px 20px;margin-top:16px">
+    <div class="feedback-widget" data-log-id="${logId}" style="background:#fff;border:1px solid var(--border);border-radius:18px;padding:18px 20px;margin-top:28px;margin-bottom:24px">
       <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px">How useful was this result?</div>
       <div class="fb-scores" style="display:flex;gap:6px;margin-bottom:10px">
         <button type="button" class="fb-score-btn" data-score="1" onclick="setFeedbackScore(this)">1</button>
