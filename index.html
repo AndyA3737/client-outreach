@@ -283,7 +283,7 @@
   <div class="text-sm mb-8" style="color:var(--muted)">Select a server and tenant to load your data</div>
 
   <!-- Server toggle -->
-  <div class="flex rounded-xl overflow-hidden mb-5" style="border:2px solid var(--border);width:300px">
+  <div class="flex rounded-xl overflow-hidden mb-5" style="border:2px solid var(--border);width:400px">
     <button id="btnBeta" onclick="setServer('BETA')"
       style="flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;background:var(--navy);color:#fff;transition:all 0.15s">
       BETA
@@ -295,6 +295,10 @@
     <button id="btnLive" onclick="setServer('LIVE')"
       style="flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;background:transparent;color:var(--muted);transition:all 0.15s">
       LIVE
+    </button>
+    <button id="btnSuperdrug" onclick="setServer('SUPERDRUG')"
+      style="flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;background:transparent;color:var(--muted);transition:all 0.15s">
+      SUPERDRUG
     </button>
   </div>
 
@@ -2760,8 +2764,8 @@ let selectedAccountCode = '';
 function setServer(s) {
   selectedServer = s;
   const base = 'flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;transition:all 0.15s;';
-  const _bg  = { BETA:'var(--navy)', DEMO:'#D97706', LIVE:'#3A7A50' };
-  ['BETA','DEMO','LIVE'].forEach(srv => {
+  const _bg  = { BETA:'var(--navy)', DEMO:'#D97706', LIVE:'#3A7A50', SUPERDRUG:'#9D1F6E' };
+  ['BETA','DEMO','LIVE','SUPERDRUG'].forEach(srv => {
     const btn = document.getElementById('btn' + srv.charAt(0) + srv.slice(1).toLowerCase());
     if (btn) btn.style.cssText = base + (s === srv
       ? `background:${_bg[srv]};color:#fff`
@@ -2871,7 +2875,7 @@ function loadTenant() {
   document.getElementById('analysisInput').dispatchEvent(new Event('input'));
   const badge = document.getElementById('serverBadge');
   badge.textContent   = selectedServer;
-  badge.style.background = selectedServer === 'LIVE' ? '#3A7A50' : selectedServer === 'DEMO' ? '#D97706' : 'rgba(255,255,255,0.12)';
+  badge.style.background = selectedServer === 'LIVE' ? '#3A7A50' : selectedServer === 'DEMO' ? '#D97706' : selectedServer === 'SUPERDRUG' ? '#9D1F6E' : 'rgba(255,255,255,0.12)';
   initLoadingCard();
   fetchData();
 }
@@ -3200,7 +3204,7 @@ async function init() {
     document.getElementById('selectedSalonLabel').textContent = displayLabel;
     const badge = document.getElementById('serverBadge');
     badge.textContent      = selectedServer;
-    badge.style.background = selectedServer === 'LIVE' ? '#3A7A50' : selectedServer === 'DEMO' ? '#D97706' : 'rgba(255,255,255,0.12)';
+    badge.style.background = selectedServer === 'LIVE' ? '#3A7A50' : selectedServer === 'DEMO' ? '#D97706' : selectedServer === 'SUPERDRUG' ? '#9D1F6E' : 'rgba(255,255,255,0.12)';
     fetchData();
   } catch (e) {
     window.location.href = '/login';

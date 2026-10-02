@@ -437,12 +437,16 @@ def _parse_bool(v, default=True):
 def _saloniq_login(account_code, username, password):
     """Validate credentials via the SalonIQ Aria LogOn API.
     Returns (tenant_id, server, reports_inc_vat) on success, or (None, None, True) on failure.
-    GRT001 routes to the BETA (greathairhub) server; all others go to LIVE (apihub).
+    GRT001 routes to the BETA (greathairhub) server, DEM001 to DEMO (demohub),
+    SDG001 to SUPERDRUG (superdrug); all others go to LIVE (apihub).
     reports_inc_vat reflects the tenant's ReportsIncVat setting — used to set the
     default position of the VAT toggle on the Data Analysis screen.
     """
     _ac = account_code.strip().upper()
-    server = 'BETA' if _ac == 'GRT001' else 'DEMO' if _ac == 'DEM001' else 'LIVE'
+    server = ('BETA'      if _ac == 'GRT001' else
+              'DEMO'      if _ac == 'DEM001' else
+              'SUPERDRUG' if _ac == 'SDG001' else
+              'LIVE')
     srv    = SERVERS[server]
     today  = date.today()
     fmt    = srv['date_fmt']
@@ -532,6 +536,7 @@ SMS_SALON_ID  = os.environ.get('SMS_SALON_ID',  '')   # fallback Salonid for SMS
 SMS_PATH_BETA = os.environ.get('SMS_PATH_BETA', '/Wella/SendSMS')
 SMS_PATH_LIVE = os.environ.get('SMS_PATH_LIVE', '/Wella/SendSMS')
 SMS_PATH_DEMO = os.environ.get('SMS_PATH_DEMO', '/Wella/SendSMS')
+SMS_PATH_SUPERDRUG = os.environ.get('SMS_PATH_SUPERDRUG', '/Wella/SendSMS')
 
 EMAIL_TOKEN         = os.environ.get('EMAIL_TOKEN',         '1166554')
 EMAIL_HTML_BASE_URL = os.environ.get('EMAIL_HTML_BASE_URL', '')  # override per-server HTML email URL
@@ -562,6 +567,15 @@ SERVERS = {
         "html_email_base":"https://demohub.saloniq.co.uk/api/SendHTMLEmail",
         "token":          "ACD7636F-D6D5-45AB-92FC-785D4904ADA5",
         "default_tenant": "1E7D7624-FEB7-4950-A6BE-5FBB1498EE39",
+        "date_fmt":       "%d/%m/%Y",
+    },
+    "SUPERDRUG": {
+        "base":           "https://superdrug.saloniq.co.uk/api/GETAPIReport",
+        "sms_base":       "https://superdrug.saloniq.co.uk" + SMS_PATH_SUPERDRUG,
+        "email_base":     "https://superdrug.saloniq.co.uk/api/SendEmail",
+        "html_email_base":"https://superdrug.saloniq.co.uk/api/SendHTMLEmail",
+        "token":          "cb4dbeea-75b0-4706-bb4f-06d85852ee35",
+        "default_tenant": "5d1f49fb-dc8b-43ec-adb8-d35f44751ac7",
         "date_fmt":       "%d/%m/%Y",
     },
 }
