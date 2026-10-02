@@ -112,7 +112,7 @@
     border-radius:14px; padding:18px; background:#fff;
   }
 
-  .fmt-btn { padding:7px 15px; font-size:12px; font-weight:400; border:1px solid var(--border);
+  .fmt-btn { padding:6px 12px; font-size:12px; font-weight:400; border:1px solid var(--border);
              cursor:pointer; background:#fff; color:#6A7A8A; transition:all 0.15s; font-family:inherit;
              border-radius:8px; margin-right:4px; }
   .fmt-btn:hover  { border-color:#B0C8B8; color:var(--green-d); }
@@ -122,6 +122,9 @@
              border-radius:11px; padding:12px 14px; font-size:12px; cursor:pointer;
              font-family:inherit; transition:all 0.15s; text-align:left; display:block; line-height:1.45; }
   .eg-chip:hover { background:#F2F8F4; border-color:var(--green); transform:translateY(-1px); }
+  #promptGrid .eg-chip { padding:5px 12px; border-width:1px; border-radius:20px; white-space:nowrap;
+                         flex-shrink:0; line-height:1.4; background:#fff; }
+  #promptGrid .eg-chip:hover { transform:none; }
 
   .btn-copy { background:#F6F8FB; color:var(--muted); border:1px solid var(--border);
               border-radius:8px; padding:4px 10px; font-size:12px; cursor:pointer; transition:all 0.15s; white-space:nowrap; font-family:inherit; }
@@ -145,7 +148,7 @@
              font-weight:600; font-family:'Helvetica Neue',Helvetica,system-ui,sans-serif; }
 
   .prompt-cat-btn { background:#F6F8FB; border:1px solid var(--border); border-radius:20px;
-                    padding:6px 14px; font-size:12px; color:#6A7A8A; cursor:pointer;
+                    padding:5px 12px; font-size:12px; color:#6A7A8A; cursor:pointer;
                     transition:all 0.15s; white-space:nowrap; font-family:inherit; font-weight:400; }
   .prompt-cat-btn:hover { background:#F2F8F4; border-color:#B0C8B8; color:var(--green-d); }
   .prompt-cat-btn.active { background:var(--navy); border-color:var(--navy); color:#fff; font-weight:500; }
@@ -222,7 +225,11 @@
     #pageAnalysis > div  { padding:20px 16px 90px !important; }
     #pageSelections > div { padding:20px 16px 40px !important; }
 
-    #promptGrid { grid-template-columns:1fr 1fr !important; }
+    #askRow { flex-wrap:wrap; }
+    #askControls { width:100%; justify-content:space-between; }
+    #promptRow { flex-wrap:wrap; }
+    #promptRow > div:nth-child(2) { display:none; }
+    #promptGrid { flex-basis:100%; }
 
     .fmt-btn { padding:6px 10px !important; font-size:11px !important; margin-right:3px !important; }
 
@@ -244,7 +251,6 @@
   }
 
   @media (max-width: 480px) {
-    #promptGrid { grid-template-columns:1fr !important; }
     .fmt-btn { padding:5px 8px !important; font-size:10px !important; }
   }
 
@@ -645,12 +651,19 @@
 <div id="pageAnalysis" style="display:none;width:100%;min-width:0;box-sizing:border-box">
 <div style="padding:24px 32px 80px;width:100%;box-sizing:border-box">
 
-  <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:10px;flex-wrap:wrap">
-    <div>
-      <h2 style="font-size:20px;margin-bottom:2px">Data Analysis</h2>
-      <p style="color:var(--muted);font-size:12px">Ask Aria anything about your salon data — choose how you'd like the answer presented.</p>
+  <!-- Compact header: title + caveat pill on the left, VAT / download / usage on the right -->
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;flex-wrap:wrap">
+    <div style="display:flex;align-items:center;gap:12px;min-width:0;flex-wrap:wrap">
+      <h2 style="font-size:18px;margin:0;white-space:nowrap">Data Analysis</h2>
+      <span title="AI results are indicative, not definitive. Aria analyses your data and highlights patterns, but figures may not match your back-office reports exactly — always verify important numbers before acting on them."
+            style="background:#F4FAF5;border:1px solid #C0DECA;border-radius:999px;padding:3px 10px;font-size:11px;color:#4A6A52;white-space:nowrap;cursor:help">
+        ⚠️ <strong style="color:#2A5A3A">AI results are indicative</strong> — verify key figures before acting
+      </span>
     </div>
-    <div style="display:flex;align-items:center;gap:18px;flex-shrink:0">
+    <div style="display:flex;align-items:center;gap:14px;flex-shrink:0">
+      <div id="usageBar" style="display:none;flex-shrink:0;font-size:11px;color:var(--muted);white-space:nowrap">
+        <span id="usageDetails"></span> · <span id="usageCost" style="font-weight:600;color:var(--green)"></span>
+      </div>
       <div id="vatToggleWrap" style="display:flex;align-items:center;gap:8px" title="Toggle whether monetary figures include VAT. Applies to new questions.">
         <span id="vatToggleLabel" style="font-size:12px;color:var(--text);font-weight:600;white-space:nowrap">Including VAT</span>
         <button id="vatToggleBtn" onclick="toggleVatMode()" role="switch" aria-checked="true" aria-label="Include VAT in figures"
@@ -659,55 +672,42 @@
         </button>
       </div>
       <button id="downloadDataBtn" onclick="downloadAnalysisData()" title="Download the aggregated data Aria uses, as an Excel workbook — check it against SalonIQ directly"
-              style="background:#fff;border:1px solid var(--border);color:var(--text);border-radius:9px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;white-space:nowrap;flex-shrink:0;transition:all 0.15s"
+              style="background:#fff;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:5px 11px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;white-space:nowrap;flex-shrink:0;transition:all 0.15s"
               onmouseover="this.style.borderColor='var(--green)';this.style.color='var(--green)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text)'">
-        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Download Data
       </button>
-      <div id="usageBar" style="display:none;flex-shrink:0;text-align:right">
-        <div class="eyebrow" style="margin-bottom:3px">Session usage</div>
-        <div id="usageDetails" style="font-size:12px;color:var(--text)"></div>
-        <div id="usageCost" style="font-size:12px;font-weight:600;color:var(--green);margin-top:2px"></div>
-      </div>
     </div>
   </div>
 
-  <!-- Alert bar — below heading -->
-  <div style="background:#F4FAF5;border:1px solid #C0DECA;border-radius:10px;padding:7px 12px;display:flex;align-items:center;gap:8px;margin-bottom:12px">
-    <span style="font-size:12px;flex-shrink:0">⚠️</span>
-    <span style="font-size:11px;color:#4A6A52;line-height:1.45"><strong style="color:#2A5A3A">AI results are indicative, not definitive.</strong> Aria analyses your data and highlights patterns, but figures may not match your back-office reports exactly — always verify important numbers before acting on them.</span>
-  </div>
-
-  <!-- Question input card — Ask Aria header + textarea + format/analyse toolbar -->
-  <div style="background:#fff;border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:6px">
-    <div style="padding:10px 16px 0;display:flex;align-items:center;gap:8px">
-      <div style="width:9px;height:9px;background:var(--green);border-radius:50%;flex-shrink:0"></div>
-      <span style="font-size:12px;font-weight:500;color:var(--green)">Ask Aria</span>
-    </div>
-    <textarea id="analysisInput" placeholder="Ask anything about your salon data…"
-              style="width:100%;padding:10px 16px 12px;border:none;font-size:14px;resize:none;background:transparent;color:var(--text);font-family:inherit;outline:none;height:56px;line-height:1.5;display:block"
+  <!-- Question input — single row: textarea + format buttons + Analyse -->
+  <div id="askRow" style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:6px 6px 6px 14px;display:flex;align-items:center;gap:10px;margin-bottom:8px">
+    <div style="width:8px;height:8px;background:var(--green);border-radius:50%;flex-shrink:0"></div>
+    <textarea id="analysisInput" rows="1" placeholder="Ask Aria anything about your salon data…  (⌘ + Enter to submit)"
+              style="flex:1;min-width:0;padding:7px 0;border:none;font-size:14px;resize:none;background:transparent;color:var(--text);font-family:inherit;outline:none;height:34px;max-height:90px;line-height:1.4;display:block"
+              oninput="this.style.height='34px';this.style.height=Math.min(this.scrollHeight,90)+'px'"
               onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey))runAnalysis()"></textarea>
-    <div style="padding:8px 12px;border-top:1px solid var(--border);display:flex;align-items:center;gap:6px">
-      <div style="flex:1;display:flex;gap:5px">
+    <div id="askControls" style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+      <div style="display:flex">
         <button onclick="setAnalysisFmt('dashboard')" id="fmtDashboard" class="fmt-btn active">Dashboard</button>
         <button onclick="setAnalysisFmt('list')"      id="fmtList"      class="fmt-btn">List / Grid</button>
         <button onclick="setAnalysisFmt('report')"    id="fmtReport"    class="fmt-btn">Report</button>
         <button onclick="setAnalysisFmt('chart')"     id="fmtChart"     class="fmt-btn">Chart</button>
       </div>
-      <button onclick="runAnalysis()" id="analyseBtn" class="btn-teal" style="height:34px;padding:0 20px;border-radius:9px;flex-shrink:0">Analyse →</button>
+      <button onclick="runAnalysis()" id="analyseBtn" class="btn-teal" style="height:32px;padding:0 18px;border-radius:8px;flex-shrink:0">Analyse →</button>
     </div>
   </div>
-  <div style="font-size:11px;color:var(--muted);margin-bottom:10px;padding-left:2px">⌘ + Enter to submit</div>
 
-  <!-- Category tabs + 6-card prompt grid -->
-  <div style="margin-bottom:12px">
-    <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">
+  <!-- Category tabs + suggested prompts on a single row -->
+  <div id="promptRow" style="display:flex;align-items:center;gap:10px;margin-bottom:12px;min-width:0">
+    <div style="display:flex;gap:4px;flex-shrink:0">
       <button class="prompt-cat-btn active" data-cat="Revenue"  onclick="switchPromptCat('Revenue')">Revenue</button>
       <button class="prompt-cat-btn"        data-cat="Clients"  onclick="switchPromptCat('Clients')">Clients</button>
       <button class="prompt-cat-btn"        data-cat="Team"     onclick="switchPromptCat('Team')">Team</button>
       <button class="prompt-cat-btn"        data-cat="Bookings" onclick="switchPromptCat('Bookings')">Bookings</button>
     </div>
-    <div id="promptGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px"></div>
+    <div style="width:1px;height:20px;background:var(--border);flex-shrink:0"></div>
+    <div id="promptGrid" style="display:flex;gap:6px;overflow-x:auto;min-width:0;flex:1;scrollbar-width:thin;padding-bottom:2px"></div>
   </div>
 
   <!-- Results -->
@@ -1971,6 +1971,7 @@ async function replayAnalysis(id) {
   const item = _historyCache[id];
   if (!item || !item.result_json) return;
   document.getElementById('analysisInput').value = item.question;
+  document.getElementById('analysisInput').dispatchEvent(new Event('input'));
   document.getElementById('analysisResults').innerHTML = '';
   document.getElementById('followupResult').innerHTML  = '';
   setAnalysisFmt(item.format || 'dashboard');
@@ -2133,6 +2134,7 @@ function switchPromptCat(cat) {
 
 function useEgPrompt(btn) {
   document.getElementById('analysisInput').value = btn.textContent.trim();
+  document.getElementById('analysisInput').dispatchEvent(new Event('input'));
   document.getElementById('analysisInput').focus();
 }
 
@@ -2851,6 +2853,7 @@ function loadTenant() {
   // floating button removed
   _lastAnalysis = null;
   document.getElementById('analysisInput').value = '';
+  document.getElementById('analysisInput').dispatchEvent(new Event('input'));
   const badge = document.getElementById('serverBadge');
   badge.textContent   = selectedServer;
   badge.style.background = selectedServer === 'LIVE' ? '#3A7A50' : selectedServer === 'DEMO' ? '#D97706' : 'rgba(255,255,255,0.12)';
