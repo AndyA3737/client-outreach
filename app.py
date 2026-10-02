@@ -574,7 +574,7 @@ SERVERS = {
         "sms_base":       "https://superdrug.saloniq.co.uk" + SMS_PATH_SUPERDRUG,
         "email_base":     "https://superdrug.saloniq.co.uk/api/SendEmail",
         "html_email_base":"https://superdrug.saloniq.co.uk/api/SendHTMLEmail",
-        "token":          "cb4dbeea-75b0-4706-bb4f-06d85852ee35",
+        "token":          "ACD7636F-D6D5-45AB-92FC-785D4904ADA5",
         "default_tenant": "5d1f49fb-dc8b-43ec-adb8-d35f44751ac7",
         "date_fmt":       "%d/%m/%Y",
     },
