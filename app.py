@@ -547,7 +547,7 @@ SERVERS = {
         "sms_base":       "https://greathairhub.saloniq.co.uk" + SMS_PATH_BETA,
         "email_base":     "https://greathairhub.saloniq.co.uk/api/SendEmail",
         "html_email_base":"https://greathairhub.saloniq.co.uk/api/SendHTMLEmail",
-        "token":          "ACD7636F-D6D5-45AB-92FC-785D4904ADA5",
+        "token":          os.environ.get("BETA_TOKEN", ""),
         "default_tenant": "1E7D7624-FEB7-4950-A6BE-5FBB1498EE39",
         "date_fmt":       "%d/%m/%Y",
     },
@@ -556,7 +556,7 @@ SERVERS = {
         "sms_base":       "https://apihub.saloniq.co.uk" + SMS_PATH_LIVE,
         "email_base":     "https://apihub.saloniq.co.uk/api/SendEmail",
         "html_email_base":"https://apihub.saloniq.co.uk/api/SendHTMLEmail",
-        "token":          "517a41d9-48e3-4af7-ae6c-0e30688f9325",
+        "token":          os.environ.get("LIVE_TOKEN", ""),
         "default_tenant": "1E7D7624-FEB7-4950-A6BE-5FBB1498EE39",
         "date_fmt":       "%d/%m/%Y",
     },
@@ -565,7 +565,7 @@ SERVERS = {
         "sms_base":       "https://demohub.saloniq.co.uk" + SMS_PATH_DEMO,
         "email_base":     "https://demohub.saloniq.co.uk/api/SendEmail",
         "html_email_base":"https://demohub.saloniq.co.uk/api/SendHTMLEmail",
-        "token":          "ACD7636F-D6D5-45AB-92FC-785D4904ADA5",
+        "token":          os.environ.get("DEMO_TOKEN", ""),
         "default_tenant": "1E7D7624-FEB7-4950-A6BE-5FBB1498EE39",
         "date_fmt":       "%d/%m/%Y",
     },
@@ -574,11 +574,15 @@ SERVERS = {
         "sms_base":       "https://superdrug.saloniq.co.uk" + SMS_PATH_SUPERDRUG,
         "email_base":     "https://superdrug.saloniq.co.uk/api/SendEmail",
         "html_email_base":"https://superdrug.saloniq.co.uk/api/SendHTMLEmail",
-        "token":          "cb4dbeea-75b0-4706-bb4f-06d85852ee35",
+        "token":          os.environ.get("SUPERDRUG_TOKEN", ""),
         "default_tenant": "5d1f49fb-dc8b-43ec-adb8-d35f44751ac7",
         "date_fmt":       "%d/%m/%Y",
     },
 }
+
+for _srv_name, _srv in SERVERS.items():
+    if not _srv["token"]:
+        print(f"[config] WARNING: {_srv_name}_TOKEN is not set — {_srv_name} API calls will fail", flush=True)
 
 _cache, _cache_ts = {}, {}
 CACHE_TTL = 3600
