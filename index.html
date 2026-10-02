@@ -112,6 +112,21 @@
     border-radius:14px; padding:18px; background:#fff;
   }
 
+  /* Feedback UI temporarily hidden — rendering code kept intact so it can be re-enabled
+     by removing this rule. */
+  #analysisResultsFeedback, #followupResultFeedback { display:none !important; }
+
+  /* Desktop: Data Analysis page fills the scroller and the results box takes all
+     remaining height (mobile keeps the 38vh cap above). */
+  @media (min-width: 769px) {
+    #pageAnalysis { height:100%; }
+    #pageAnalysis > div { height:100%; display:flex; flex-direction:column; padding-bottom:16px !important; }
+    #pageAnalysis > div > * { flex-shrink:0; }
+    #pageAnalysis #analysisResults:not(:empty), #pageAnalysis #followupResult:not(:empty) {
+      flex:1 1 0; min-height:200px; max-height:none;
+    }
+  }
+
   .fmt-btn { padding:6px 12px; font-size:12px; font-weight:400; border:1px solid var(--border);
              cursor:pointer; background:#fff; color:#6A7A8A; transition:all 0.15s; font-family:inherit;
              border-radius:8px; margin-right:4px; }
