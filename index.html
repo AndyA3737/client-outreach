@@ -276,42 +276,6 @@
 </head>
 <body>
 
-<!-- Tenant selector (shown first) -->
-<div id="tenantSelector" style="position:fixed;inset:0;background:var(--bg);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:110;">
-  <img src="https://www.saloniq.com/img/logo.svg" alt="SalonIQ" class="h-9 mb-5">
-  <div class="text-3xl font-extrabold mb-1" style="color:var(--heading);letter-spacing:-0.02em">SalonIQ <span style="color:var(--green)">Aria</span></div>
-  <div class="text-sm mb-8" style="color:var(--muted)">Select a server and tenant to load your data</div>
-
-  <!-- Server toggle -->
-  <div class="flex rounded-xl overflow-hidden mb-5" style="border:2px solid var(--border);width:400px">
-    <button id="btnBeta" onclick="setServer('BETA')"
-      style="flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;background:var(--navy);color:#fff;transition:all 0.15s">
-      BETA
-    </button>
-    <button id="btnDemo" onclick="setServer('DEMO')"
-      style="flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;background:transparent;color:var(--muted);transition:all 0.15s">
-      DEMO
-    </button>
-    <button id="btnLive" onclick="setServer('LIVE')"
-      style="flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;background:transparent;color:var(--muted);transition:all 0.15s">
-      LIVE
-    </button>
-    <button id="btnSuperdrug" onclick="setServer('SUPERDRUG')"
-      style="flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;background:transparent;color:var(--muted);transition:all 0.15s">
-      SUPERDRUG
-    </button>
-  </div>
-
-  <div style="width:380px;max-width:90vw">
-    <label class="block text-xs font-semibold mb-2 uppercase tracking-widest" style="color:var(--muted)">Tenant</label>
-    <select id="tenantSelect" class="w-full mb-4" style="width:100%" onchange="document.getElementById('loadTenantBtn').disabled=!this.value">
-      <option value="">— Select a tenant —</option>
-    </select>
-    <button id="loadTenantBtn" onclick="loadTenant()" class="btn-teal w-full" style="width:100%;padding:12px;font-size:15px" disabled>Load Data →</button>
-  </div>
-  <div id="tenantError" class="text-red-500 text-sm mt-4" style="display:none"></div>
-</div>
-
 <!-- Loading overlay (shown during data fetch) -->
 <div id="loadingOverlay" style="position:fixed;inset:0;background:rgba(238,244,245,0.97);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:100;">
   <div id="loadingCard" style="background:#fff;border-radius:16px;padding:32px 40px;min-width:360px;max-width:440px;box-shadow:0 4px 32px rgba(0,0,0,0.12);border:1px solid var(--border)">
@@ -2755,51 +2719,11 @@ function exportCSV() {
   a.click();
 }
 
-// ── Server + Tenant selection ─────────────────────────────────
+// ── Session tenant ─────────────────────────────────
 let selectedServer     = 'BETA';
 let selectedTenantId    = null;
 let selectedTenantName  = null;
 let selectedAccountCode = '';
-
-function setServer(s) {
-  selectedServer = s;
-  const base = 'flex:1;padding:10px 0;font-size:13px;font-weight:700;border:none;cursor:pointer;transition:all 0.15s;';
-  const _bg  = { BETA:'var(--navy)', DEMO:'#D97706', LIVE:'#3A7A50', SUPERDRUG:'#EE008E' };
-  ['BETA','DEMO','LIVE','SUPERDRUG'].forEach(srv => {
-    const btn = document.getElementById('btn' + srv.charAt(0) + srv.slice(1).toLowerCase());
-    if (btn) btn.style.cssText = base + (s === srv
-      ? `background:${_bg[srv]};color:#fff`
-      : `background:transparent;color:var(--muted)`);
-  });
-  initTenants();
-}
-
-async function initTenants() {
-  const sel   = document.getElementById('tenantSelect');
-  const errEl = document.getElementById('tenantError');
-  sel.innerHTML       = '<option value="">Loading salons…</option>';
-  errEl.style.display = 'none';
-  document.getElementById('loadTenantBtn').disabled = true;
-  try {
-    const res = await fetch(`/api/tenants?server=${selectedServer}`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const tenants = await res.json();
-    if (!tenants.length) throw new Error('No salons returned from API');
-    sel.innerHTML = '<option value="">— Select a tenant —</option>';
-    tenants.forEach(t => {
-      const opt        = document.createElement('option');
-      opt.value        = t.id;
-      opt.dataset.code = t.code || '';
-      opt.dataset.name = t.name || '';
-      opt.textContent  = t.code ? `${t.code} – ${t.name}` : t.name;
-      sel.appendChild(opt);
-    });
-  } catch (err) {
-    sel.innerHTML       = '<option value="">Failed to load salons</option>';
-    errEl.textContent   = 'Could not load salon list: ' + err.message;
-    errEl.style.display = 'block';
-  }
-}
 
 // ── Loading progress card ─────────────────────────────────────
 const LOAD_STEPS = [
@@ -2849,43 +2773,6 @@ function renderLoadingSteps(activeIdx) {
       <span style="font-size:13.5px;${labelStyle}">${s.label}</span>
     </div>`;
   }).join('');
-}
-
-function loadTenant() {
-  const sel = document.getElementById('tenantSelect');
-  if (!sel.value) return;
-  const selectedOpt   = sel.options[sel.selectedIndex];
-  selectedTenantId    = sel.value;
-  selectedTenantName  = selectedOpt.dataset.name || selectedOpt.textContent;
-  selectedAccountCode = selectedOpt.dataset.code || '';
-  const displayLabel  = selectedAccountCode ? `${selectedAccountCode} – ${selectedTenantName}` : selectedTenantName;
-  fetch('/api/log', { method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ event_type:'salon_selected', detail: selectedTenantName, account_code: selectedAccountCode }) }).catch(()=>{});
-  document.getElementById('tenantSelector').style.display   = 'none';
-  document.getElementById('loadingOverlay').style.display   = 'flex';
-  document.getElementById('selectedSalonLabel').textContent = displayLabel;
-  // Clear previous tenant's analysis results so stale data is never shown
-  document.getElementById('analysisResults').innerHTML  = '';
-  document.getElementById('followupResult').innerHTML   = '';
-  const _fb = document.getElementById('followupBar');
-  if (_fb) _fb.style.display = 'none';
-  // floating button removed
-  _lastAnalysis = null;
-  document.getElementById('analysisInput').value = '';
-  document.getElementById('analysisInput').dispatchEvent(new Event('input'));
-  const badge = document.getElementById('serverBadge');
-  badge.textContent   = selectedServer;
-  badge.style.background = selectedServer === 'LIVE' ? '#3A7A50' : selectedServer === 'DEMO' ? '#D97706' : selectedServer === 'SUPERDRUG' ? '#EE008E' : 'rgba(255,255,255,0.12)';
-  initLoadingCard();
-  fetchData();
-}
-
-function changeSalon() {
-  document.getElementById('mainContent').style.display     = 'none';
-  document.getElementById('tenantSelector').style.display  = 'flex';
-  // Reset stylist filter options ready for next load
-  const stylistSel = document.getElementById('stylistFilter');
-  stylistSel.innerHTML = '<option value="">All Stylists</option>';
 }
 
 // ── Data fetch (background job + polling) ────────────────────
@@ -2968,7 +2855,10 @@ async function fetchData(force = false) {
       card.innerHTML = `
         <div style="color:#991B1B;font-weight:700;font-size:1rem;margin-bottom:8px">Failed to load data</div>
         <div style="color:#A0AEBC;font-size:13px">${escHtml(err.message)}</div>
-        <button onclick="document.getElementById('loadingOverlay').style.display='none';document.getElementById('tenantSelector').style.display='flex';" class="btn-teal mt-6">← Back to Salon List</button>`;
+        <div style="display:flex;gap:10px;justify-content:center;margin-top:24px">
+          <button onclick="window.location.reload()" class="btn-teal">↻ Try again</button>
+          <button onclick="logOut()" class="btn-teal" style="background:transparent;color:var(--muted);border:1px solid var(--border, #ccc)">Log out</button>
+        </div>`;
     }
   }
 }
@@ -3200,7 +3090,6 @@ async function init() {
     } catch (_) {}
 
     // Set header labels — overlay shown only if a fresh build is needed
-    document.getElementById('tenantSelector').style.display   = 'none';
     document.getElementById('selectedSalonLabel').textContent = displayLabel;
     const badge = document.getElementById('serverBadge');
     badge.textContent      = selectedServer;

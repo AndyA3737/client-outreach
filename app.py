@@ -494,6 +494,12 @@ def _session_role():
     """Return the role stored in the Flask session, or None."""
     return flask_session.get('role')
 
+def _session_tenant():
+    """Return (tenant_id, server) from the login session. The client never
+    chooses its tenant or server — both are fixed at login."""
+    return (flask_session.get('tenant_id') or None,
+            flask_session.get('server') or 'BETA')
+
 def _login_redirect():
     """Redirect to /login, preserving the current URL as the 'next' param."""
     next_url = request.full_path if request.query_string else request.path
@@ -1759,8 +1765,7 @@ def index():
 def test_sms():
     """Fire a single SMS and return the full raw API response for debugging."""
     body      = request.get_json(silent=True) or {}
-    tenant_id = body.get('tenant_id') or None
-    server    = body.get('server', 'BETA')
+    tenant_id, server = _session_tenant()
     client_id = body.get('client_id', '').upper()
     message   = body.get('message', 'Test SMS from SalonIQ Aria')
 
@@ -1800,8 +1805,7 @@ def test_sms():
 def send_sms_blast():
     body      = request.get_json(silent=True) or {}
     messages  = body.get('messages', [])   # [{client_id, name, mobile, message}]
-    tenant_id = body.get('tenant_id') or None
-    server    = body.get('server', 'BETA')
+    tenant_id, server = _session_tenant()
 
     if not messages:
         return jsonify(error="No messages provided"), 400
@@ -1885,8 +1889,7 @@ def send_email_blast():
     cta_text    = body.get('cta_text', '')
     cta_url     = body.get('cta_url', '')
     image_url   = body.get('image_url', '')
-    tenant_id   = body.get('tenant_id') or None
-    server      = body.get('server', 'BETA')
+    tenant_id, server = _session_tenant()
 
     if not clients:
         return jsonify(error="No recipients provided"), 400
@@ -2018,7 +2021,7 @@ def icon_512():
 @app.route("/api/tenants")
 @require_auth
 def tenants():
-    server = request.args.get("server", "BETA")
+    own_tid, server = _session_tenant()
     rows   = fetch("XXX_Export_Admin_BenchMarks_TenantList", "01/01/2026", "01/01/2026", server=server)
     result = []
     for r in rows:
@@ -2028,7 +2031,7 @@ def tenants():
                 or r.get("name") or "")
         code = (r.get("AccountCode") or r.get("Account") or r.get("Code")
                 or r.get("code") or "")
-        if tid:
+        if tid and own_tid and str(tid).upper() == own_tid.upper():
             result.append({"id": str(tid), "name": name, "code": code})
     result.sort(key=lambda x: x["code"])
     return jsonify(result)
@@ -2086,10 +2089,9 @@ def _response_from_cache(ctx):
 @require_auth
 def data():
     """Start a background job and return its ID immediately."""
-    tenant_id    = request.args.get("tenant_id") or None
-    server       = request.args.get("server", "BETA")
+    tenant_id, server = _session_tenant()
     tenant_name  = request.args.get("tenant_name", "").strip()
-    account_code = request.args.get("account_code", "").strip()
+    account_code = flask_session.get('account_code', '')
     force        = request.args.get("force", "0") == "1"
     _current_user = flask_session.get('username', '')
 
@@ -2174,8 +2176,7 @@ def job_status(job_id):
 @require_auth
 def debug_utilisation():
     """Try TenantID-only and SalonId combinations to find what returns rows."""
-    server    = request.args.get("server", "BETA")
-    tenant_id = request.args.get("tenant_id") or SERVERS.get(server, SERVERS["BETA"])["default_tenant"]
+    tenant_id, server = _session_tenant()
     ctx = _get_ctx(tenant_id, server) or {}
     known_salon_ids = ctx.get('loaded_salon_ids', [])
     utilisation     = ctx.get('utilisation', [])
@@ -2230,8 +2231,7 @@ def debug_utilisation():
 @app.route("/api/refresh", methods=["POST"])
 @require_auth
 def refresh():
-    server    = request.args.get("server", flask_session.get("server", "BETA"))
-    tenant_id = request.args.get("tenant_id") or flask_session.get("tenant_id") or None
+    tenant_id, server = _session_tenant()
     # Clear low-level API response cache
     prefix    = f"{server}|"
     suffix    = f"|{tenant_id}" if tenant_id else None
@@ -2252,8 +2252,7 @@ def refresh():
 @require_auth
 def search_clients():
     q         = request.args.get("q", "").lower().strip()
-    tenant_id = request.args.get("tenant_id") or None
-    server    = request.args.get("server", "BETA")
+    tenant_id, server = _session_tenant()
     if len(q) < 2:
         return jsonify([])
     ctx    = _get_ctx(tenant_id, server)
@@ -2268,8 +2267,7 @@ def search_clients():
 @require_auth
 def query_clients():
     q         = request.args.get("q", "").strip()
-    tenant_id = request.args.get("tenant_id") or None
-    server    = request.args.get("server", "BETA")
+    tenant_id, server = _session_tenant()
     ctx       = _get_ctx(tenant_id, server)
     if tenant_id and not ctx:
         return jsonify({"error": "Salon data not found — please reload the salon data."}), 400
@@ -3547,8 +3545,7 @@ def analyse():
         question        = (body.get("question") or "").strip()
         fmt             = body.get("format") or "dashboard"
         previous_result = body.get("previous_result")  # optional JSON of prior analysis
-        tenant_id       = body.get("tenant_id") or None
-        server          = body.get("server") or "BETA"
+        tenant_id, server = _session_tenant()
         exclude_vat     = bool(body.get("exclude_vat"))
         ctx             = _get_ctx(tenant_id, server)
         if not question:
@@ -3795,8 +3792,7 @@ def analyse():
 def export_analysis_data():
     """Download the aggregated data fed to the AI as a multi-sheet .xlsx
     workbook, so it can be checked directly against SalonIQ's own reports."""
-    tenant_id   = request.args.get('tenant_id') or None
-    server      = request.args.get('server', 'BETA')
+    tenant_id, server = _session_tenant()
     exclude_vat = request.args.get('exclude_vat', '').strip().lower() in ('1', 'true', 'yes')
     ctx = _get_ctx(tenant_id, server)
     if tenant_id and not ctx:
@@ -3820,7 +3816,7 @@ def export_analysis_data():
 @app.route("/api/history")
 @require_auth
 def get_history():
-    account_code = request.args.get('account_code', '').strip()
+    account_code = flask_session.get('account_code', '')
     type_filter  = request.args.get('type', '').strip()
     if not account_code:
         return jsonify([])
@@ -3862,7 +3858,7 @@ def get_history():
 @app.route("/api/history/<int:history_id>", methods=["DELETE"])
 @require_auth
 def delete_history(history_id):
-    account_code = request.args.get('account_code', '').strip()
+    account_code = flask_session.get('account_code', '')
     try:
         con = _get_db()
         cur = con.cursor()
@@ -3891,7 +3887,7 @@ def delete_history(history_id):
 @app.route("/api/history/<int:history_id>/favorite", methods=["PATCH"])
 @require_auth
 def set_history_favorite(history_id):
-    account_code = request.args.get('account_code', '').strip()
+    account_code = flask_session.get('account_code', '')
     body         = request.get_json(silent=True) or {}
     is_favorite  = bool(body.get('is_favorite'))
     try:
