@@ -2624,7 +2624,25 @@ def _named_client_block(question, all_clients, exclude_vat=False):
     return "\n".join(lines)
 
 
-def build_analysis_context(ctx=None, exclude_vat=False):
+ANALYSIS_MODEL        = "claude-sonnet-4-6"
+# Input-token ceiling for one analysis request (model limit is 1M).
+ANALYSIS_TOKEN_BUDGET = int(os.environ.get("ANALYSIS_TOKEN_BUDGET", "800000"))
+
+# Progressive trimming for very large salons/groups. Level 0 is full detail;
+# each level cuts the per-team-member tables, which grow with headcount.
+#   (team_days, team_weeks, team_months, stylist_cat_months, appt_rows)
+_CONTEXT_TRIM_LEVELS = [
+    (90, 26, 24, 3, 1500),
+    (30, 13, 24, 3, 1500),
+    (0,  13, 12, 1, 1000),
+    (0,  0,  6,  1, 500),
+    (0,  0,  3,  0, 300),
+]
+
+
+def build_analysis_context(ctx=None, exclude_vat=False, trim=0):
+    team_days, team_weeks, team_months, stylist_cat_months, appt_rows = \
+        _CONTEXT_TRIM_LEVELS[min(trim, len(_CONTEXT_TRIM_LEVELS) - 1)]
     money = (lambda v: round(v / _UK_VAT_RATE, 2)) if exclude_vat else (lambda v: v)
     vat_tag = "exVAT" if exclude_vat else "incVAT"
     # Unpack per-tenant context
@@ -2822,14 +2840,17 @@ def build_analysis_context(ctx=None, exclude_vat=False):
         all_months = sorted({mk for months in team_rebook_monthly.values() for mk in months},
                             key=lambda m: (int(m.split()[1]), ["Jan","Feb","Mar","Apr","May","Jun",
                                            "Jul","Aug","Sep","Oct","Nov","Dec"].index(m.split()[0])))
+        all_months = all_months[-team_months:]
         lines += ["",
                   f"OVERALL REBOOKING RATE (2yr, from HasBeenRebooked API field): {_overall_rebook_rate}% "
                   f"({_trm_total_r:,} rebooked out of {_trm_total_v:,} paid visits)",
                   "",
-                  "TEAM MONTHLY STATS (visits, unique clients, revenue, rebooking, requests — actual API data):",
+                  f"TEAM MONTHLY STATS (last {len(all_months)} months — visits, unique clients, revenue, rebooking, requests — actual API data):",
                   "TeamMember," + ",".join(f"{m} Visits,{m} Clients,{m} Revenue,{m} Rebooked,{m} RebookRate%,{m} Requests,{m} ReqRate%" for m in all_months)]
         for name in sorted(team_rebook_monthly):
             months = team_rebook_monthly[name]
+            if not any(m in months for m in all_months):
+                continue
             row = name
             for m in all_months:
                 d = months.get(m, {"visits": 0, "clients": 0, "revenue": 0, "rebooked": 0, "rate": 0, "requests": 0})
@@ -2837,14 +2858,16 @@ def build_analysis_context(ctx=None, exclude_vat=False):
                 row += f",{d['visits']},{d['clients']},£{money(d['revenue'])},{d['rebooked']},{d['rate']}%,{d.get('requests',0)},{req_rate}%"
             lines.append(f"  {row}")
 
-    if team_week_stats:
-        cutoff_wk = (today - timedelta(weeks=26)).isoformat()
+    if team_week_stats and team_weeks:
+        cutoff_wk = (today - timedelta(weeks=team_weeks)).isoformat()
         all_weeks = sorted({wk for periods in team_week_stats.values() for wk in periods if wk >= cutoff_wk})
         if all_weeks:
             lines += ["",
-                      "TEAM WEEKLY STATS (last 26 weeks — visits, unique clients, revenue, rebooked, requests):",
+                      f"TEAM WEEKLY STATS (last {team_weeks} weeks — visits, unique clients, revenue, rebooked, requests):",
                       "TeamMember," + ",".join(f"w/c {w} Visits,Clients,Revenue,Rebooked,Requests,ReqRate%" for w in all_weeks)]
             for name in sorted(team_week_stats):
+                if not any(wk in team_week_stats[name] for wk in all_weeks):
+                    continue
                 row = name
                 for wk in all_weeks:
                     d = team_week_stats[name].get(wk, {"visits": 0, "clients": 0, "revenue": 0, "rebooked": 0, "requests": 0})
@@ -2852,14 +2875,16 @@ def build_analysis_context(ctx=None, exclude_vat=False):
                     row += f",{d['visits']},{d['clients']},£{money(d['revenue'])},{d['rebooked']},{d.get('requests',0)},{req_rate}%"
                 lines.append(f"  {row}")
 
-    if team_day_stats:
-        cutoff_day = (today - timedelta(days=90)).isoformat()
+    if team_day_stats and team_days:
+        cutoff_day = (today - timedelta(days=team_days)).isoformat()
         all_days = sorted({day for periods in team_day_stats.values() for day in periods if day >= cutoff_day})
         if all_days:
             lines += ["",
-                      "TEAM DAILY STATS (last 90 days — visits, unique clients, revenue, rebooked, requests):",
+                      f"TEAM DAILY STATS (last {team_days} days — visits, unique clients, revenue, rebooked, requests):",
                       "TeamMember," + ",".join(f"{day} Visits,Clients,Revenue,Rebooked,Requests,ReqRate%" for day in all_days)]
             for name in sorted(team_day_stats):
+                if not any(day in team_day_stats[name] for day in all_days):
+                    continue
                 row = name
                 for day in all_days:
                     d = team_day_stats[name].get(day, {"visits": 0, "clients": 0, "revenue": 0, "rebooked": 0, "requests": 0})
@@ -2948,7 +2973,7 @@ def build_analysis_context(ctx=None, exclude_vat=False):
             except ValueError:
                 return datetime.min
         appt_events.sort(key=lambda x: _parse_ap_date(x[0]), reverse=True)
-        shown = appt_events[:1500]
+        shown = appt_events[:appt_rows]
         lines += ["", f"APPOINTMENT DETAIL BY STYLIST (last 90 days, most recent {len(shown)} of {len(appt_events)} paid visits) — "
                        "use this for EXACT client counts, revenue, or rebooking rates for a SPECIFIC STYLIST over a CUSTOM "
                        "date range, especially one that doesn't align to a single Mon-Sun week or calendar month (e.g. "
@@ -3098,9 +3123,9 @@ def build_analysis_context(ctx=None, exclude_vat=False):
                 if d and d["revenue"] > 0:
                     lines.append(f"{mk},{cat},£{money(d['revenue']):,},{d['visits']}")
 
-        if team_cat_monthly:
-            recent_months = _sort_months(service_monthly)[:3]
-            lines += ["", "STYLIST REVENUE BY SERVICE CATEGORY (last 3 months, paid bookings only — "
+        if team_cat_monthly and stylist_cat_months:
+            recent_months = _sort_months(service_monthly)[:stylist_cat_months]
+            lines += ["", f"STYLIST REVENUE BY SERVICE CATEGORY (last {stylist_cat_months} month(s), paid bookings only — "
                           "use this to answer questions like 'which stylist generated the most revenue "
                           "from colour services this month'):",
                       "Month,Stylist,Category,Revenue£,Visits"]
@@ -3328,6 +3353,19 @@ def build_analysis_context(ctx=None, exclude_vat=False):
                 avail  = round(100 - booked, 1)
                 lines.append(f"{salon},{stylist},{d['future_days']},{d['future_client_mins']},"
                              f"{d['future_avail_mins']},{booked}%,{avail}%")
+
+    if trim:
+        cut = []
+        if team_days < 90:          cut.append(f"TEAM DAILY STATS limited to {team_days} days" if team_days else "TEAM DAILY STATS omitted")
+        if team_weeks < 26:         cut.append(f"TEAM WEEKLY STATS limited to {team_weeks} weeks" if team_weeks else "TEAM WEEKLY STATS omitted")
+        if team_months < 24:        cut.append(f"TEAM MONTHLY STATS limited to {team_months} months")
+        if stylist_cat_months < 3:  cut.append(f"STYLIST REVENUE BY SERVICE CATEGORY limited to {stylist_cat_months} month" if stylist_cat_months else "STYLIST REVENUE BY SERVICE CATEGORY omitted")
+        if appt_rows < 1500:        cut.append(f"APPOINTMENT DETAIL limited to {appt_rows} rows")
+        lines = [f"NOTE: This business is too large to include every detail table in full, so some "
+                 f"per-team-member detail has been reduced: {'; '.join(cut)}. Salon-level totals are "
+                 f"complete. If a question needs per-team-member figures beyond what is shown, say so "
+                 f"plainly and suggest narrowing the question (e.g. a shorter period or a single salon) "
+                 f"rather than estimating.", ""] + lines
 
     return "\n".join(lines)
 
@@ -3676,7 +3714,7 @@ def analyse():
                 # SALON DATA is large but identical for every question against this
                 # tenant — cache it so repeat/follow-up questions in a session only
                 # pay full input-token price for the small per-question block below.
-                context  = build_analysis_context(ctx=ctx, exclude_vat=exclude_vat)
+                ai = _anthropic.Anthropic(api_key=api_key)
                 named_block = _named_client_block(question, ctx.get('all_clients', []), exclude_vat=exclude_vat)
                 prev_block = ""
                 if previous_result:
@@ -3692,25 +3730,54 @@ def analyse():
                     f"{prev_block}"
                     f"\n\nQUESTION: {question}\n\nOutput format: {fmt}"
                 )
-                print(f"[analyse] q={question!r} fmt={fmt} chars={len(context)} "
-                      f"rebook_in_ctx={'TEAM REBOOKING' in context}", flush=True)
+
+                def _request(context):
+                    return dict(
+                        model=ANALYSIS_MODEL,
+                        system=[{"type": "text", "text": system,
+                                 "cache_control": {"type": "ephemeral"}}],
+                        messages=[{
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": f"SALON DATA:\n{context}",
+                                 "cache_control": {"type": "ephemeral"}},
+                                {"type": "text", "text": question_block},
+                            ],
+                        }],
+                    )
+
+                # Large groups can exceed the model's context window — step down
+                # the per-team detail until the prompt fits the token budget.
+                max_trim = len(_CONTEXT_TRIM_LEVELS) - 1
+                trim = 0
+                while True:
+                    context = build_analysis_context(ctx=ctx, exclude_vat=exclude_vat, trim=trim)
+                    try:
+                        n_tokens = ai.messages.count_tokens(**_request(context)).input_tokens
+                    except Exception as ce:
+                        app.logger.warning("count_tokens failed (%s) — estimating from length", ce)
+                        n_tokens = (len(system) + len(context) + len(question_block)) // 3
+                    if n_tokens <= ANALYSIS_TOKEN_BUDGET or trim >= max_trim:
+                        break
+                    trim += 1
+                if n_tokens > ANALYSIS_TOKEN_BUDGET:
+                    raise RuntimeError(
+                        "This business has too much data to analyse in one go, even with detail "
+                        "reduced. Try a narrower question, or contact support.")
+                print(f"[analyse] q={question!r} fmt={fmt} chars={len(context)} tokens={n_tokens} "
+                      f"trim={trim} rebook_in_ctx={'TEAM REBOOKING' in context}", flush=True)
 
                 _jobs[job_id]["step"] = "Asking Aria…"
-                ai  = _anthropic.Anthropic(api_key=api_key)
-                msg = ai.messages.create(
-                    model="claude-sonnet-4-6",
-                    max_tokens=8192,
-                    system=[{"type": "text", "text": system,
-                             "cache_control": {"type": "ephemeral"}}],
-                    messages=[{
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": f"SALON DATA:\n{context}",
-                             "cache_control": {"type": "ephemeral"}},
-                            {"type": "text", "text": question_block},
-                        ],
-                    }],
-                )
+                while True:
+                    try:
+                        msg = ai.messages.create(max_tokens=8192, **_request(context))
+                        break
+                    except _anthropic.BadRequestError as be:
+                        if "prompt is too long" not in str(be) or trim >= max_trim:
+                            raise
+                        trim += 1
+                        app.logger.warning("ANALYSE prompt too long — retrying at trim=%d", trim)
+                        context = build_analysis_context(ctx=ctx, exclude_vat=exclude_vat, trim=trim)
                 text = msg.content[0].text.strip()
                 _cache_write = getattr(msg.usage, 'cache_creation_input_tokens', 0) or 0
                 _cache_read  = getattr(msg.usage, 'cache_read_input_tokens', 0) or 0
